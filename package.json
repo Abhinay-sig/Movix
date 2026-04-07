@@ -1,0 +1,26 @@
+{
+  "name": "mvp",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend-user",
+    "frontend-staff"
+  ],
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently -n backend,user,staff -c blue,green,magenta \"npm -w backend run dev\" \"npm -w frontend-user run dev\" \"npm -w frontend-staff run dev\"",
+    "dev:user": "npm -w frontend-user run dev",
+    "dev:staff": "npm -w frontend-staff run dev",
+    "dev:backend": "npm -w backend run dev",
+    "build": "npm -w frontend-user run build && npm -w frontend-staff run build",
+    "test": "echo \"No tests\" && exit 0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
