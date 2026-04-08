@@ -1,1 +1,118 @@
 @import "tailwindcss";
+
+@theme {
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-500: #60a5fa;
+  --color-lilac-50: #f5f3ff;
+  --color-lilac-100: #ede9fe;
+  --color-mint-50: #ecfdf5;
+  --color-mint-100: #d1fae5;
+  --color-peach-50: #fff7ed;
+  --color-peach-100: #ffedd5;
+  --color-surface: #ffffff;
+  --color-page: #f3f6fb;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, rgba(191, 219, 254, 0.68), transparent 30%),
+      radial-gradient(circle at top right, rgba(233, 213, 255, 0.52), transparent 24%),
+      radial-gradient(circle at 18% 82%, rgba(254, 240, 138, 0.22), transparent 24%),
+      radial-gradient(circle at 84% 74%, rgba(167, 243, 208, 0.28), transparent 24%),
+      linear-gradient(180deg, #fbfdff 0%, #f7f9ff 36%, #f4f7ff 62%, #f8f9fc 100%);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgba(96, 165, 250, 0.22);
+  }
+}
+
+@layer components {
+  .staff-shell {
+    @apply relative min-h-screen overflow-hidden;
+  }
+
+  .staff-shell::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.86), transparent 82%);
+  }
+
+  .staff-panel {
+    @apply rounded-[2rem] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.88),rgba(239,246,255,0.8),rgba(245,243,255,0.82))] shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl;
+  }
+
+  .staff-card {
+    @apply rounded-[1.75rem] border border-slate-200/80 bg-[linear-gradient(160deg,rgba(255,255,255,0.94),rgba(239,246,255,0.86),rgba(255,247,237,0.8))] shadow-[0_18px_55px_rgba(15,23,42,0.07)] transition-all duration-300;
+  }
+
+  .staff-card:hover {
+    @apply -translate-y-1 shadow-[0_24px_70px_rgba(15,23,42,0.10)];
+  }
+
+  .staff-chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-fuchsia-100 bg-[linear-gradient(90deg,rgba(239,246,255,0.95),rgba(245,243,255,0.95),rgba(255,237,213,0.9))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600;
+  }
+
+  .staff-title {
+    @apply text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl;
+  }
+
+  .staff-copy {
+    @apply text-sm leading-6 text-slate-500;
+  }
+
+  .staff-input {
+    @apply w-full rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,255,0.96))] px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-400 focus:-translate-y-0.5 focus:border-fuchsia-200 focus:bg-white focus:ring-4 focus:ring-fuchsia-100/70;
+  }
+
+  .staff-primary {
+    @apply inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-blue-700 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:from-blue-700 hover:via-blue-600 hover:to-sky-500 hover:shadow-[0_18px_40px_rgba(59,130,246,0.25)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .staff-secondary {
+    @apply inline-flex items-center justify-center rounded-2xl border border-pink-100 bg-gradient-to-r from-white via-blue-50 to-orange-50 px-6 py-3.5 text-sm font-semibold text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-fuchsia-200 hover:from-blue-50 hover:via-lilac-50 hover:to-peach-50 hover:text-slate-950;
+  }
+
+  .nav-link {
+    @apply rounded-full px-5 py-2.5 text-sm font-medium text-blue-50/82 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/14 hover:text-white hover:shadow-sm;
+  }
+
+  .nav-chip {
+    @apply inline-flex items-center rounded-full border border-white/16 bg-white/10 px-4 py-2.5 text-sm font-medium text-blue-50/82 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/24 hover:bg-white/16 hover:text-white;
+  }
+
+  .fade-up {
+    animation: fade-up 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

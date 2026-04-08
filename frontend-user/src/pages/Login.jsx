@@ -7,6 +7,7 @@ export default function Login() {
   const { setAuth } = useAuth()
   const nav = useNavigate()
   const loc = useLocation()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
@@ -18,7 +19,7 @@ export default function Login() {
     setLoading(true)
     try {
       const data = await api('/auth/login', { method: 'POST', body: { email, password } })
-      if (data.user?.role !== 'user') throw new Error('Please login in staff portal')
+      if (data.user?.role !== 'user') throw new Error('This account is managed through our partner workspace.')
       setAuth(data)
       nav(loc.state?.from || '/', { replace: true })
     } catch (e2) {
@@ -29,26 +30,93 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-xl p-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-6">Login</h2>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          <input
-            placeholder="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50">{loading ? 'Logging in…' : 'Login'}</button>
-          {err ? <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">{err}</div> : null}
-        </form>
-        <div className="mt-6 text-sm text-gray-600">
-          New user? <Link to="/signup" className="text-blue-600 hover:text-blue-700 font-medium">Create account</Link>
+    <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center px-4 py-8">
+      <div className="page-panel w-full max-w-5xl overflow-hidden">
+        <div className="grid lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="relative hidden overflow-hidden border-r border-white/70 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-600 p-10 text-white lg:block">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.18),transparent_35%)]" />
+            <div className="absolute -left-16 top-20 h-48 w-48 rounded-full bg-white/10 blur-3xl" />
+            <div className="absolute bottom-8 right-4 h-40 w-40 rounded-full bg-blue-200/20 blur-3xl" />
+
+            <div className="relative space-y-6">
+              <div className="hero-chip border-white/15 bg-white/10 text-blue-50">
+                Member Access
+              </div>
+              <div className="space-y-3">
+                <h2 className="text-4xl font-semibold tracking-tight">
+                  Welcome back to your next movie night.
+                </h2>
+                <p className="max-w-md text-sm leading-7 text-blue-50/82">
+                  Sign in to continue your booking, revisit seat selection, and
+                  enjoy a calmer cinema checkout experience.
+                </p>
+              </div>
+
+              <div className="grid gap-3">
+                {['Clean browsing', 'Seat hold protection', 'Fast confirmation'].map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3 backdrop-blur-sm"
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 md:p-10">
+            <div className="mx-auto w-full max-w-md space-y-6">
+              <div className="space-y-2">
+                <div className="hero-chip">Login</div>
+                <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+                  Welcome back
+                </h2>
+                <p className="section-copy">
+                  Sign in to continue browsing shows and managing your bookings.
+                </p>
+              </div>
+
+              {err && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {err}
+                </div>
+              )}
+
+              <form onSubmit={onSubmit} className="space-y-4">
+                <input
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="field-input"
+                />
+
+                <input
+                  placeholder="Password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="field-input"
+                />
+
+                <button disabled={loading} className="primary-button w-full">
+                  {loading ? 'Logging in…' : 'Login'}
+                </button>
+              </form>
+
+              <div className="text-sm text-slate-500">
+                New user?{' '}
+                <Link
+                  to="/signup"
+                  className="font-semibold text-slate-950 transition-colors hover:text-blue-600"
+                >
+                  Create account
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
-
