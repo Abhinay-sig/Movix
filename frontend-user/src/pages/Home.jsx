@@ -114,9 +114,31 @@ export default function Home() {
           {movies.map((m) => (
             <div key={m.id} className="soft-card group overflow-hidden">
               <div className="relative h-52 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-800 to-blue-500">
+                {m.posterUrl ? (
+                  <img
+                    src={m.posterUrl}
+                    alt={m.title}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                ) : null}
+
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/82 via-slate-900/30 to-transparent" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.18),transparent_40%)]" />
                 <div className="absolute -bottom-6 -right-6 h-28 w-28 rounded-full bg-white/20 blur-2xl transition-all duration-300 group-hover:scale-110" />
-                <div className="relative flex h-full items-end p-5">
+
+                <div className="relative flex h-full items-end justify-between p-5">
+                  <div className="max-w-[70%]">
+                    <div className="text-xs uppercase tracking-[0.22em] text-blue-100">
+                      Featured title
+                    </div>
+                    <div className="mt-2 line-clamp-2 text-xl font-semibold text-white">
+                      {m.title}
+                    </div>
+                  </div>
+
                   <div className="rounded-2xl border border-white/20 bg-white/12 px-4 py-3 backdrop-blur-md">
                     <div className="text-xs uppercase tracking-[0.22em] text-blue-100">
                       Duration
@@ -142,7 +164,7 @@ export default function Home() {
                 </div>
 
                 <p className="text-sm leading-6 text-slate-500">
-                  Pick a showtime, select seats, and confirm in just a few taps.
+                  {m.description || 'Pick a showtime, select seats, and confirm in just a few taps.'}
                 </p>
 
                 <Link
