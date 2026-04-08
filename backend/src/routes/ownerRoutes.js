@@ -4,6 +4,8 @@ const { db } = require('../models');
 const {
   createTheater,
   listMyTheaters,
+  listTheaterHalls,
+  listMyMovies,
   createHallWithLayout,
   listMyHalls,
   createShow,
@@ -17,6 +19,9 @@ router.use(requireAuth, requireRole(db.USER_ROLES.OWNER));
 
 router.get('/me/theaters', listMyTheaters);
 router.post('/theaters', createTheater);
+router.get('/theaters/:theaterId/halls', listTheaterHalls);
+
+router.get('/me/movies', listMyMovies);
 
 router.get('/me/halls', listMyHalls);
 router.post('/halls', createHallWithLayout);
@@ -27,4 +32,3 @@ router.post('/shows', createShow);
 router.get('/me/revenue', revenueSummary);
 
 module.exports = { ownerRoutes: router };
-

@@ -5,8 +5,112 @@ const { parseSeatCode, layoutHasSeat, seatTypeForSeat } = require('../utils/seat
 
 async function listMovies(req, res, next) {
   try {
-    const movies = await db.Movie.findAll({ where: { isActive: true } });
-    res.json({ movies });
+    const search = String(req.query.search ?? '').trim().toLowerCase();
+    const languageFilter = String(req.query.language ?? '').trim().toLowerCase();
+    const cityFilter = String(req.query.city ?? '').trim().toLowerCase();
+    const durationFilter = String(req.query.duration ?? '').trim().toLowerCase();
+
+    const shows = await db.Show.findAll({
+      where: { isApproved: true, isBlocked: false, isCancelled: false },
+      include: [
+        {
+          model: db.Movie,
+          required: true,
+          where: { isActive: true },
+        },
+        {
+          model: db.Hall,
+          required: true,
+          where: { isApproved: true, isBlocked: false },
+          include: [
+            {
+              model: db.Theater,
+              required: true,
+              where: { isBlocked: false },
+            },
+          ],
+        },
+      ],
+      order: [['startsAt', 'ASC']],
+    });
+
+    const movieMap = new Map();
+    for (const show of shows) {
+      const movie = show.Movie;
+      const theater = show.Hall?.Theater;
+      if (!movie || !theater) continue;
+
+      if (!movieMap.has(String(movie.id))) {
+        movieMap.set(String(movie.id), {
+          ...movie.toJSON(),
+          languages: [],
+          cities: [],
+          theaterCount: 0,
+          nextShowAt: null,
+        });
+      }
+
+      const entry = movieMap.get(String(movie.id));
+      const lang = show.language?.trim();
+      const city = theater.city?.trim();
+      if (lang && !entry.languages.includes(lang)) entry.languages.push(lang);
+      if (city && !entry.cities.includes(city)) entry.cities.push(city);
+      entry.theaterCount = entry.cities.length;
+      if (!entry.nextShowAt || new Date(show.startsAt) < new Date(entry.nextShowAt)) {
+        entry.nextShowAt = show.startsAt;
+      }
+    }
+
+    let movies = Array.from(movieMap.values()).map((movie) => ({
+      ...movie,
+      languages: movie.languages.sort((a, b) => a.localeCompare(b)),
+      cities: movie.cities.sort((a, b) => a.localeCompare(b)),
+    }));
+
+    if (search) {
+      movies = movies.filter((movie) => {
+        const haystack = [movie.title, movie.description, ...movie.languages, ...movie.cities]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(search);
+      });
+    }
+
+    if (languageFilter) {
+      movies = movies.filter((movie) =>
+        movie.languages.some((language) => language.toLowerCase() === languageFilter)
+      );
+    }
+
+    if (cityFilter) {
+      movies = movies.filter((movie) =>
+        movie.cities.some((city) => city.toLowerCase() === cityFilter)
+      );
+    }
+
+    if (durationFilter) {
+      movies = movies.filter((movie) => {
+        const mins = Number(movie.durationMins) || 0;
+        if (durationFilter === 'short') return mins < 120;
+        if (durationFilter === 'medium') return mins >= 120 && mins <= 150;
+        if (durationFilter === 'long') return mins > 150;
+        return true;
+      });
+    }
+
+    movies.sort((a, b) => a.title.localeCompare(b.title));
+
+    const filters = {
+      languages: Array.from(new Set(Array.from(movieMap.values()).flatMap((movie) => movie.languages))).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+      cities: Array.from(new Set(Array.from(movieMap.values()).flatMap((movie) => movie.cities))).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    };
+
+    res.json({ movies, filters });
   } catch (e) {
     next(e);
   }
@@ -124,4 +228,3 @@ module.exports = {
   showSeatMap,
   estimatePrice,
 };
-

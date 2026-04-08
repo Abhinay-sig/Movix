@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
 
@@ -58,13 +59,18 @@ export default function OwnerTheaters() {
         ) : (
           <div className="grid gap-4">
             {theaters.map((t) => (
-              <div key={t.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+              <Link
+                key={t.id}
+                to={`/owner/theatres/${t.id}/halls`}
+                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow block"
+              >
                 <div className="text-xl font-bold text-gray-900">{t.name}</div>
                 <div className="text-gray-600 text-sm mt-2">
                   {t.address}, {t.city}
                 </div>
+                <div className="text-blue-600 text-sm font-medium mt-4">View halls</div>
                 <div className="text-gray-400 text-xs mt-3">ID: {t.id}</div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -72,4 +78,3 @@ export default function OwnerTheaters() {
     </div>
   )
 }
-

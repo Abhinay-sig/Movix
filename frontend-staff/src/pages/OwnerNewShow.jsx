@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
 
@@ -6,10 +6,12 @@ const TYPES = ['standard', 'premium', 'recliner', 'vip']
 
 export default function OwnerNewShow() {
   const { auth } = useAuth()
-  const [halls, setHalls] = useState([])
+  const [theaters, setTheaters] = useState([])
+  const [hallsByTheater, setHallsByTheater] = useState({})
   const [movies, setMovies] = useState([])
   const [err, setErr] = useState('')
 
+  const [theaterId, setTheaterId] = useState('')
   const [hallId, setHallId] = useState('')
   const [movieId, setMovieId] = useState('')
   const [date, setDate] = useState('')
@@ -20,25 +22,64 @@ export default function OwnerNewShow() {
 
   const [schedule, setSchedule] = useState(null)
   const [hasConflict, setHasConflict] = useState(false)
+  const [loadingHalls, setLoadingHalls] = useState(false)
 
   useEffect(() => {
     Promise.all([
-      api('/owner/me/halls', { token: auth.token }),
-      api('/public/movies'),
+      api('/owner/me/theaters', { token: auth.token }),
+      api('/owner/me/movies', { token: auth.token }),
     ])
-      .then(([h, m]) => {
-        setHalls(h.halls || [])
+      .then(([t, m]) => {
+        setTheaters(t.theaters || [])
         setMovies(m.movies || [])
       })
       .catch((e) => setErr(e.message))
   }, [auth.token])
+
+  const filteredHalls = useMemo(() => hallsByTheater[theaterId] || [], [hallsByTheater, theaterId])
+
+  useEffect(() => {
+    if (!theaterId) {
+      setHallId('')
+      setSchedule(null)
+    }
+  }, [theaterId])
+
+  useEffect(() => {
+    if (!theaterId) return
+    setHallId('')
+    setSchedule(null)
+
+    if (hallsByTheater[theaterId]) return
+
+    let alive = true
+    setLoadingHalls(true)
+    api(`/owner/theaters/${theaterId}/halls`, { token: auth.token })
+      .then((response) => {
+        if (!alive) return
+        setHallsByTheater((prev) => ({ ...prev, [theaterId]: response.halls || [] }))
+        setErr('')
+      })
+      .catch((e) => {
+        if (!alive) return
+        setErr(e.message)
+      })
+      .finally(() => {
+        if (alive) setLoadingHalls(false)
+      })
+
+    return () => {
+      alive = false
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.token, theaterId])
 
   useEffect(() => {
     if (hallId && date) {
       api(`/owner/halls/${hallId}/schedule?date=${date}`, { token: auth.token })
         .then((data) => {
           setSchedule(data)
-          checkConflicts()
+          setErr('')
         })
         .catch((e) => setErr(e.message))
     } else {
@@ -48,24 +89,32 @@ export default function OwnerNewShow() {
 
   useEffect(() => {
     checkConflicts()
-  }, [schedule, startTime, durationMins])
+  }, [schedule, startTime, durationMins, date])
+
+  useEffect(() => {
+    const selectedMovie = movies.find((movie) => String(movie.id) === String(movieId))
+    if (selectedMovie) {
+      setDurationMins(String(selectedMovie.durationMins))
+      if (date && date < selectedMovie.releaseDate) {
+        setErr('Cannot schedule a show before the movie release date')
+      }
+    } else if (!movieId) {
+      setDurationMins('')
+    }
+  }, [date, movieId, movies])
 
   function checkConflicts() {
-    if (!schedule || !startTime || !durationMins) {
+    if (!schedule || !date || !startTime || !durationMins) {
       setHasConflict(false)
       return
     }
 
-    const proposedStart = new Date(`${date}T${startTime}`)
+    const proposedStart = new Date(`${date}T${startTime}:00`)
     const proposedEnd = new Date(proposedStart.getTime() + durationMins * 60000)
-    const bufferMins = schedule.bufferMins || 30
 
     const conflict = schedule.schedule.some(show => {
-      const showStart = new Date(show.startsAt)
-      const showEnd = new Date(show.endsAt)
-      const bufferedStart = new Date(showStart.getTime() - bufferMins * 60000)
-      const bufferedEnd = new Date(showEnd.getTime() + bufferMins * 60000)
-
+      const bufferedStart = new Date(show.bufferStart)
+      const bufferedEnd = new Date(show.bufferEnd)
       return proposedStart < bufferedEnd && proposedEnd > bufferedStart
     })
 
@@ -75,63 +124,112 @@ export default function OwnerNewShow() {
   async function submit(e) {
     e.preventDefault()
     setErr('')
-    if (hasConflict) {
-      setErr('Cannot create show: conflicts with existing schedule')
+
+    if (!theaterId || !hallId || !movieId || !date || !startTime || !language || !durationMins) {
+      setErr('Please fill all required fields before creating the show.')
       return
     }
+
+    const selectedMovie = movies.find((movie) => String(movie.id) === String(movieId))
+    if (selectedMovie && date < selectedMovie.releaseDate) {
+      setErr('Cannot schedule a show before the movie release date')
+      return
+    }
+
+    if (hasConflict) {
+      setErr('Time conflicts with another show (including buffer)')
+      return
+    }
+
     try {
       const seatPrices = TYPES.filter((t) => prices[t]).map((t) => ({
         seatTypeCode: t,
         price: Number(prices[t]),
       }))
+      const ticketPrice = seatPrices.length ? Math.min(...seatPrices.map((item) => item.price)) : 150
+      const payload = {
+        hallId: Number(hallId),
+        movieId: Number(movieId),
+        date,
+        startTime,
+        language,
+        ticketPrice,
+      }
+      if (Number.isFinite(Number(durationMins)) && Number(durationMins) > 0) {
+        payload.durationMins = Number(durationMins)
+      }
+      if (seatPrices.length) {
+        payload.seatPrices = seatPrices
+      }
+      console.log('FINAL PAYLOAD:', payload)
+
       await api('/owner/shows', {
         method: 'POST',
         token: auth.token,
-        body: { hallId: Number(hallId), movieId: Number(movieId), date, startTime, durationMins: Number(durationMins), language, seatPrices },
+        body: payload,
       })
       alert('Show submitted for admin approval.')
+      setTheaterId('')
       setHallId('')
       setMovieId('')
       setDate('')
       setStartTime('')
       setDurationMins('')
+      setLanguage('English')
+      setPrices(Object.fromEntries(TYPES.map((t) => [t, ''])))
+      setSchedule(null)
     } catch (e2) {
-      setErr(e2.message)
-    }
+  console.error(e2)
+  setErr(e2.message || 'Something went wrong')
+}
   }
 
   return (
     <div>
-      <h2 className="text-4xl font-bold text-white mb-8">Add show</h2>
+      <h2 className="text-4xl font-bold text-white mb-8">Schedule show</h2>
       {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900 mb-6">{err}</div> : null}
       <div className="bg-white rounded-xl shadow-lg p-8 max-w-4xl">
         <form onSubmit={submit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <label className="block text-gray-700 font-medium mb-2">Select hall</label>
-              <select value={hallId} onChange={(e) => setHallId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Select hall…</option>
-                {halls.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    #{h.id} {h.Theater?.name} — {h.name} {h.isApproved ? '' : '(pending)'}
+              <label className="block text-gray-700 font-medium mb-2">Select theater</label>
+              <select value={theaterId} onChange={(e) => setTheaterId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                <option value="">Select theater…</option>
+                {theaters.map((theater) => (
+                  <option key={theater.id} value={theater.id}>
+                    #{theater.id} {theater.name}
                   </option>
                 ))}
               </select>
             </div>
-            
+
+            <div>
+              <label className="block text-gray-700 font-medium mb-2">Select hall</label>
+              <select value={hallId} onChange={(e) => setHallId(e.target.value)} disabled={!theaterId || loadingHalls} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400" required>
+                <option value="">
+                  {!theaterId ? 'Select theater first' : loadingHalls ? 'Loading halls…' : 'Select hall…'}
+                </option>
+                {filteredHalls.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    #{h.id} {h.name} {h.isApproved ? '' : '(pending)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-gray-700 font-medium mb-2">Select movie</label>
-              <select value={movieId} onChange={(e) => setMovieId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Select movie…</option>
+              <select value={movieId} onChange={(e) => setMovieId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                <option value="">Select an available movie…</option>
                 {movies.map((m) => (
                   <option key={m.id} value={m.id}>
-                    #{m.id} {m.title}
+                    #{m.id} {m.title} ({m.durationMins} mins)
                   </option>
                 ))}
               </select>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-gray-700 font-medium mb-2">Date</label>
@@ -140,6 +238,7 @@ export default function OwnerNewShow() {
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                min={movies.find((movie) => String(movie.id) === String(movieId))?.releaseDate || undefined}
                 required
               />
             </div>
@@ -160,9 +259,9 @@ export default function OwnerNewShow() {
                 min="1"
                 max="480"
                 value={durationMins}
-                onChange={(e) => setDurationMins(e.target.value)}
+                readOnly
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. 120"
+                placeholder="Select a movie first"
                 required
               />
             </div>
@@ -184,15 +283,21 @@ export default function OwnerNewShow() {
               {TYPES.map((t) => (
                 <label key={t} className="flex flex-col gap-2">
                   <span className="text-sm font-medium text-gray-700 capitalize">{t}</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Price"
-                    value={prices[t]}
-                    onChange={(e) => setPrices((p) => ({ ...p, [t]: e.target.value }))}
-                    className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                 <input
+  type="number"
+  step="1"
+  min="0"
+  placeholder="Price"
+  value={prices[t]}
+  onChange={(e) => setPrices((p) => ({ ...p, [t]: e.target.value }))}
+  onWheel={(e) => e.target.blur()}   // ✅ stops scroll change
+  onKeyDown={(e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault()             // ✅ stops arrow key change
+    }
+  }}
+  className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+/>
                 </label>
               ))}
             </div>
@@ -204,7 +309,7 @@ export default function OwnerNewShow() {
               <Timeline schedule={schedule} proposedStart={startTime} proposedDuration={durationMins} date={date} />
               {hasConflict && (
                 <div className="mt-2 text-red-600 font-medium">
-                  ⚠️ Proposed show conflicts with existing schedule
+                  Time conflicts with another show (including buffer)
                 </div>
               )}
             </div>
@@ -219,7 +324,7 @@ export default function OwnerNewShow() {
           </button>
         </form>
         <div className="mt-6 text-sm text-gray-600 bg-blue-50 p-4 rounded-lg">
-          Buffer rule: new show must have a 30-min gap before/after any existing show in the same hall.
+          Buffer rule: new show must have a 30-min gap before and after any existing show in the same hall. Movies are created by admins and can only be scheduled on or after their release date.
         </div>
       </div>
     </div>
@@ -227,147 +332,110 @@ export default function OwnerNewShow() {
 }
 
 function Timeline({ schedule, proposedStart, proposedDuration, date }) {
-  const bufferMins = schedule.bufferMins || 30
-  const dayStart = new Date(`${date}T00:00`)
-  const dayEnd = new Date(`${date}T23:59`)
+  const dayStart = new Date(`${date}T00:00:00`)
+  const dayEnd = new Date(`${date}T23:59:59`)
+  const totalMs = dayEnd.getTime() - dayStart.getTime()
 
-  // Calculate proposed show times
-  let proposedShow = null
+  function toPct(value) {
+    return ((value.getTime() - dayStart.getTime()) / totalMs) * 100
+  }
+
+  const blocks = []
+  for (const show of schedule.schedule) {
+    const startsAt = new Date(show.startsAt)
+    const endsAt = new Date(show.endsAt)
+    const bufferStart = new Date(show.bufferStart)
+    const bufferEnd = new Date(show.bufferEnd)
+
+    blocks.push({
+      type: 'buffer',
+      start: bufferStart,
+      end: startsAt,
+      label: 'Buffer',
+    })
+    blocks.push({
+      type: 'show',
+      start: startsAt,
+      end: endsAt,
+      label: show.movieTitle,
+    })
+    blocks.push({
+      type: 'buffer',
+      start: endsAt,
+      end: bufferEnd,
+      label: 'Buffer',
+    })
+  }
+
   if (proposedStart && proposedDuration) {
-    const start = new Date(`${date}T${proposedStart}`)
-    const end = new Date(start.getTime() + proposedDuration * 60000)
-    proposedShow = { start, end }
-  }
-
-  // Create timeline segments
-  const segments = []
-  let currentTime = new Date(dayStart)
-
-  // Sort shows by start time
-  const sortedShows = [...schedule.schedule].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
-
-  for (const show of sortedShows) {
-    const showStart = new Date(show.startsAt)
-    const showEnd = new Date(show.endsAt)
-    const bufferStart = new Date(showStart.getTime() - bufferMins * 60000)
-    const bufferEnd = new Date(showEnd.getTime() + bufferMins * 60000)
-
-    // Add free time before buffer
-    if (currentTime < bufferStart) {
-      segments.push({
-        type: 'free',
-        start: new Date(currentTime),
-        end: new Date(bufferStart),
-      })
-      currentTime = bufferStart
-    }
-
-    // Add buffer time
-    if (currentTime < showStart) {
-      segments.push({
-        type: 'buffer',
-        start: new Date(currentTime),
-        end: new Date(showStart),
-      })
-      currentTime = showStart
-    }
-
-    // Add show time
-    if (currentTime < showEnd) {
-      segments.push({
-        type: 'booked',
-        start: new Date(currentTime),
-        end: new Date(showEnd),
-        show,
-      })
-      currentTime = showEnd
-    }
-
-    // Add buffer after show
-    if (currentTime < bufferEnd) {
-      segments.push({
-        type: 'buffer',
-        start: new Date(currentTime),
-        end: new Date(bufferEnd),
-      })
-      currentTime = bufferEnd
-    }
-  }
-
-  // Add remaining free time
-  if (currentTime < dayEnd) {
-    segments.push({
-      type: 'free',
-      start: new Date(currentTime),
-      end: new Date(dayEnd),
-    })
-  }
-
-  // Add proposed show if it exists
-  if (proposedShow) {
-    segments.push({
+    const proposedStartDate = new Date(`${date}T${proposedStart}:00`)
+    const proposedEndDate = new Date(proposedStartDate.getTime() + Number(proposedDuration) * 60000)
+    blocks.push({
       type: 'proposed',
-      start: proposedShow.start,
-      end: proposedShow.end,
+      start: proposedStartDate,
+      end: proposedEndDate,
+      label: 'Proposed show',
     })
   }
 
-  // Sort all segments by start time
-  segments.sort((a, b) => a.start - b.start)
+  const hours = Array.from({ length: 25 }, (_, index) => `${String(index).padStart(2, '0')}:00`)
 
   return (
     <div className="border rounded-lg p-4 bg-gray-50">
-      <div className="flex flex-wrap gap-2 text-xs mb-4">
+      <div className="flex flex-wrap gap-3 text-xs mb-4">
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-blue-200 rounded"></div>
-          <span>Free</span>
+          <div className="w-4 h-4 bg-emerald-100 border border-emerald-200 rounded"></div>
+          <span>Free space</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-orange-200 rounded"></div>
-          <span>Buffer</span>
+          <div className="w-4 h-4 bg-amber-300 rounded"></div>
+          <span>30 min buffer</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-red-200 rounded"></div>
-          <span>Booked</span>
+          <div className="w-4 h-4 bg-blue-500 rounded"></div>
+          <span>Show block</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-green-200 rounded"></div>
-          <span>Proposed</span>
+          <div className="w-4 h-4 bg-violet-500 rounded"></div>
+          <span>Proposed show</span>
         </div>
       </div>
-      <div className="flex flex-wrap gap-1">
-        {segments.map((segment, index) => {
-          const duration = (segment.end - segment.start) / (1000 * 60) // minutes
-          if (duration <= 0) return null
+      <div className="relative">
+        <div className="relative h-16 rounded-lg border border-emerald-200 bg-emerald-100 overflow-hidden">
+          {blocks.map((block, index) => {
+            const width = Math.max(toPct(block.end) - toPct(block.start), 0.5)
+            const style = {
+              left: `${Math.max(toPct(block.start), 0)}%`,
+              width: `${Math.min(width, 100)}%`,
+            }
 
-          let bgColor = 'bg-gray-200'
-          let text = ''
-          if (segment.type === 'free') bgColor = 'bg-blue-200'
-          else if (segment.type === 'buffer') bgColor = 'bg-orange-200'
-          else if (segment.type === 'booked') {
-            bgColor = 'bg-red-200'
-            text = `${segment.show.movieTitle} (${segment.show.language})`
-          } else if (segment.type === 'proposed') {
-            bgColor = 'bg-green-200'
-            text = 'Proposed Show'
-          }
+            let className = 'absolute top-2 h-12 rounded text-white text-[10px] flex items-center justify-center px-2 overflow-hidden'
+            if (block.type === 'buffer') className += ' bg-amber-300 text-amber-950'
+            if (block.type === 'show') className += ' bg-blue-500'
+            if (block.type === 'proposed') className += ' bg-violet-500'
 
-          const startTime = segment.start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-          const endTime = segment.end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            return (
+              <div key={`${block.type}-${index}`} className={className} style={style} title={`${block.label}: ${formatTime(block.start)} - ${formatTime(block.end)}`}>
+                <span className="truncate">
+                  {block.label} {formatTime(block.start)} - {formatTime(block.end)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
 
-          return (
-            <div
-              key={index}
-              className={`flex flex-col justify-center items-center p-2 rounded text-xs min-w-[80px] ${bgColor}`}
-              style={{ flex: duration / 60 }} // Scale by hours
-            >
-              <div className="font-medium">{startTime} - {endTime}</div>
-              {text && <div className="text-center mt-1">{text}</div>}
+        <div className="relative mt-2 h-5">
+          {hours.map((hour, index) => (
+            <div key={hour} className="absolute top-0 text-[10px] text-gray-500 -translate-x-1/2" style={{ left: `${(index / 24) * 100}%` }}>
+              {hour}
             </div>
-          )
-        })}
+          ))}
+        </div>
       </div>
     </div>
   )
 }
 
+function formatTime(value) {
+  return value.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+}

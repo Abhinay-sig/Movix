@@ -15,8 +15,9 @@ export default function Layout() {
               {auth?.user?.role === 'theater_owner' ? (
                 <>
                   <Link to="/owner/theaters" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Theaters</Link>
+                  <Link to="/owner/movies" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Movies</Link>
                   <Link to="/owner/halls/new" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Add hall</Link>
-                  <Link to="/owner/shows/new" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Add show</Link>
+                  <Link to="/owner/shows/new" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Schedule show</Link>
                   <Link to="/owner/revenue" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Revenue</Link>
                 </>
               ) : null}
@@ -53,4 +54,3 @@ export default function Layout() {
     </div>
   )
 }
-

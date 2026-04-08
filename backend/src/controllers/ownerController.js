@@ -10,6 +10,12 @@ const createTheaterSchema = z.object({
   city: z.string().min(1).max(120),
 });
 
+function wallClockUtc(date, time = '00:00') {
+  const [year, month, day] = String(date).split('-').map(Number);
+  const [hour, minute] = String(time).split(':').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+}
+
 async function createTheater(req, res, next) {
   try {
     const body = createTheaterSchema.parse(req.body);
@@ -30,6 +36,99 @@ async function listMyTheaters(req, res, next) {
   try {
     const theaters = await db.Theater.findAll({ where: { ownerUserId: req.user.id } });
     res.json({ theaters });
+  } catch (e) {
+    next(e);
+  }
+}
+
+function countLayoutSeats(layout) {
+  if (!layout?.segmentsByRow || !Array.isArray(layout.segmentsByRow)) return null;
+  let total = 0;
+  for (const row of layout.segmentsByRow) {
+    if (!Array.isArray(row)) continue;
+    for (let i = 0; i < row.length; i += 2) {
+      const start = row[i];
+      const end = row[i + 1];
+      if (typeof start !== 'number' || typeof end !== 'number') continue;
+      total += end - start + 1;
+    }
+  }
+  return total;
+}
+
+async function listTheaterHalls(req, res, next) {
+  try {
+    const theaterId = Number(req.params.theaterId);
+    if (!Number.isInteger(theaterId) || theaterId <= 0) {
+      throw new HttpError(400, 'Invalid theater id');
+    }
+
+    const theater = await db.Theater.findByPk(theaterId);
+    if (!theater || String(theater.ownerUserId) !== String(req.user.id)) {
+      throw new HttpError(404, 'Theater not found');
+    }
+
+    const halls = await db.Hall.findAll({
+      where: { theaterId },
+      include: [{ model: db.HallLayout }],
+      order: [['name', 'ASC']],
+    });
+
+    res.json({
+      theater,
+      halls: halls.map((hall) => ({
+        ...hall.toJSON(),
+        seatingCapacity: countLayoutSeats(hall.HallLayout),
+      })),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function listMyMovies(req, res, next) {
+  try {
+    const movies = await db.Movie.findAll({
+      where: { isActive: true },
+      order: [['title', 'ASC']],
+    });
+
+    const movieIds = movies.map((movie) => movie.id);
+    const ownerShows = movieIds.length
+      ? await db.Show.findAll({
+          attributes: ['movieId'],
+          include: [
+            {
+              model: db.Hall,
+              required: true,
+              attributes: [],
+              include: [
+                {
+                  model: db.Theater,
+                  required: true,
+                  attributes: [],
+                  where: { ownerUserId: req.user.id },
+                },
+              ],
+            },
+          ],
+          where: { movieId: { [Op.in]: movieIds } },
+        })
+      : [];
+
+    const showCountByMovieId = new Map();
+    for (const show of ownerShows) {
+      const key = String(show.movieId);
+      showCountByMovieId.set(key, (showCountByMovieId.get(key) ?? 0) + 1);
+    }
+
+    res.json({
+      movies: movies.map((movie) => ({
+        ...movie.toJSON(),
+        addedAt: movie.createdAt,
+        showCount: showCountByMovieId.get(String(movie.id)) ?? 0,
+      })),
+    });
   } catch (e) {
     next(e);
   }
@@ -118,8 +217,10 @@ async function listMyHalls(req, res, next) {
 }
 
 const createShowSchema = z.object({
+  theaterId: z.coerce.number().int().positive().optional(),
   hallId: z.coerce.number().int().positive(),
   movieId: z.coerce.number().int().positive(),
+  ticketPrice: z.coerce.number().nonnegative().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD format
   startTime: z.string().regex(/^\d{2}:\d{2}$/), // HH:MM format
   durationMins: z.coerce.number().int().positive().max(480), // max 8 hours
@@ -131,7 +232,7 @@ const createShowSchema = z.object({
         price: z.coerce.number().positive(),
       })
     )
-    .optional(),
+    .min(1, 'At least one seat price is required'),
 });
 
 const getHallScheduleSchema = z.object({
@@ -150,22 +251,22 @@ async function getHallSchedule(req, res, next) {
       throw new HttpError(404, 'Hall not found');
     }
 
-    const startOfDay = dayjs(`${date}T00:00:00.000Z`);
-    const endOfNextDay = dayjs(`${date}T23:59:59.999Z`).add(1, 'day');
+    const startOfDay = wallClockUtc(date, '00:00');
+    const endOfDay = wallClockUtc(date, '23:59');
 
     const shows = await db.Show.findAll({
       where: {
         hallId: hall.id,
         isCancelled: false,
-        startsAt: { [Op.lt]: endOfNextDay.toDate() },
-        endsAt: { [Op.gt]: startOfDay.toDate() },
+        startsAt: { [Op.lte]: endOfDay },
+        endsAt: { [Op.gte]: startOfDay },
       },
       include: [{ model: db.Movie }],
       order: [['startsAt', 'ASC']],
     });
 
     const bufferMins = 30;
-    const schedule = shows.map(show => ({
+    const schedule = shows.map((show) => ({
       id: show.id,
       movieTitle: show.Movie.title,
       startsAt: show.startsAt,
@@ -197,17 +298,24 @@ async function createShow(req, res, next) {
       throw new HttpError(404, 'Hall not found');
     }
 
-    // Calculate startsAt and endsAt from date, startTime, and durationMins
-    const startsAt = dayjs(`${body.date} ${body.startTime}`, 'YYYY-MM-DD HH:mm');
-    const endsAt = startsAt.add(body.durationMins, 'minute');
+    const movie = await db.Movie.findByPk(body.movieId, { transaction: t });
+    if (!movie || !movie.isActive) throw new HttpError(404, 'Movie not found');
+    if (body.date < String(movie.releaseDate)) {
+      throw new HttpError(400, 'Cannot schedule a show before the movie release date');
+    }
 
-    if (!startsAt.isValid() || !endsAt.isValid() || !endsAt.isAfter(startsAt)) {
+    const durationMins = Number(movie.durationMins);
+
+    const startsAt = wallClockUtc(body.date, body.startTime);
+    const endsAt = new Date(startsAt.getTime() + durationMins * 60_000);
+
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
       throw new HttpError(400, 'Invalid show time');
     }
 
     const bufferMins = 30;
-    const bufferedStart = startsAt.subtract(bufferMins, 'minute').toDate();
-    const bufferedEnd = endsAt.add(bufferMins, 'minute').toDate();
+    const bufferedStart = new Date(startsAt.getTime() - bufferMins * 60_000);
+    const bufferedEnd = new Date(endsAt.getTime() + bufferMins * 60_000);
 
     const conflicts = await db.Show.count({
       where: {
@@ -221,28 +329,40 @@ async function createShow(req, res, next) {
     });
     if (conflicts > 0) throw new HttpError(409, 'Show conflicts with existing timeline (30 min buffer)');
 
+    const normalizedSeatPrices = (body.seatPrices ?? []).map((seatPrice) => ({
+      ...seatPrice,
+      price: Number(seatPrice.price),
+    }));
+    const fallbackPrice =
+      typeof body.ticketPrice === 'number'
+        ? Number(body.ticketPrice)
+        : normalizedSeatPrices.length
+          ? Math.min(...normalizedSeatPrices.map((seatPrice) => seatPrice.price))
+          : 0;
+
     const show = await db.Show.create(
       {
         hallId: hall.id,
         movieId: body.movieId,
-        startsAt: startsAt.toDate(),
-        endsAt: endsAt.toDate(),
+        price: fallbackPrice,
+        startsAt,
+        endsAt,
         language: body.language,
         isApproved: false,
       },
       { transaction: t }
     );
 
-    if (body.seatPrices?.length) {
+    if (normalizedSeatPrices.length) {
       const seatTypes = await db.SeatType.findAll({ transaction: t });
       const byCode = new Map(seatTypes.map((s) => [s.code, s]));
-      for (const sp of body.seatPrices) {
+      for (const sp of normalizedSeatPrices) {
         const st = byCode.get(sp.seatTypeCode);
         if (!st) throw new HttpError(400, `Unknown seat type: ${sp.seatTypeCode}`);
         if (Number(sp.price) > Number(st.adminPriceCap)) {
           throw new HttpError(400, `Price exceeds admin cap for ${st.code}`);
         }
-    
+
         await db.ShowSeatPrice.create(
           { showId: show.id, seatTypeId: st.id, price: sp.price },
           { transaction: t }
@@ -263,15 +383,82 @@ async function revenueSummary(req, res, next) {
   try {
     const theaters = await db.Theater.findAll({ where: { ownerUserId: req.user.id } });
     const theaterIds = theaters.map((t) => t.id);
-    const halls = await db.Hall.findAll({ where: { theaterId: { [Op.in]: theaterIds } } });
+    const halls = theaterIds.length
+      ? await db.Hall.findAll({ where: { theaterId: { [Op.in]: theaterIds } } })
+      : [];
     const hallIds = halls.map((h) => h.id);
-    const shows = await db.Show.findAll({ where: { hallId: { [Op.in]: hallIds } } });
+    const shows = hallIds.length ? await db.Show.findAll({ where: { hallId: { [Op.in]: hallIds } } }) : [];
     const showIds = shows.map((s) => s.id);
 
-    const bookings = await db.Booking.findAll({ where: { showId: { [Op.in]: showIds } } });
-    const total = bookings.reduce((sum, b) => sum + Number(b.totalAmount), 0);
+    const bookings = showIds.length
+      ? await db.Booking.findAll({
+          where: {
+            showId: { [Op.in]: showIds },
+            status: db.BOOKING_STATUS.CONFIRMED,
+          },
+        })
+      : [];
+    const totalRevenue = bookings.reduce((sum, b) => sum + Number(b.totalAmount), 0);
 
-    res.json({ totalRevenue: total });
+    const soldTickets = showIds.length
+      ? await db.BookingSeat.count({
+          where: { showId: { [Op.in]: showIds } },
+        })
+      : 0;
+
+    const theaterById = new Map(theaters.map((theater) => [String(theater.id), theater]));
+    const hallToTheaterId = new Map(halls.map((hall) => [String(hall.id), String(hall.theaterId)]));
+    const showToHallId = new Map(shows.map((show) => [String(show.id), String(show.hallId)]));
+
+    const breakdownMap = new Map(
+      theaters.map((theater) => [
+        String(theater.id),
+        {
+          theaterId: theater.id,
+          theaterName: theater.name,
+          city: theater.city,
+          totalRevenue: 0,
+          bookingCount: 0,
+        },
+      ])
+    );
+
+    for (const booking of bookings) {
+      const hallId = showToHallId.get(String(booking.showId));
+      const theaterId = hallToTheaterId.get(String(hallId));
+      if (!theaterId || !breakdownMap.has(theaterId)) continue;
+      const row = breakdownMap.get(theaterId);
+      row.totalRevenue += Number(booking.totalAmount);
+      row.bookingCount += 1;
+    }
+
+    const breakdown = Array.from(breakdownMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    const recentBookings = bookings
+      .slice()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 10)
+      .map((booking) => {
+        const hallId = showToHallId.get(String(booking.showId));
+        const theaterId = hallToTheaterId.get(String(hallId));
+        const theater = theaterById.get(String(theaterId));
+        return {
+          bookingId: booking.id,
+          showId: booking.showId,
+          totalAmount: Number(booking.totalAmount),
+          createdAt: booking.createdAt,
+          theaterName: theater?.name ?? 'Unknown theater',
+        };
+      });
+
+    res.json({
+      totalRevenue,
+      totalBookings: bookings.length,
+      soldTickets,
+      theaterCount: theaters.length,
+      breakdown,
+      recentBookings,
+    });
   } catch (e) {
     next(e);
   }
@@ -280,10 +467,11 @@ async function revenueSummary(req, res, next) {
 module.exports = {
   createTheater,
   listMyTheaters,
+  listTheaterHalls,
+  listMyMovies,
   createHallWithLayout,
   listMyHalls,
   getHallSchedule,
   createShow,
   revenueSummary,
 };
-

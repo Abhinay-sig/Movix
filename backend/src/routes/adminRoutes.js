@@ -10,6 +10,7 @@ const {
   revenueDashboard,
   cancelShow,
   listTheatersWithContribution,
+  createMovie,
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -18,6 +19,7 @@ router.use(requireAuth, requireRole(db.USER_ROLES.ADMIN));
 
 router.get('/dashboard/revenue', revenueDashboard);
 router.get('/theaters/contribution', listTheatersWithContribution);
+router.post('/movies', createMovie);
 
 router.get('/approvals/pending', pendingApprovals);
 router.post('/approvals/hall', approveHall);
@@ -29,4 +31,3 @@ router.post('/seat-types/cap', setSeatTypeCap);
 router.post('/shows/cancel', cancelShow);
 
 module.exports = { adminRoutes: router };
-

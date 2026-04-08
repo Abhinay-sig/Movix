@@ -3,6 +3,32 @@ const { Op } = require('sequelize');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
 
+const createMovieSchema = z.object({
+  title: z.string().min(1).max(200),
+  genre: z.string().min(1).max(120),
+  releaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  description: z.string().trim().max(5000).optional().or(z.literal('')),
+  durationMins: z.coerce.number().int().positive().max(480),
+  posterUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .or(z.literal(''))
+    .refine(
+      (val) => {
+        if (!val) return true;
+        try {
+          new URL(val);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: 'Invalid URL format' }
+    ),
+});
+
 async function pendingApprovals(req, res, next) {
   try {
     const halls = await db.Hall.findAll({
@@ -174,6 +200,25 @@ async function listTheatersWithContribution(req, res, next) {
   }
 }
 
+async function createMovie(req, res, next) {
+  try {
+    const body = createMovieSchema.parse(req.body);
+    const movie = await db.Movie.create({
+      title: body.title.trim(),
+      genre: body.genre.trim(),
+      releaseDate: body.releaseDate,
+      description: body.description?.trim() || null,
+      durationMins: body.durationMins,
+      posterUrl: body.posterUrl?.trim() || null,
+      isActive: true,
+    });
+    res.status(201).json({ movie });
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
 module.exports = {
   pendingApprovals,
   approveHall,
@@ -183,5 +228,5 @@ module.exports = {
   revenueDashboard,
   cancelShow,
   listTheatersWithContribution,
+  createMovie,
 };
-

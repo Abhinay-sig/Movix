@@ -37,7 +37,7 @@ app.use(errorHandler);
 async function start() {
   await sequelize.authenticate();
   await syncDb();
-  await seedDatabase();
+  // await seedDatabase();
 
   setInterval(() => {
     cleanupExpiredHolds().catch(() => {});
