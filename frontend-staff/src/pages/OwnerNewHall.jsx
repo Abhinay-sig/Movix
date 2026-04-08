@@ -13,10 +13,24 @@ const SEAT_TYPES = [
   { code: 'vip', label: 'VIP' },
 ]
 
+const SCREEN_TYPES = ['2D', '3D', 'IMAX']
+
+const FACILITY_OPTIONS = [
+  'AC',
+  'Dolby Atmos',
+  'Recliner',
+  'Food Court',
+  'Wheelchair Access',
+  'Parking',
+]
+
 export default function OwnerNewHall() {
   const { auth } = useAuth()
   const [theaterId, setTheaterId] = useState('')
   const [hallName, setHallName] = useState('')
+  const [screenType, setScreenType] = useState('')
+  const [facilities, setFacilities] = useState([])
+  const [imageUrls, setImageUrls] = useState('')
   const [activeType, setActiveType] = useState('standard')
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
@@ -107,14 +121,29 @@ export default function OwnerNewHall() {
     try {
       const segmentsByRow = segmentsFromSelected(selected, ROWS, COLS)
       const typedSegmentsByRow = typedSegmentsFromMaps(typeByCellRef.current, ROWS, COLS)
+      const images = imageUrls
+        .split('\n')
+        .map((x) => x.trim())
+        .filter(Boolean)
       await api('/owner/halls', {
         method: 'POST',
         token: auth.token,
-        body: { theaterId: Number(theaterId), name: hallName, segmentsByRow, typedSegmentsByRow },
+        body: {
+          theaterId: Number(theaterId),
+          name: hallName,
+          screenType: screenType || undefined,
+          facilities: facilities.length ? facilities : undefined,
+          images: images.length ? images : undefined,
+          segmentsByRow,
+          typedSegmentsByRow,
+        },
       })
       alert('Hall submitted for admin approval.')
       setTheaterId('')
       setHallName('')
+      setScreenType('')
+      setFacilities([])
+      setImageUrls('')
       clearAll()
     } catch (e) {
       setErr(e.message)
@@ -136,7 +165,47 @@ export default function OwnerNewHall() {
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input placeholder="Hall name" value={hallName} onChange={(e) => setHallName(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            
+
+            <div>
+              <label className="text-gray-700 font-medium mb-2 block">Screen type</label>
+              <select value={screenType} onChange={(e) => setScreenType(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Select screen type</option>
+                {SCREEN_TYPES.map((st) => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-gray-700 font-medium mb-2 block">Facilities</label>
+              <div className="grid grid-cols-2 gap-2">
+                {FACILITY_OPTIONS.map((f) => (
+                  <label key={f} className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={facilities.includes(f)}
+                      onChange={(e) => {
+                        if (e.target.checked) setFacilities((prev) => Array.from(new Set([...prev, f])))
+                        else setFacilities((prev) => prev.filter((x) => x !== f))
+                      }}
+                    />
+                    {f}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-gray-700 font-medium mb-2 block">Image URLs (one per line)</label>
+              <textarea
+                rows={3}
+                value={imageUrls}
+                onChange={(e) => setImageUrls(e.target.value)}
+                placeholder="https://example.com/hall1.jpg"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
             <div>
               <label className="text-gray-700 font-medium mb-3 block">Seat type for selection:</label>
               <div className="flex flex-wrap gap-2">
@@ -212,4 +281,3 @@ export default function OwnerNewHall() {
     </div>
   )
 }
-

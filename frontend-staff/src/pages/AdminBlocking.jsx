@@ -1,25 +1,102 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
 
 export default function AdminBlocking() {
   const { auth } = useAuth()
   const [entity, setEntity] = useState('theater')
-  const [id, setId] = useState('')
   const [blocked, setBlocked] = useState(true)
+  const [reason, setReason] = useState('policy')
+  const [customReason, setCustomReason] = useState('')
+  const [theaterId, setTheaterId] = useState('')
+  const [hallId, setHallId] = useState('')
+  const [showId, setShowId] = useState('')
+  const [halls, setHalls] = useState([])
+  const [shows, setShows] = useState([])
+  const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+
+  const theaters = useMemo(() => {
+    const map = new Map()
+    for (const h of halls) {
+      const t = h.Theater
+      if (!t?.id) continue
+      if (!map.has(t.id)) map.set(t.id, t)
+    }
+    return Array.from(map.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+  }, [halls])
+
+  const hallsForTheater = useMemo(
+    () => halls.filter((h) => !theaterId || String(h.theaterId) === String(theaterId)),
+    [halls, theaterId]
+  )
+
+  const showsForHall = useMemo(
+    () => shows.filter((s) => !hallId || String(s.hallId) === String(hallId)),
+    [shows, hallId]
+  )
+
+  const blockedTheaters = useMemo(() => theaters.filter((t) => t.isBlocked), [theaters])
+  const blockedHalls = useMemo(() => halls.filter((h) => h.isBlocked), [halls])
+  const blockedShows = useMemo(() => shows.filter((s) => s.isBlocked), [shows])
+
+  async function load() {
+    if (!auth?.token) return
+    setLoading(true)
+    setErr('')
+    try {
+      const [h, p] = await Promise.all([
+        api('/admin/halls', { token: auth.token }),
+        api('/admin/approvals/pending', { token: auth.token }),
+      ])
+      setHalls(h.halls || [])
+      setShows(p.shows || [])
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load().catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.token])
+
+  useEffect(() => {
+    setHallId('')
+    setShowId('')
+  }, [theaterId])
+
+  useEffect(() => {
+    setShowId('')
+  }, [hallId])
 
   async function submit(e) {
     e.preventDefault()
     setErr('')
+
+    const selectedId =
+      entity === 'theater'
+        ? Number(theaterId)
+        : entity === 'hall'
+          ? Number(hallId)
+          : Number(showId)
+
+    if (!selectedId || !Number.isFinite(selectedId)) {
+      setErr('Please select a valid entity.')
+      return
+    }
+
     try {
       await api('/admin/block', {
         method: 'POST',
         token: auth.token,
-        body: { entity, id: Number(id), blocked },
+        body: { entity, id: selectedId, blocked },
       })
-      alert('Updated.')
-      setId('')
+      const reasonText = reason === 'other' ? customReason.trim() : reason
+      alert(`Visibility updated (${blocked ? 'blocked' : 'active'}).${reasonText ? ` Reason: ${reasonText}` : ''}`)
+      await load()
     } catch (e2) {
       setErr(e2.message)
     }
@@ -27,30 +104,147 @@ export default function AdminBlocking() {
 
   return (
     <div>
-      <h2 className="text-4xl font-bold text-white mb-8">Blocking</h2>
+      <h2 className="text-4xl font-bold text-white mb-8">Manage Visibility</h2>
       {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900 mb-6">{err}</div> : null}
-      <div className="bg-white rounded-xl shadow-lg p-8 max-w-md">
+      {loading ? <div className="text-gray-300 text-lg mb-6">Loading visibility data…</div> : null}
+
+      <div className="bg-white rounded-xl shadow-lg p-8 max-w-3xl">
         <form onSubmit={submit} className="space-y-4">
           <div>
             <label className="block text-gray-700 font-medium mb-2">Entity type</label>
             <select value={entity} onChange={(e) => setEntity(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="theater">theater</option>
-              <option value="hall">hall</option>
-              <option value="show">show</option>
+              <option value="theater">Theater</option>
+              <option value="hall">Hall</option>
+              <option value="show">Show</option>
             </select>
           </div>
-          <input placeholder="Entity id" value={id} onChange={(e) => setId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer">
-            <input type="checkbox" checked={blocked} onChange={(e) => setBlocked(e.target.checked)} className="w-4 h-4" />
-            <span className="font-medium text-gray-700">Block this entity</span>
-          </label>
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Apply</button>
+
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Theater</label>
+            <select value={theaterId} onChange={(e) => setTheaterId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Select theater</option>
+              {theaters.map((t) => (
+                <option key={t.id} value={t.id}>
+                  #{t.id} {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {(entity === 'hall' || entity === 'show') ? (
+            <div>
+              <label className="block text-gray-700 font-medium mb-2">Hall</label>
+              <select value={hallId} onChange={(e) => setHallId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Select hall</option>
+                {hallsForTheater.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    #{h.id} {h.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {entity === 'show' ? (
+            <div>
+              <label className="block text-gray-700 font-medium mb-2">Show</label>
+              <select value={showId} onChange={(e) => setShowId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Select show</option>
+                {showsForHall.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    #{s.id} {s.Movie?.title || 'Movie'} ({new Date(s.startsAt).toLocaleString()})
+                  </option>
+                ))}
+              </select>
+              <div className="text-xs text-gray-500 mt-1">Show options currently use pending shows list.</div>
+            </div>
+          ) : null}
+
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Visibility Toggle</label>
+            <button
+              type="button"
+              onClick={() => setBlocked((v) => !v)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
+                blocked
+                  ? 'bg-red-50 border-red-300 text-red-700'
+                  : 'bg-green-50 border-green-300 text-green-700'
+              }`}
+            >
+              <span className="font-medium">{blocked ? 'Blocked (Hidden from users)' : 'Active (Visible to users)'}</span>
+              <span className={`inline-block w-11 h-6 rounded-full relative ${blocked ? 'bg-red-500' : 'bg-green-500'}`}>
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${blocked ? 'left-0.5' : 'left-5'}`} />
+              </span>
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Reason</label>
+            <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="policy">Policy violation</option>
+              <option value="maintenance">Maintenance issue</option>
+              <option value="quality">Quality concerns</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          {reason === 'other' ? (
+            <input
+              placeholder="Enter custom reason"
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          ) : null}
+
+          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-lg">
+            Blocking will hide this from users.
+          </div>
+
+          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
+            Apply Visibility
+          </button>
         </form>
-        <div className="mt-6 text-sm text-gray-600 bg-blue-50 p-4 rounded-lg">
-          Use this to block/unblock entities from the user feed.
+      </div>
+
+      <div className="mt-8 bg-white rounded-xl shadow-lg p-8">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">Currently Blocked Entities</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <h4 className="font-semibold text-gray-800 mb-2">Theaters</h4>
+            <div className="space-y-2">
+              {blockedTheaters.map((t) => (
+                <div key={t.id} className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">
+                  #{t.id} {t.name}
+                </div>
+              ))}
+              {blockedTheaters.length === 0 ? <div className="text-sm text-gray-500">None blocked</div> : null}
+            </div>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-800 mb-2">Halls</h4>
+            <div className="space-y-2">
+              {blockedHalls.map((h) => (
+                <div key={h.id} className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">
+                  #{h.id} {h.name}
+                </div>
+              ))}
+              {blockedHalls.length === 0 ? <div className="text-sm text-gray-500">None blocked</div> : null}
+            </div>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-800 mb-2">Shows</h4>
+            <div className="space-y-2">
+              {blockedShows.map((s) => (
+                <div key={s.id} className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">
+                  #{s.id} {s.Movie?.title || 'Movie'}
+                </div>
+              ))}
+              {blockedShows.length === 0 ? <div className="text-sm text-gray-500">None blocked</div> : null}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
-

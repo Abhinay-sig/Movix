@@ -8,7 +8,7 @@ export default function Layout() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-4">
-            <Link to="/" className="text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors">
+            <Link to="/dashboard" className="text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors">
               MVP Staff
             </Link>
             <nav className="flex items-center gap-6">
@@ -24,8 +24,9 @@ export default function Layout() {
                 <>
                   <Link to="/admin/dashboard" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Dashboard</Link>
                   <Link to="/admin/approvals" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Approvals</Link>
-                  <Link to="/admin/caps" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Seat caps</Link>
-                  <Link to="/admin/blocking" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Blocking</Link>
+                  <Link to="/admin/caps" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Pricing</Link>
+                  <Link to="/admin/blocking" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Visibility</Link>
+                  <Link to="/admin/reports" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Reports</Link>
                 </>
               ) : null}
             </nav>
@@ -53,4 +54,3 @@ export default function Layout() {
     </div>
   )
 }
-

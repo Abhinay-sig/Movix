@@ -218,8 +218,10 @@ function createShowTimes() {
         startsAt,
         endsAt,
         language: ['English', 'Hindi', 'Spanish'][Math.floor(Math.random() * 3)],
-        isApproved: true,
-        approvedAt: new Date(),
+        //isApproved: true,
+        //approvedAt: new Date(),
+        isApproved: false, 
+        approvedAt: null, 
         isBlocked: false,
         isCancelled: false,
       });
@@ -355,8 +357,10 @@ async function seedTheatersAndHalls(owner1, owner2) {
         defaults: {
           name: hallName,
           theaterId: theater.id,
-          isApproved: true,
-          approvedAt: new Date(),
+          //isApproved: true,
+          //approvedAt: new Date(),
+          isApproved: false,
+          approvedAt: null,
           isBlocked: false,
         },
       });

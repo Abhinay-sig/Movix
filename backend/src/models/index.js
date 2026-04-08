@@ -7,6 +7,8 @@ const { defineMovie } = require('./Movie');
 const { defineShow } = require('./Show');
 const { defineSeatType, SEAT_TYPES } = require('./SeatType');
 const { defineShowSeatPrice } = require('./ShowSeatPrice');
+const { defineHallSeatCap } = require('./HallSeatCap');
+const { defineSeatCapHistory } = require('./SeatCapHistory');
 const { defineSeatHold, HOLD_STATUS } = require('./SeatHold');
 const { defineBooking, BOOKING_STATUS } = require('./Booking');
 const { defineBookingSeat } = require('./BookingSeat');
@@ -28,6 +30,8 @@ db.Show = defineShow(sequelize);
 db.SeatType = defineSeatType(sequelize);
 db.SEAT_TYPES = SEAT_TYPES;
 db.ShowSeatPrice = defineShowSeatPrice(sequelize);
+db.HallSeatCap = defineHallSeatCap(sequelize);
+db.SeatCapHistory = defineSeatCapHistory(sequelize);
 
 db.SeatHold = defineSeatHold(sequelize);
 db.HOLD_STATUS = HOLD_STATUS;
@@ -49,6 +53,7 @@ db.HallLayout.belongsTo(db.Hall, { foreignKey: 'hallId' });
 db.Hall.hasMany(db.Show, { foreignKey: 'hallId' });
 db.Show.belongsTo(db.Hall, { foreignKey: 'hallId' });
 
+
 db.Movie.hasMany(db.Show, { foreignKey: 'movieId' });
 db.Show.belongsTo(db.Movie, { foreignKey: 'movieId' });
 
@@ -56,6 +61,14 @@ db.Show.hasMany(db.ShowSeatPrice, { foreignKey: 'showId' });
 db.ShowSeatPrice.belongsTo(db.Show, { foreignKey: 'showId' });
 db.SeatType.hasMany(db.ShowSeatPrice, { foreignKey: 'seatTypeId' });
 db.ShowSeatPrice.belongsTo(db.SeatType, { foreignKey: 'seatTypeId' });
+
+db.Hall.hasMany(db.HallSeatCap, { foreignKey: 'hallId' });
+db.HallSeatCap.belongsTo(db.Hall, { foreignKey: 'hallId' });
+db.SeatType.hasMany(db.HallSeatCap, { foreignKey: 'seatTypeId' });
+db.HallSeatCap.belongsTo(db.SeatType, { foreignKey: 'seatTypeId' });
+
+db.Hall.hasMany(db.SeatCapHistory, { foreignKey: 'hallId' });
+db.SeatCapHistory.belongsTo(db.Hall, { foreignKey: 'hallId' });
 
 db.Show.hasMany(db.SeatHold, { foreignKey: 'showId' });
 db.SeatHold.belongsTo(db.Show, { foreignKey: 'showId' });
@@ -71,6 +84,8 @@ db.Booking.hasMany(db.BookingSeat, { foreignKey: 'bookingId' });
 db.BookingSeat.belongsTo(db.Booking, { foreignKey: 'bookingId' });
 db.Show.hasMany(db.BookingSeat, { foreignKey: 'showId' });
 db.BookingSeat.belongsTo(db.Show, { foreignKey: 'showId' });
+db.SeatType.hasMany(db.BookingSeat, { foreignKey: 'seatTypeId' });
+db.BookingSeat.belongsTo(db.SeatType, { foreignKey: 'seatTypeId' });
 
 async function seedSeatTypes() {
   const defaults = [
@@ -87,9 +102,8 @@ async function seedSeatTypes() {
 }
 
 async function syncDb() {
-  await sequelize.sync();
+  await sequelize.sync({ alter: true });
   await seedSeatTypes();
 }
 
 module.exports = { db, syncDb };
-
