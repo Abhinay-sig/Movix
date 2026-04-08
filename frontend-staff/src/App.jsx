@@ -10,9 +10,13 @@ import OwnerNewHall from './pages/OwnerNewHall'
 import OwnerNewShow from './pages/OwnerNewShow'
 import OwnerRevenue from './pages/OwnerRevenue'
 import AdminDashboard from './pages/AdminDashboard'
+import AdminAddMovie from './pages/AdminAddMovie'
 import AdminApprovals from './pages/AdminApprovals'
 import AdminCaps from './pages/AdminCaps'
 import AdminBlocking from './pages/AdminBlocking'
+
+/* ✅ NEW IMPORT */
+import AdminMovies from './pages/AdminMovies'
 
 function Home() {
   return <div className="text-gray-600">Login to continue.</div>
@@ -37,6 +41,16 @@ export default function App() {
 
         <Route element={<RequireRole role="admin" />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+          {/* ✅ NEW: Movie List Page */}
+          <Route path="/admin/movies" element={<AdminMovies />} />
+
+          {/* EXISTING */}
+          <Route path="/admin/movies/new" element={<AdminAddMovie />} />
+
+          {/* ✅ NEW: Edit Movie (reuse same form) */}
+          <Route path="/admin/movies/:id/edit" element={<AdminAddMovie />} />
+
           <Route path="/admin/approvals" element={<AdminApprovals />} />
           <Route path="/admin/caps" element={<AdminCaps />} />
           <Route path="/admin/blocking" element={<AdminBlocking />} />
@@ -47,4 +61,3 @@ export default function App() {
     </Routes>
   )
 }
-

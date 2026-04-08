@@ -294,15 +294,39 @@ async function createShow(req, res, next) {
       lock: t.LOCK.UPDATE,
       include: [{ model: db.Theater }],
     });
+
+    if (!hall.isApproved) {
+  throw new HttpError(400, 'Hall is not approved yet');
+}
+
     if (!hall || String(hall.Theater.ownerUserId) !== String(req.user.id)) {
       throw new HttpError(404, 'Hall not found');
     }
 
-    const movie = await db.Movie.findByPk(body.movieId, { transaction: t });
-    if (!movie || !movie.isActive) throw new HttpError(404, 'Movie not found');
-    if (body.date < String(movie.releaseDate)) {
-      throw new HttpError(400, 'Cannot schedule a show before the movie release date');
-    }
+   const movie = await db.Movie.findByPk(body.movieId, { transaction: t });
+if (!movie || !movie.isActive) throw new HttpError(404, 'Movie not found');
+
+// ✅ Release date check (keep this)
+if (body.date < String(movie.releaseDate)) {
+  throw new HttpError(400, 'Cannot schedule a show before the movie release date');
+}
+
+// ✅ ADD THIS BLOCK JUST BELOW (7-day restriction FIX)
+const today = dayjs().startOf('day');
+const maxDate = dayjs().add(7, 'day').endOf('day');
+const showDate = dayjs(body.date);
+
+if (!showDate.isValid()) {
+  throw new HttpError(400, 'Invalid date');
+}
+
+if (showDate.startOf('day').isBefore(today)) {
+  throw new HttpError(400, 'Cannot schedule show in the past');
+}
+
+if (showDate.startOf('day').isAfter(maxDate)) {
+  throw new HttpError(400, 'Shows can only be scheduled within next 7 days');
+}
 
     const durationMins = Number(movie.durationMins);
 

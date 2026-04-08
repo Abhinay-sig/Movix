@@ -1,21 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
 
-const EMPTY_FORM = {
-  title: '',
-  genre: '',
-  releaseDate: '',
-  description: '',
-  durationMins: '',
-  posterUrl: '',
-}
-
 export default function AdminDashboard() {
   const { auth } = useAuth()
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [savingMovie, setSavingMovie] = useState(false)
   const [err, setErr] = useState('')
 
   function loadDashboard() {
@@ -28,36 +19,6 @@ export default function AdminDashboard() {
     loadDashboard()
   }, [auth.token])
 
-  function updateField(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
-
-  async function submitMovie(e) {
-    e.preventDefault()
-    setErr('')
-    setSavingMovie(true)
-    try {
-      await api('/admin/movies', {
-        method: 'POST',
-        token: auth.token,
-        body: {
-          title: form.title.trim(),
-          genre: form.genre.trim(),
-          releaseDate: form.releaseDate,
-          description: form.description.trim(),
-          durationMins: Number(form.durationMins),
-          posterUrl: form.posterUrl.trim(),
-        },
-      })
-      setForm(EMPTY_FORM)
-      await loadDashboard()
-    } catch (e2) {
-      setErr(e2.message)
-    } finally {
-      setSavingMovie(false)
-    }
-  }
-
   return (
     <div>
       <h2 className="text-4xl font-bold text-white mb-8">Admin dashboard</h2>
@@ -66,6 +27,7 @@ export default function AdminDashboard() {
         <div className="text-gray-300 text-lg">Loading…</div>
       ) : (
         <div className="space-y-6">
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl shadow-lg p-8">
               <div className="text-gray-600 text-sm font-medium mb-2">Gross Revenue</div>
@@ -75,66 +37,6 @@ export default function AdminDashboard() {
               <div className="text-gray-600 text-sm font-medium mb-2">Admin Revenue (5%)</div>
               <div className="text-4xl font-bold text-green-600">₹{data.adminRevenue}</div>
             </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">Add movie</h3>
-            <form onSubmit={submitMovie} className="space-y-4 max-w-3xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input
-                  placeholder="Movie title"
-                  value={form.title}
-                  onChange={(e) => updateField('title', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <input
-                  placeholder="Genre"
-                  value={form.genre}
-                  onChange={(e) => updateField('genre', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input
-                  type="number"
-                  min="1"
-                  max="480"
-                  placeholder="Duration in minutes"
-                  value={form.durationMins}
-                  onChange={(e) => updateField('durationMins', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <input
-                  type="date"
-                  value={form.releaseDate}
-                  onChange={(e) => updateField('releaseDate', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              <input
-                placeholder="Poster URL (optional)"
-                value={form.posterUrl}
-                onChange={(e) => updateField('posterUrl', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <textarea
-                placeholder="Description (optional)"
-                value={form.description}
-                onChange={(e) => updateField('description', e.target.value)}
-                rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                disabled={savingMovie}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {savingMovie ? 'Saving…' : 'Create movie'}
-              </button>
-            </form>
           </div>
 
           <div className="bg-white rounded-xl shadow-lg p-8">
@@ -151,6 +53,7 @@ export default function AdminDashboard() {
               ))}
             </div>
           </div>
+
         </div>
       )}
     </div>

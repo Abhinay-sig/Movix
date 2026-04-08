@@ -129,7 +129,11 @@ export default function OwnerNewShow() {
       setErr('Please fill all required fields before creating the show.')
       return
     }
-
+ const selectedHall = filteredHalls.find(h => String(h.id) === String(hallId))
+    if (selectedHall && !selectedHall.isApproved) {
+      setErr('Selected hall is not approved yet')
+      return
+    }
     const selectedMovie = movies.find((movie) => String(movie.id) === String(movieId))
     if (selectedMovie && date < selectedMovie.releaseDate) {
       setErr('Cannot schedule a show before the movie release date')
@@ -210,9 +214,9 @@ export default function OwnerNewShow() {
                   {!theaterId ? 'Select theater first' : loadingHalls ? 'Loading halls…' : 'Select hall…'}
                 </option>
                 {filteredHalls.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    #{h.id} {h.name} {h.isApproved ? '' : '(pending)'}
-                  </option>
+                  <option key={h.id} value={h.id} disabled={!h.isApproved}>
+  #{h.id} {h.name} {h.isApproved ? '' : '(pending - cannot schedule)'}
+ </option>
                 ))}
               </select>
             </div>

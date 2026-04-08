@@ -24,6 +24,7 @@ export default function Layout() {
               {auth?.user?.role === 'admin' ? (
                 <>
                   <Link to="/admin/dashboard" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Dashboard</Link>
+                  <Link to="/admin/movies" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Movie</Link>
                   <Link to="/admin/approvals" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Approvals</Link>
                   <Link to="/admin/caps" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Seat caps</Link>
                   <Link to="/admin/blocking" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">Blocking</Link>
