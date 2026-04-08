@@ -31,7 +31,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
 
 export default function OwnerRevenue() {
   const { auth } = useAuth()

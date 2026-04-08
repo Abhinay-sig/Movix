@@ -374,18 +374,20 @@
 
 
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
 
 const TYPES = ['standard', 'premium', 'recliner', 'vip']
 
 export default function OwnerNewShow() {
   const { auth } = useAuth()
+  const [theaters, setTheaters] = useState([])
   const [halls, setHalls] = useState([])
   const [movies, setMovies] = useState([])
   const [err, setErr] = useState('')
 
+  const [theaterId, setTheaterId] = useState('')
   const [hallId, setHallId] = useState('')
   const [movieId, setMovieId] = useState('')
   const [date, setDate] = useState('')
@@ -397,54 +399,64 @@ export default function OwnerNewShow() {
   )
 
   const [schedule, setSchedule] = useState(null)
-  const [hasConflict, setHasConflict] = useState(false)
 
   useEffect(() => {
     Promise.all([
+      api('/owner/me/theaters', { token: auth.token }),
       api('/owner/me/halls', { token: auth.token }),
       api('/public/movies'),
     ])
-      .then(([h, m]) => {
+      .then(([t, h, m]) => {
+        setTheaters(t.theaters || [])
         setHalls(h.halls || [])
         setMovies(m.movies || [])
       })
       .catch((e) => setErr(e.message))
   }, [auth.token])
 
-  useEffect(() => {
-    if (!hallId || !date) {
-      setSchedule(null)
-      setHasConflict(false)
-      return
-    }
+  const filteredHalls = useMemo(
+    () =>
+      theaterId
+        ? halls.filter((hall) => String(hall.theaterId) === String(theaterId))
+        : [],
+    [halls, theaterId]
+  )
 
+  useEffect(() => {
+    if (!hallId || !date) return undefined
+
+    let alive = true
     api(`/owner/halls/${hallId}/schedule?date=${date}`, { token: auth.token })
-      .then((data) => setSchedule(data))
-      .catch((e) => setErr(e.message))
+      .then((data) => {
+        if (alive) setSchedule(data)
+      })
+      .catch((e) => {
+        if (alive) setErr(e.message)
+      })
+
+    return () => {
+      alive = false
+    }
   }, [hallId, date, auth.token])
 
-  useEffect(() => {
-    if (!schedule || !date || !startTime || !durationMins) {
-      setHasConflict(false)
-      return
+  const hasConflict = useMemo(() => {
+    if (!hallId || !date || !schedule || !startTime || !durationMins) {
+      return false
     }
-
     const proposedStart = new Date(`${date}T${startTime}`)
     const proposedEnd = new Date(
       proposedStart.getTime() + Number(durationMins) * 60000
     )
     const bufferMins = schedule.bufferMins || 30
 
-    const conflict = (schedule.schedule || []).some((show) => {
+    return (schedule.schedule || []).some((show) => {
       const showStart = new Date(show.startsAt)
       const showEnd = new Date(show.endsAt)
       const bufferedStart = new Date(showStart.getTime() - bufferMins * 60000)
       const bufferedEnd = new Date(showEnd.getTime() + bufferMins * 60000)
       return proposedStart < bufferedEnd && proposedEnd > bufferedStart
     })
-
-    setHasConflict(conflict)
-  }, [schedule, date, startTime, durationMins])
+  }, [hallId, schedule, date, startTime, durationMins])
 
   async function submit(e) {
     e.preventDefault()
@@ -475,7 +487,8 @@ export default function OwnerNewShow() {
         },
       })
 
-      alert('Show submitted for admin approval.')
+      alert('Showtime created successfully and is now visible in the user booking flow.')
+      setTheaterId('')
       setHallId('')
       setMovieId('')
       setDate('')
@@ -484,7 +497,6 @@ export default function OwnerNewShow() {
       setLanguage('English')
       setPrices(Object.fromEntries(TYPES.map((t) => [t, ''])))
       setSchedule(null)
-      setHasConflict(false)
     } catch (e2) {
       setErr(e2.message)
     }
@@ -503,7 +515,7 @@ export default function OwnerNewShow() {
           Create showtime
         </h2>
         <p className="text-sm text-slate-500">
-          Plan a new screening and review the day schedule before you publish it.
+          Choose a theater, then choose one of its halls to schedule a showtime.
         </p>
       </div>
 
@@ -518,18 +530,42 @@ export default function OwnerNewShow() {
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700">
-                Choose auditorium
+                Choose theater
+              </label>
+              <select
+                value={theaterId}
+                onChange={(e) => {
+                  setTheaterId(e.target.value)
+                  setHallId('')
+                  setSchedule(null)
+                }}
+                className={fieldClass}
+              >
+                <option value="">Choose a theater…</option>
+                {theaters.map((theater) => (
+                  <option key={theater.id} value={theater.id}>
+                    {theater.name} • {theater.city}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Choose hall
               </label>
               <select
                 value={hallId}
                 onChange={(e) => setHallId(e.target.value)}
                 className={fieldClass}
+                disabled={!theaterId}
               >
-                <option value="">Choose an auditorium…</option>
-                {halls.map((h) => (
+                <option value="">
+                  {theaterId ? 'Choose a hall…' : 'Choose a theater first…'}
+                </option>
+                {filteredHalls.map((h) => (
                   <option key={h.id} value={h.id}>
-                    #{h.id} {h.Theater?.name} — {h.name}{' '}
-                    {h.isApproved ? '' : '(under review)'}
+                    {h.name} {h.isApproved ? '' : '(under review)'}
                   </option>
                 ))}
               </select>
@@ -675,8 +711,7 @@ export default function OwnerNewShow() {
         </form>
 
         <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
-          Movix automatically keeps showtimes comfortably spaced so the guest
-          experience stays smooth throughout the day.
+          The flow is Theater → Hall → Showtime. One theater can have multiple halls, and each hall can have its own schedule.
         </div>
       </div>
     </div>

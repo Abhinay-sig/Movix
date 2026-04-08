@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
 
 export default function OwnerTheaters() {
   const { auth } = useAuth()
@@ -10,14 +10,29 @@ export default function OwnerTheaters() {
   const [city, setCity] = useState('')
   const [err, setErr] = useState('')
 
+  useEffect(() => {
+    let alive = true
+
+    async function loadTheaters() {
+      try {
+        const d = await api('/owner/me/theaters', { token: auth.token })
+        if (!alive) return
+        setTheaters(d.theaters || [])
+      } catch (e) {
+        if (alive) setErr(e.message)
+      }
+    }
+
+    loadTheaters()
+    return () => {
+      alive = false
+    }
+  }, [auth.token])
+
   async function load() {
     const d = await api('/owner/me/theaters', { token: auth.token })
     setTheaters(d.theaters || [])
   }
-
-  useEffect(() => {
-    load().catch((e) => setErr(e.message))
-  }, [])
 
   async function create(e) {
     e.preventDefault()
@@ -45,13 +60,13 @@ export default function OwnerTheaters() {
             <div className="staff-chip">Partner Space</div>
             <h2 className="staff-title">My Theaters</h2>
             <p className="staff-copy max-w-xl">
-              Create and manage the venues guests will discover across Movix.
+              Create theaters here, then add one or more halls inside each theater.
             </p>
           </div>
 
           <div className="rounded-[1.75rem] border border-slate-200 bg-white/85 px-5 py-4 shadow-sm">
             <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
-              Total venues
+              Total theaters
             </div>
             <div className="mt-2 text-3xl font-semibold text-slate-950">
               {theaters.length}
@@ -67,11 +82,11 @@ export default function OwnerTheaters() {
       )}
 
       <div className="staff-card p-6 md:p-8">
-        <h3 className="mb-6 text-lg font-medium text-gray-900">Add a New Venue</h3>
+        <h3 className="mb-6 text-lg font-medium text-gray-900">Add a New Theater</h3>
 
         <form onSubmit={create} className="max-w-md space-y-4">
           <input
-            placeholder="Venue name"
+            placeholder="Theater name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="staff-input"
@@ -91,16 +106,16 @@ export default function OwnerTheaters() {
             className="staff-input"
           />
 
-          <button className="staff-primary w-full">Save venue</button>
+          <button className="staff-primary w-full">Save theater</button>
         </form>
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Your venues</h3>
+        <h3 className="text-lg font-medium text-gray-900">Your theaters</h3>
 
         {theaters.length === 0 ? (
           <div className="staff-card border-dashed p-8 text-center text-gray-500">
-            Your venues will appear here once they are added.
+            Your theaters will appear here once they are added.
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">

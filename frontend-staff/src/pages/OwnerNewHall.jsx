@@ -215,9 +215,9 @@
 
 
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
 import { segmentsFromSelected, typedSegmentsFromMaps } from '../lib/layoutEncode'
 
 const ROWS = 50
@@ -239,6 +239,7 @@ const SEAT_COLORS = {
 
 export default function OwnerNewHall() {
   const { auth } = useAuth()
+  const [theaters, setTheaters] = useState([])
   const [theaterId, setTheaterId] = useState('')
   const [hallName, setHallName] = useState('')
   const [activeType, setActiveType] = useState('standard')
@@ -252,6 +253,12 @@ export default function OwnerNewHall() {
   const gridRef = useRef(null)
 
   const cellSize = 10
+
+  useEffect(() => {
+    api('/owner/me/theaters', { token: auth.token })
+      .then((response) => setTheaters(response.theaters || []))
+      .catch((e) => setErr(e.message))
+  }, [auth.token])
 
   function cellFromEvent(e) {
     const el = gridRef.current
@@ -327,7 +334,7 @@ export default function OwnerNewHall() {
     setErr('')
 
     if (!theaterId || !hallName) {
-      setErr('Please add a venue reference and auditorium name to continue.')
+      setErr('Please choose a theater and enter a hall name to continue.')
       return
     }
 
@@ -356,7 +363,7 @@ export default function OwnerNewHall() {
         },
       })
 
-      alert('Hall submitted for admin approval.')
+      alert('Hall created successfully and is now available for showtime creation.')
       setTheaterId('')
       setHallName('')
       clearAll()
@@ -381,10 +388,10 @@ export default function OwnerNewHall() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h2 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-          Design auditorium
+          Design hall layout
         </h2>
         <p className="text-sm text-slate-500">
-          Shape your guest seating experience by drawing the auditorium layout.
+          Each theater can have multiple halls. Choose a theater, then design one hall layout.
         </p>
       </div>
 
@@ -393,22 +400,28 @@ export default function OwnerNewHall() {
           <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700">
-                Venue reference
+                Theater
               </label>
-              <input
-                placeholder="Enter the venue reference"
+              <select
                 value={theaterId}
                 onChange={(e) => setTheaterId(e.target.value)}
                 className={fieldClass}
-              />
+              >
+                <option value="">Choose a theater…</option>
+                {theaters.map((theater) => (
+                  <option key={theater.id} value={theater.id}>
+                    {theater.name} • {theater.city}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700">
-                Auditorium name
+                Hall name
               </label>
               <input
-                placeholder="Enter auditorium name"
+                placeholder="Enter hall name"
                 value={hallName}
                 onChange={(e) => setHallName(e.target.value)}
                 className={fieldClass}
@@ -443,14 +456,19 @@ export default function OwnerNewHall() {
             </div>
 
             <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
-              Drag across the layout to place seats. Each selection uses the
-              seating style you choose above.
+              Drag across the grid to place seats for this hall. Each theater can contain multiple halls with different layouts.
             </div>
           </form>
 
           {err ? (
             <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {err}
+            </div>
+          ) : null}
+
+          {theaters.length === 0 ? (
+            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              Add a theater first in the Theaters tab before creating halls.
             </div>
           ) : null}
         </div>
