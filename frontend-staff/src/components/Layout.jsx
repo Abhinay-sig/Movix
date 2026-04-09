@@ -32,11 +32,14 @@ export default function Layout() {
                   <Link to="/owner/theaters" className="nav-link">
                     Theaters
                   </Link>
+                  <Link to="/owner/movies" className="nav-link">
+                    Movies
+                  </Link>
                   <Link to="/owner/halls/new" className="nav-link">
                     Add hall
                   </Link>
                   <Link to="/owner/shows/new" className="nav-link">
-                    Add show
+                    Schedule show
                   </Link>
                   <Link to="/owner/revenue" className="nav-link">
                     Revenue
@@ -48,6 +51,9 @@ export default function Layout() {
                 <>
                   <Link to="/admin/dashboard" className="nav-link">
                     Dashboard
+                  </Link>
+                  <Link to="/admin/movies" className="nav-link">
+                    Movies
                   </Link>
                   <Link to="/admin/approvals" className="nav-link">
                     Approvals
@@ -101,11 +107,14 @@ export default function Layout() {
                 <Link to="/owner/theaters" className="nav-chip">
                   Theaters
                 </Link>
+                <Link to="/owner/movies" className="nav-chip">
+                  Movies
+                </Link>
                 <Link to="/owner/halls/new" className="nav-chip">
                   Add hall
                 </Link>
                 <Link to="/owner/shows/new" className="nav-chip">
-                  Add show
+                  Schedule show
                 </Link>
                 <Link to="/owner/revenue" className="nav-chip">
                   Revenue
@@ -117,6 +126,9 @@ export default function Layout() {
               <>
                 <Link to="/admin/dashboard" className="nav-chip">
                   Dashboard
+                </Link>
+                <Link to="/admin/movies" className="nav-chip">
+                  Movies
                 </Link>
                 <Link to="/admin/approvals" className="nav-chip">
                   Approvals

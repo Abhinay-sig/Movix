@@ -3,8 +3,64 @@ const { Op } = require('sequelize');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
 
+const createMovieSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(200)
+    .refine((val) => /[a-zA-Z0-9]/.test(val), {
+      message: 'Title cannot be empty or only symbols',
+    }),
+
+  genre: z
+    .string()
+    .trim()
+    .min(1, 'Genre is required')
+    .max(120)
+    .refine((val) => /[a-zA-Z0-9]/.test(val), {
+      message: 'Genre cannot be empty or only symbols',
+    }),
+
+  releaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+
+  description: z
+    .string()
+    .trim()
+    .max(5000)
+    .optional()
+    .or(z.literal('')),
+
+  durationMins: z.coerce
+    .number()
+    .int()
+    .positive('Duration must be > 0')
+    .max(480, 'Max duration is 480 mins'),
+
+  posterUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .or(z.literal(''))
+    .refine((val) => {
+      if (!val) return true;
+      try {
+        new URL(val);
+        return true;
+      } catch {
+        return false;
+      }
+    }, { message: 'Invalid URL format' }),
+});
+
 async function pendingApprovals(req, res, next) {
   try {
+    const theaters = await db.Theater.findAll({
+      where: { isBlocked: true },
+      include: [{ model: db.User, as: 'owner', attributes: ['id', 'name', 'email'] }],
+      order: [['createdAt', 'DESC']],
+    });
     const halls = await db.Hall.findAll({
       where: { isApproved: false },
       include: [{ model: db.Theater }],
@@ -13,9 +69,30 @@ async function pendingApprovals(req, res, next) {
       where: { isApproved: false },
       include: [{ model: db.Hall, include: [{ model: db.Theater }] }, { model: db.Movie }],
     });
-    res.json({ halls, shows });
+    res.json({ theaters, halls, shows });
   } catch (e) {
-    next(e);
+    return next(e);
+  }
+}
+
+const approveTheaterSchema = z.object({ theaterId: z.coerce.number().int().positive(), approve: z.boolean() });
+async function approveTheater(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const body = approveTheaterSchema.parse(req.body);
+    const theater = await db.Theater.findByPk(body.theaterId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!theater) throw new HttpError(404, 'Theater not found');
+    if (body.approve) {
+      await theater.update({ isBlocked: false }, { transaction: t });
+    } else {
+      await theater.destroy({ transaction: t });
+    }
+    await t.commit();
+    res.json({ ok: true });
+  } catch (e) {
+    await t.rollback();
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
   }
 }
 
@@ -86,6 +163,7 @@ const capSchema = z.object({
   seatTypeCode: z.string().min(1).max(40),
   adminPriceCap: z.coerce.number().nonnegative(),
 });
+
 async function setSeatTypeCap(req, res, next) {
   try {
     const body = capSchema.parse(req.body);
@@ -105,7 +183,6 @@ async function revenueDashboard(req, res, next) {
     const gross = bookings.reduce((sum, b) => sum + Number(b.totalAmount), 0);
     const adminRevenue = gross * 0.05;
 
-    // Top 5 theaters by gross
     const shows = await db.Show.findAll({ include: [{ model: db.Hall, include: [{ model: db.Theater }] }] });
     const showToTheater = new Map(shows.map((s) => [String(s.id), String(s.Hall.theaterId)]));
 
@@ -174,8 +251,117 @@ async function listTheatersWithContribution(req, res, next) {
   }
 }
 
+async function createMovie(req, res, next) {
+  try {
+    const body = createMovieSchema.parse(req.body);
+
+    const title = body.title.trim();
+    const normalizedTitle = title.toLowerCase();
+
+    const existingMovie = await db.Movie.findOne({
+      where: db.sequelize.where(
+        db.sequelize.fn('LOWER', db.sequelize.col('title')),
+        normalizedTitle
+      ),
+    });
+
+    if (existingMovie) {
+      throw new HttpError(409, 'Movie already exists');
+    }
+
+    const movie = await db.Movie.create({
+      title,
+      genre: body.genre.trim(),
+      releaseDate: body.releaseDate,
+      description: body.description?.trim() || null,
+      durationMins: body.durationMins,
+      posterUrl: body.posterUrl?.trim() || null,
+      isActive: true,
+    });
+
+    res.status(201).json({ movie });
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+/* ---------------- NEW FUNCTIONS ---------------- */
+
+// GET SINGLE MOVIE
+async function getMovieById(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const movie = await db.Movie.findByPk(id);
+    if (!movie) throw new HttpError(404, 'Movie not found');
+    res.json({ movie });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// PATCH UPDATE
+async function updateMovie(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const movie = await db.Movie.findByPk(id);
+    if (!movie) throw new HttpError(404, 'Movie not found');
+
+    const body = req.body;
+    const updates = {};
+
+    if (body.title !== undefined) {
+      const title = body.title.trim();
+      if (!title || !/[a-zA-Z0-9]/.test(title)) {
+        throw new HttpError(400, 'Invalid title');
+      }
+      updates.title = title;
+    }
+
+    if (body.genre !== undefined) updates.genre = body.genre.trim();
+    if (body.releaseDate !== undefined) updates.releaseDate = body.releaseDate;
+    if (body.description !== undefined) updates.description = body.description?.trim() || null;
+    if (body.durationMins !== undefined) updates.durationMins = Number(body.durationMins);
+
+    if (body.posterUrl !== undefined) {
+      if (body.posterUrl) {
+        try {
+          new URL(body.posterUrl);
+        } catch {
+          throw new HttpError(400, 'Invalid poster URL');
+        }
+      }
+      updates.posterUrl = body.posterUrl?.trim() || null;
+    }
+
+    await movie.update(updates);
+
+    res.json({ movie });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// DELETE MOVIE
+async function deleteMovie(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const movie = await db.Movie.findByPk(id);
+    if (!movie) throw new HttpError(404, 'Movie not found');
+
+    await movie.destroy();
+
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+}
+
+/* ---------------- EXPORT ---------------- */
+
 module.exports = {
   pendingApprovals,
+  approveTheater,
   approveHall,
   approveShow,
   setBlocked,
@@ -183,5 +369,10 @@ module.exports = {
   revenueDashboard,
   cancelShow,
   listTheatersWithContribution,
-};
+  createMovie,
 
+  // NEW EXPORTS
+  getMovieById,
+  updateMovie,
+  deleteMovie,
+};

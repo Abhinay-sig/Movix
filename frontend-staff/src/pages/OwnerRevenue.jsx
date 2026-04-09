@@ -1,34 +1,3 @@
-// import { useEffect, useState } from 'react'
-// import { api } from '../lib/api'
-// import { useAuth } from '../AuthContext'
-
-// export default function OwnerRevenue() {
-//   const { auth } = useAuth()
-//   const [data, setData] = useState(null)
-//   const [err, setErr] = useState('')
-
-//   useEffect(() => {
-//     api('/owner/me/revenue', { token: auth.token })
-//       .then(setData)
-//       .catch((e) => setErr(e.message))
-//   }, [auth.token])
-
-//   return (
-//     <div>
-//       <h2 className="text-4xl font-bold text-white mb-8">Revenue</h2>
-//       {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900 mb-6">{err}</div> : null}
-//       {!data ? (
-//         <div className="text-gray-300 text-lg">Loading…</div>
-//       ) : (
-//         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md">
-//           <div className="text-gray-600 text-lg mb-2">Total Revenue</div>
-//           <div className="text-4xl font-bold text-blue-600">₹{data.totalRevenue}</div>
-//         </div>
-//       )}
-//     </div>
-//   )
-// }
-
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
@@ -40,7 +9,10 @@ export default function OwnerRevenue() {
 
   useEffect(() => {
     api('/owner/me/revenue', { token: auth.token })
-      .then(setData)
+      .then((response) => {
+        setData(response)
+        setErr('')
+      })
       .catch((e) => setErr(e.message))
   }, [auth.token])
 
@@ -51,7 +23,7 @@ export default function OwnerRevenue() {
           Business performance
         </h2>
         <p className="text-sm text-slate-500">
-          A quick look at how your venues are performing.
+          A quick look at how your venues and bookings are performing.
         </p>
       </div>
 
@@ -66,21 +38,104 @@ export default function OwnerRevenue() {
           Loading…
         </div>
       ) : (
-        <div className="max-w-md">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-8">
-            <div className="mb-2 text-sm font-medium text-slate-500">
-              Total earnings
-            </div>
-            <div className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-              ₹{data.totalRevenue}
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Total earnings" value={`₹${Number(data.totalRevenue).toFixed(2)}`} />
+            <MetricCard label="Confirmed bookings" value={data.totalBookings} />
+            <MetricCard label="Sold tickets" value={data.soldTickets} />
+            <MetricCard label="Theaters" value={data.theaterCount} />
+          </div>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Revenue by theater
+              </h3>
+              <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                {data.breakdown.length} venues
+              </span>
             </div>
 
-            <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-              <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500" />
+            {data.breakdown.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+                No ticket sales yet.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {data.breakdown.map((item) => (
+                  <div
+                    key={item.theaterId}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-base font-semibold text-slate-900">
+                          {item.theaterName}
+                        </div>
+                        <div className="text-sm text-slate-500">{item.city}</div>
+                      </div>
+                      <div className="text-sm text-slate-600">
+                        {item.bookingCount} booking{item.bookingCount === 1 ? '' : 's'} • ₹
+                        {Number(item.totalRevenue).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Recent confirmed bookings
+              </h3>
+              <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                Last {data.recentBookings.length}
+              </span>
             </div>
-          </div>
+
+            {data.recentBookings.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+                No confirmed bookings yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {data.recentBookings.map((booking) => (
+                  <div
+                    key={booking.bookingId}
+                    className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <div className="font-medium text-slate-900">
+                        {booking.theaterName}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        Booking #{booking.bookingId} • Show #{booking.showId}
+                      </div>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      ₹{Number(booking.totalAmount).toFixed(2)} •{' '}
+                      {new Date(booking.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       )}
+    </div>
+  )
+}
+
+function MetricCard({ label, value }) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-8">
+      <div className="mb-2 text-sm font-medium text-slate-500">{label}</div>
+      <div className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+        {value}
+      </div>
     </div>
   )
 }

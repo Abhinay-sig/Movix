@@ -4,20 +4,42 @@ import { api } from '../lib/api'
 
 export default function Home() {
   const [movies, setMovies] = useState([])
+  const [filters, setFilters] = useState({ languages: [], cities: [] })
   const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [language, setLanguage] = useState('')
+  const [city, setCity] = useState('')
+  const [duration, setDuration] = useState('')
 
   useEffect(() => {
     let alive = true
-    api('/public/movies')
-      .then((d) => {
-        if (alive) setMovies(d.movies || [])
+    setLoading(true)
+
+    const params = new URLSearchParams()
+    if (search.trim()) params.set('search', search.trim())
+    if (language) params.set('language', language)
+    if (city) params.set('city', city)
+    if (duration) params.set('duration', duration)
+
+    api(`/public/movies${params.toString() ? `?${params.toString()}` : ''}`)
+      .then((response) => {
+        if (!alive) return
+        setMovies(response.movies || [])
+        setFilters(response.filters || { languages: [], cities: [] })
+        setErr('')
+        setLoading(false)
       })
-      .catch((e) => alive && setErr(e.message))
+      .catch((e) => {
+        if (!alive) return
+        setErr(e.message)
+        setLoading(false)
+      })
 
     return () => {
       alive = false
     }
-  }, [])
+  }, [search, language, city, duration])
 
   return (
     <div className="space-y-8">
@@ -69,7 +91,7 @@ export default function Home() {
                   {['Browse', 'Choose', 'Enjoy'].map((label, index) => (
                     <div
                       key={label}
-                    className="rounded-2xl border border-white/70 bg-gradient-to-br from-white to-blue-50 p-4 shadow-sm"
+                      className="rounded-2xl border border-white/70 bg-gradient-to-br from-white to-blue-50 p-4 shadow-sm"
                     >
                       <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
                         0{index + 1}
@@ -92,32 +114,81 @@ export default function Home() {
 
       <div className="fade-up space-y-2">
         <h3 className="text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">
-          Discover Movies
+          Discover movies
         </h3>
         <p className="section-copy">
           Browse and book shows from currently available titles.
         </p>
       </div>
 
-      {err && (
+      <section className="soft-card p-5 md:p-6">
+        <div className="grid gap-4 lg:grid-cols-[2fr_repeat(3,1fr)]">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by movie title, description, city, or language"
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+          />
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+          >
+            <option value="">All languages</option>
+            {filters.languages.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+          <select
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+          >
+            <option value="">All cities</option>
+            {filters.cities.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+          <select
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+          >
+            <option value="">Any duration</option>
+            <option value="short">Under 120 mins</option>
+            <option value="medium">120 to 150 mins</option>
+            <option value="long">Over 150 mins</option>
+          </select>
+        </div>
+      </section>
+
+      {err ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 shadow-sm">
           {err}
         </div>
-      )}
+      ) : null}
 
-      {movies.length === 0 ? (
+      {loading ? (
         <div className="soft-card border-dashed p-10 text-center text-slate-500">
           Loading movies...
         </div>
+      ) : movies.length === 0 ? (
+        <div className="soft-card border-dashed p-10 text-center text-slate-500">
+          No movies matched your search.
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {movies.map((m) => (
-            <div key={m.id} className="soft-card group overflow-hidden">
+          {movies.map((movie) => (
+            <div key={movie.id} className="soft-card group overflow-hidden">
               <div className="relative h-52 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-800 to-blue-500">
-                {m.posterUrl ? (
+                {movie.posterUrl ? (
                   <img
-                    src={m.posterUrl}
-                    alt={m.title}
+                    src={movie.posterUrl}
+                    alt={movie.title}
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'
@@ -135,7 +206,7 @@ export default function Home() {
                       Featured title
                     </div>
                     <div className="mt-2 line-clamp-2 text-xl font-semibold text-white">
-                      {m.title}
+                      {movie.title}
                     </div>
                   </div>
 
@@ -144,7 +215,7 @@ export default function Home() {
                       Duration
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-white">
-                      {m.durationMins}
+                      {movie.durationMins}
                       <span className="ml-1 text-sm font-medium text-blue-100">
                         mins
                       </span>
@@ -159,16 +230,31 @@ export default function Home() {
                     Booking open
                   </div>
                   <h3 className="line-clamp-2 text-lg font-semibold text-slate-950">
-                    {m.title}
+                    {movie.title}
                   </h3>
                 </div>
 
                 <p className="text-sm leading-6 text-slate-500">
-                  {m.description || 'Pick a showtime, select seats, and confirm in just a few taps.'}
+                  {movie.description || 'Pick a showtime, select seats, and confirm in just a few taps.'}
                 </p>
 
+                <div className="space-y-2 text-sm text-slate-500">
+                  <div>
+                    <span className="font-medium text-slate-700">Languages:</span>{' '}
+                    {(movie.languages || []).join(', ') || 'TBA'}
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-700">Cities:</span>{' '}
+                    {(movie.cities || []).join(', ') || 'TBA'}
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-700">Next show:</span>{' '}
+                    {movie.nextShowAt ? new Date(movie.nextShowAt).toLocaleString() : 'Coming soon'}
+                  </div>
+                </div>
+
                 <Link
-                  to={`/movies/${m.id}`}
+                  to={`/movies/${movie.id}`}
                   className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950 transition-all duration-300 group-hover:text-blue-600"
                 >
                   View shows

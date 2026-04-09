@@ -4,6 +4,7 @@ const { defineTheater } = require('./Theater');
 const { defineHall } = require('./Hall');
 const { defineHallLayout } = require('./HallLayout');
 const { defineMovie } = require('./Movie');
+const { defineOwnerMovie } = require('./OwnerMovie');
 const { defineShow } = require('./Show');
 const { defineSeatType, SEAT_TYPES } = require('./SeatType');
 const { defineShowSeatPrice } = require('./ShowSeatPrice');
@@ -23,6 +24,7 @@ db.Hall = defineHall(sequelize);
 db.HallLayout = defineHallLayout(sequelize);
 
 db.Movie = defineMovie(sequelize);
+db.OwnerMovie = defineOwnerMovie(sequelize);
 db.Show = defineShow(sequelize);
 
 db.SeatType = defineSeatType(sequelize);
@@ -51,6 +53,11 @@ db.Show.belongsTo(db.Hall, { foreignKey: 'hallId' });
 
 db.Movie.hasMany(db.Show, { foreignKey: 'movieId' });
 db.Show.belongsTo(db.Movie, { foreignKey: 'movieId' });
+
+db.User.hasMany(db.OwnerMovie, { foreignKey: 'ownerUserId' });
+db.OwnerMovie.belongsTo(db.User, { foreignKey: 'ownerUserId', as: 'owner' });
+db.Movie.hasMany(db.OwnerMovie, { foreignKey: 'movieId' });
+db.OwnerMovie.belongsTo(db.Movie, { foreignKey: 'movieId' });
 
 db.Show.hasMany(db.ShowSeatPrice, { foreignKey: 'showId' });
 db.ShowSeatPrice.belongsTo(db.Show, { foreignKey: 'showId' });
