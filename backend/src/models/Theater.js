@@ -18,4 +18,3 @@ function defineTheater(sequelize) {
 }
 
 module.exports = { defineTheater };
-
