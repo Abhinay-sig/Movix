@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
+import ShowRejectModal from '../components/ShowRejectModal'
 
 export default function ShowDetails() {
   const { auth } = useAuth()
@@ -11,6 +12,7 @@ export default function ShowDetails() {
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
 
   useEffect(() => {
     if (!auth?.token || !id) return
@@ -22,7 +24,7 @@ export default function ShowDetails() {
       .finally(() => setLoading(false))
   }, [auth?.token, id])
 
-  async function decide(approve) {
+  async function decide(approve, extra = {}) {
     if (!data?.show?.showId) return
     setActing(true)
     setErr('')
@@ -30,7 +32,7 @@ export default function ShowDetails() {
       await api('/admin/approvals/show', {
         method: 'POST',
         token: auth.token,
-        body: { showId: data.show.showId, approve },
+        body: { showId: data.show.showId, approve, ...extra },
       })
       nav('/admin/approvals', { replace: true })
     } catch (e) {
@@ -38,6 +40,14 @@ export default function ShowDetails() {
     } finally {
       setActing(false)
     }
+  }
+
+  async function rejectWithReason({ reason, comment, suggestedCaps }) {
+    await decide(false, {
+      rejectReason: reason,
+      rejectComment: comment || undefined,
+      suggestedCaps: suggestedCaps || undefined,
+    })
   }
 
   return (
@@ -149,14 +159,22 @@ export default function ShowDetails() {
               <button disabled={acting} onClick={() => decide(true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50">
                 Approve Show
               </button>
-              <button disabled={acting} onClick={() => decide(false)} className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50">
+              <button disabled={acting} onClick={() => setRejectModalOpen(true)} className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50">
                 Reject Show
               </button>
             </div>
           </section>
         </div>
       ) : null}
+
+      <ShowRejectModal
+        open={rejectModalOpen}
+        show={{ id: data?.show?.showId, movieTitle: data?.movie?.title }}
+        token={auth?.token}
+        submitting={acting}
+        onClose={() => setRejectModalOpen(false)}
+        onSubmit={rejectWithReason}
+      />
     </div>
   )
 }
-

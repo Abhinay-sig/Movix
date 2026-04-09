@@ -250,7 +250,7 @@ async function pendingShowDetails(req, res, next) {
         { model: db.Movie },
         {
           model: db.Hall,
-          include: [{ model: db.Theater }, { model: db.HallLayout }],
+          include: [{ model: db.Theater }, { model: db.HallLayout }, { model: db.HallSeatCap, include: [{ model: db.SeatType }] }],
         },
         { model: db.ShowSeatPrice, include: [{ model: db.SeatType }] },
       ],
@@ -274,10 +274,16 @@ async function pendingShowDetails(req, res, next) {
     ]);
 
     const availableSeats = Math.max(0, totalSeats - bookedCount - blockedCount);
+    const hallCapsByType = new Map(
+      (showJson.Hall?.HallSeatCaps || [])
+        .filter((x) => x?.SeatType?.code)
+        .map((x) => [x.SeatType.code, Number(x.priceCap)])
+    );
     const pricing = (showJson.ShowSeatPrices || []).map((sp) => ({
       seatTypeCode: sp.SeatType?.code ?? null,
       seatTypeName: sp.SeatType?.displayName ?? sp.SeatType?.code ?? 'Unknown',
       price: Number(sp.price),
+      adminPriceCap: sp.SeatType?.code && hallCapsByType.has(sp.SeatType.code) ? hallCapsByType.get(sp.SeatType.code) : null,
     }));
 
     res.json({
@@ -336,6 +342,30 @@ async function approveHall(req, res, next) {
     }
     await t.commit();
     res.json({ ok: true });
+  } catch (e) {
+    await t.rollback();
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+const rejectEntitySchema = z.object({
+  reasonType: z.string().trim().min(1).max(80),
+  message: z.string().trim().max(1000).optional(),
+  suggestion: z.string().trim().max(1000).optional(),
+});
+
+async function rejectHall(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const hallId = Number(req.params.id);
+    if (!Number.isInteger(hallId) || hallId <= 0) throw new HttpError(400, 'Invalid hall id');
+    const body = rejectEntitySchema.parse(req.body);
+    const hall = await db.Hall.findOne({ where: { id: hallId, isApproved: false }, transaction: t, lock: t.LOCK.UPDATE });
+    if (!hall) throw new HttpError(404, 'Pending hall not found');
+    await hall.destroy({ transaction: t });
+    await t.commit();
+    res.json({ ok: true, entity: 'hall', id: hallId, reasonType: body.reasonType });
   } catch (e) {
     await t.rollback();
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
@@ -616,7 +646,38 @@ async function suggestedCapsForHall(req, res, next) {
   }
 }
 
-const approveShowSchema = z.object({ showId: z.coerce.number().int().positive(), approve: z.boolean() });
+const approveShowSchema = z
+  .object({
+    showId: z.coerce.number().int().positive(),
+    approve: z.boolean(),
+    rejectReason: z.string().trim().min(1).max(120).optional(),
+    rejectComment: z.string().trim().max(1000).optional(),
+    suggestedCaps: z.record(z.string(), z.coerce.number().positive()).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (!val.approve && !val.rejectReason) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Rejection reason is required',
+        path: ['rejectReason'],
+      });
+    }
+    if (!val.approve && String(val.rejectReason || '').toLowerCase() === 'other' && !val.rejectComment) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Custom rejection comment is required for "Other"',
+        path: ['rejectComment'],
+      });
+    }
+    if (!val.approve && String(val.rejectReason || '').toLowerCase() === 'pricing_issue' && (!val.suggestedCaps || Object.keys(val.suggestedCaps).length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Suggested caps are required for pricing issue rejection',
+        path: ['suggestedCaps'],
+      });
+    }
+  });
+
 async function approveShow(req, res, next) {
   const t = await db.sequelize.transaction();
   try {
@@ -630,6 +691,24 @@ async function approveShow(req, res, next) {
     }
     await t.commit();
     res.json({ ok: true });
+  } catch (e) {
+    await t.rollback();
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+async function rejectShow(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const showId = Number(req.params.id);
+    if (!Number.isInteger(showId) || showId <= 0) throw new HttpError(400, 'Invalid show id');
+    const body = rejectEntitySchema.parse(req.body);
+    const show = await db.Show.findOne({ where: { id: showId, isApproved: false }, transaction: t, lock: t.LOCK.UPDATE });
+    if (!show) throw new HttpError(404, 'Pending show not found');
+    await show.destroy({ transaction: t });
+    await t.commit();
+    res.json({ ok: true, entity: 'show', id: showId, reasonType: body.reasonType });
   } catch (e) {
     await t.rollback();
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
@@ -1058,6 +1137,8 @@ module.exports = {
   approvePendingHallWithCaps,
   approveHall,
   approveShow,
+  rejectHall,
+  rejectShow,
   setBlocked,
   setSeatTypeCap,
   revenueTrend,

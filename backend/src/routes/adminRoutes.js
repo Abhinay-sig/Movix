@@ -14,6 +14,8 @@ const {
   approvePendingHallWithCaps,
   approveHall,
   approveShow,
+  rejectHall,
+  rejectShow,
   setBlocked,
   setSeatTypeCap,
   revenueTrend,
@@ -54,6 +56,8 @@ router.post('/halls/:id/approve', approvePendingHallWithCaps);
 router.get('/shows/pending/:id', pendingShowDetails);
 router.post('/approvals/hall', approveHall);
 router.post('/approvals/show', approveShow);
+router.post('/halls/:id/reject', rejectHall);
+router.post('/shows/:id/reject', rejectShow);
 
 router.post('/block', setBlocked);
 router.post('/seat-types/cap', setSeatTypeCap);
