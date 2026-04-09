@@ -1,7 +1,6 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
+import { AuthCtx } from './auth-context'
 import { clearAuth, loadAuth, saveAuth } from './lib/auth'
-
-const AuthCtx = createContext(null)
 
 export function AuthProvider({ children }) {
   const [auth, setAuth] = useState(() => loadAuth())
@@ -25,8 +24,7 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuth() {
-  const v = useContext(AuthCtx)
-  if (!v) throw new Error('useAuth must be used within AuthProvider')
-  return v
+  const value = useContext(AuthCtx)
+  if (!value) throw new Error('useAuth must be used within AuthProvider')
+  return value
 }
-

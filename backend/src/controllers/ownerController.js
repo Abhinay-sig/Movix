@@ -1,6 +1,261 @@
+// const { z } = require('zod');
+// const { Op } = require('sequelize');
+// const dayjs = require('dayjs');
+// const { db } = require('../models');
+// const { HttpError } = require('../utils/httpError');
+
+// const createTheaterSchema = z.object({
+//   name: z.string().min(1).max(160),
+//   address: z.string().min(1).max(255),
+//   city: z.string().min(1).max(120),
+// });
+
+// async function createTheater(req, res, next) {
+//   try {
+//     const body = createTheaterSchema.parse(req.body);
+//     const theater = await db.Theater.create({
+//       ownerUserId: req.user.id,
+//       name: body.name,
+//       address: body.address,
+//       city: body.city,
+//     });
+//     res.status(201).json({ theater });
+//   } catch (e) {
+//     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+//     return next(e);
+//   }
+// }
+
+// async function listMyTheaters(req, res, next) {
+//   try {
+//     const theaters = await db.Theater.findAll({ where: { ownerUserId: req.user.id } });
+//     res.json({ theaters });
+//   } catch (e) {
+//     next(e);
+//   }
+// }
+
+// const createHallSchema = z.object({
+//   theaterId: z.coerce.number().int().positive(),
+//   name: z.string().min(1).max(120),
+
+//   segmentsByRow: z.array(z.array(z.number().int().min(0).max(79))).length(50),
+//   typedSegmentsByRow: z
+//     .array(
+//       z.array(
+//         z.object({
+//           start: z.number().int().min(0).max(79),
+//           end: z.number().int().min(0).max(79),
+//           type: z.string().min(1).max(40),
+//         })
+//       )
+//     )
+//     .length(50)
+//     .optional(),
+// });
+
+// function validateSegmentsByRow(segmentsByRow) {
+//   for (let r = 0; r < segmentsByRow.length; r++) {
+//     const row = segmentsByRow[r];
+//     if (row.length % 2 !== 0) throw new HttpError(400, `Row ${r} segments must be pairs`);
+//     for (let i = 0; i < row.length; i += 2) {
+//       const start = row[i];
+//       const end = row[i + 1];
+//       if (start > end) throw new HttpError(400, `Row ${r} segment start > end`);
+//       if (i > 0 && start <= row[i - 1]) throw new HttpError(400, `Row ${r} segments must increase`);
+//     }
+//   }
+// }
+
+// async function createHallWithLayout(req, res, next) {
+//   const t = await db.sequelize.transaction();
+//   try {
+//     const body = createHallSchema.parse(req.body);
+//     validateSegmentsByRow(body.segmentsByRow);
+
+//     const theater = await db.Theater.findByPk(body.theaterId, { transaction: t, lock: t.LOCK.UPDATE });
+//     if (!theater || String(theater.ownerUserId) !== String(req.user.id)) {
+//       throw new HttpError(404, 'Theater not found');
+//     }
+
+//     const hall = await db.Hall.create(
+//       { theaterId: theater.id, name: body.name, isApproved: false },
+//       { transaction: t }
+//     );
+
+//     const layout = await db.HallLayout.create(
+//       {
+//         hallId: hall.id,
+//         rows: 50,
+//         cols: 80,
+//         segmentsByRow: body.segmentsByRow,
+//         typedSegmentsByRow: body.typedSegmentsByRow ?? null,
+//       },
+//       { transaction: t }
+//     );
+
+//     await t.commit();
+//     res.status(201).json({ hall, layout });
+//   } catch (e) {
+//     await t.rollback();
+//     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+//     return next(e);
+//   }
+// }
+
+// async function listMyHalls(req, res, next) {
+//   try {
+//     const theaters = await db.Theater.findAll({ where: { ownerUserId: req.user.id } });
+//     const theaterIds = theaters.map((t) => t.id);
+//     const halls = await db.Hall.findAll({
+//       where: { theaterId: { [Op.in]: theaterIds } },
+//       include: [{ model: db.Theater }],
+//     });
+//     res.json({ halls });
+//   } catch (e) {
+//     next(e);
+//   }
+// }
+
+// const createShowSchema = z.object({
+//   hallId: z.coerce.number().int().positive(),
+//   movieId: z.coerce.number().int().positive(),
+//   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+//   startTime: z.string().regex(/^\d{2}:\d{2}$/),
+//   durationMins: z.coerce.number().int().positive().max(480),
+//   language: z.string().min(1).max(40),
+//   seatPrices: z
+//     .array(
+//       z.object({
+//         seatTypeCode: z.string().min(1).max(40),
+//         price: z.coerce.number().positive(),
+//       })
+//     )
+//     .min(1, 'At least one seat price is required'),
+// });
+
+// async function createShow(req, res, next) {
+//   const t = await db.sequelize.transaction();
+//   try {
+//     const body = createShowSchema.parse(req.body);
+
+//     const hall = await db.Hall.findByPk(body.hallId, {
+//       transaction: t,
+//       lock: t.LOCK.UPDATE,
+//       include: [{ model: db.Theater }],
+//     });
+//     if (!hall || String(hall.Theater.ownerUserId) !== String(req.user.id)) {
+//       throw new HttpError(404, 'Hall not found');
+//     }
+
+//     const startsAt = new Date(`${body.date}T${body.startTime}:00.000Z`);
+//     const endsAt = new Date(startsAt.getTime() + Number(body.durationMins) * 60 * 1000);
+//     if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
+//       throw new HttpError(400, 'Invalid show time');
+//     }
+
+//     const bufferMins = 30;
+//     const bufferedStart = new Date(startsAt.getTime() - bufferMins * 60 * 1000);
+//     const bufferedEnd = new Date(endsAt.getTime() + bufferMins * 60 * 1000);
+
+//     const conflicts = await db.Show.count({
+//       where: {
+//         hallId: hall.id,
+//         isCancelled: false,
+//         startsAt: { [Op.lt]: bufferedEnd },
+//         endsAt: { [Op.gt]: bufferedStart },
+//       },
+//       transaction: t,
+//       lock: t.LOCK.UPDATE,
+//     });
+//     if (conflicts > 0) throw new HttpError(409, 'Show conflicts with existing timeline (30 min buffer)');
+
+//     const show = await db.Show.create(
+//       {
+//         hallId: hall.id,
+//         movieId: body.movieId,
+//         startsAt: startsAt.toISOString(),
+//         endsAt: endsAt.toISOString(),
+//         language: body.language,
+//         isApproved: false,
+//         approvedAt: null,
+//       },
+//       { transaction: t }
+//     );
+
+//     if (body.seatPrices?.length) {
+//       const seatTypes = await db.SeatType.findAll({ transaction: t });
+//       const byCode = new Map(seatTypes.map((s) => [String(s.code).toLowerCase(), s]));
+
+//       const seenCodes = new Set();
+//       for (const sp of body.seatPrices) {
+//         const seatTypeCode = String(sp.seatTypeCode).trim().toLowerCase();
+//         if (seenCodes.has(seatTypeCode)) {
+//           throw new HttpError(400, `Duplicate seat type: ${sp.seatTypeCode}`);
+//         }
+//         seenCodes.add(seatTypeCode);
+
+//         const st = byCode.get(seatTypeCode);
+//         if (!st) throw new HttpError(400, `Unknown seat type: ${sp.seatTypeCode}`);
+//         if (Number(sp.price) > Number(st.adminPriceCap)) {
+//           throw new HttpError(400, `Price exceeds admin cap for ${st.code}`);
+//         }
+//         await db.ShowSeatPrice.create(
+//           { showId: show.id, seatTypeId: st.id, price: sp.price },
+//           { transaction: t }
+//         );
+//       }
+//     }
+
+//     await t.commit();
+//     res.status(201).json({ show });
+//   } catch (e) {
+//     await t.rollback();
+//     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+//     return next(e);
+//   }
+// }
+
+// async function revenueSummary(req, res, next) {
+//   try {
+//     const theaters = await db.Theater.findAll({ where: { ownerUserId: req.user.id } });
+//     const theaterIds = theaters.map((t) => t.id);
+//     const halls = theaterIds.length
+//       ? await db.Hall.findAll({ where: { theaterId: { [Op.in]: theaterIds } } })
+//       : [];
+//     const hallIds = halls.map((h) => h.id);
+//     const shows = hallIds.length ? await db.Show.findAll({ where: { hallId: { [Op.in]: hallIds } } }) : [];
+//     const showIds = shows.map((s) => s.id);
+
+//     const bookings = showIds.length
+//       ? await db.Booking.findAll({
+//           where: {
+//             showId: { [Op.in]: showIds },
+//             status: db.BOOKING_STATUS.CONFIRMED,
+//           },
+//         })
+//       : [];
+//     const totalRevenue = bookings.reduce((sum, b) => sum + Number(b.totalAmount), 0);
+//     res.json({ totalRevenue });
+//   } catch (e) {
+//     next(e);
+//   }
+// }
+
+// module.exports = {
+//   createTheater,
+//   listMyTheaters,
+//   createHallWithLayout,
+//   listMyHalls,
+//   createShow,
+//   revenueSummary,
+// };
+
+
+
+
 const { z } = require('zod');
 const { Op } = require('sequelize');
-const dayjs = require('dayjs');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
 
@@ -57,11 +312,13 @@ function buildMovieFilters(query) {
     );
   }
 
-  return and.length ? { isActive: true, [Op.and]: and } : { isActive: true };
+  const where = { isActive: true };
+  if (and.length) where[Op.and] = and;
+  return where;
 }
 
 function buildTheaterFilters(query, ownerUserId) {
-  const and = [{ ownerUserId, isBlocked: false }];
+  const and = [{ ownerUserId }];
 
   if (String(query.name ?? '').trim()) {
     and.push(
@@ -344,7 +601,6 @@ async function listMyShows(req, res, next) {
 const createHallSchema = z.object({
   theaterId: z.coerce.number().int().positive(),
   name: z.string().min(1).max(120),
-
   segmentsByRow: z.array(z.array(z.number().int().min(0).max(79))).length(50),
   typedSegmentsByRow: z
     .array(
@@ -361,16 +617,27 @@ const createHallSchema = z.object({
 });
 
 function validateSegmentsByRow(segmentsByRow) {
-  for (let r = 0; r < segmentsByRow.length; r++) {
+  for (let r = 0; r < segmentsByRow.length; r += 1) {
     const row = segmentsByRow[r];
+    if (!Array.isArray(row)) throw new HttpError(400, `Row ${r} segments must be an array`);
     if (row.length % 2 !== 0) throw new HttpError(400, `Row ${r} segments must be pairs`);
+
     for (let i = 0; i < row.length; i += 2) {
       const start = row[i];
       const end = row[i + 1];
+
+      if (!Number.isInteger(start) || !Number.isInteger(end)) {
+        throw new HttpError(400, `Row ${r} segment values must be integers`);
+      }
       if (start > end) throw new HttpError(400, `Row ${r} segment start > end`);
       if (i > 0 && start <= row[i - 1]) throw new HttpError(400, `Row ${r} segments must increase`);
     }
   }
+}
+
+function toUtcDate(dateStr, timeStr) {
+  const d = new Date(`${dateStr}T${timeStr}:00.000Z`);
+  return d;
 }
 
 async function createHallWithLayout(req, res, next) {
@@ -385,7 +652,12 @@ async function createHallWithLayout(req, res, next) {
     }
 
     const hall = await db.Hall.create(
-      { theaterId: theater.id, name: body.name, isApproved: false },
+      {
+        theaterId: theater.id,
+        name: body.name,
+        isApproved: false,
+        approvedAt: null,
+      },
       { transaction: t }
     );
 
@@ -427,10 +699,9 @@ const createShowSchema = z.object({
   theaterId: z.coerce.number().int().positive().optional(),
   hallId: z.coerce.number().int().positive(),
   movieId: z.coerce.number().int().positive(),
-  ticketPrice: z.coerce.number().nonnegative().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD format
-  startTime: z.string().regex(/^\d{2}:\d{2}$/), // HH:MM format
-  durationMins: z.coerce.number().int().positive().max(480), // max 8 hours
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  durationMins: z.coerce.number().int().positive().max(480).optional(),
   language: z.string().min(1).max(40),
   seatPrices: z
     .array(
@@ -443,7 +714,7 @@ const createShowSchema = z.object({
 });
 
 const getHallScheduleSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD format
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
 async function getHallSchedule(req, res, next) {
@@ -459,14 +730,15 @@ async function getHallSchedule(req, res, next) {
     }
 
     const startOfDay = wallClockUtc(date, '00:00');
-    const endOfDay = wallClockUtc(date, '23:59');
+    const endOfNextDay = new Date(startOfDay);
+    endOfNextDay.setUTCDate(endOfNextDay.getUTCDate() + 1);
 
     const shows = await db.Show.findAll({
       where: {
         hallId: hall.id,
         isCancelled: false,
-        startsAt: { [Op.lte]: endOfDay },
-        endsAt: { [Op.gte]: startOfDay },
+        startsAt: { [Op.lt]: endOfNextDay },
+        endsAt: { [Op.gt]: startOfDay },
       },
       include: [{ model: db.Movie }],
       order: [['startsAt', 'ASC']],
@@ -480,8 +752,8 @@ async function getHallSchedule(req, res, next) {
       endsAt: show.endsAt,
       language: show.language,
       isApproved: show.isApproved,
-      bufferStart: dayjs(show.startsAt).subtract(bufferMins, 'minute').toDate(),
-      bufferEnd: dayjs(show.endsAt).add(bufferMins, 'minute').toDate(),
+      bufferStart: new Date(new Date(show.startsAt).getTime() - bufferMins * 60 * 1000),
+      bufferEnd: new Date(new Date(show.endsAt).getTime() + bufferMins * 60 * 1000),
     }));
 
     res.json({ schedule, bufferMins });
@@ -501,45 +773,48 @@ async function createShow(req, res, next) {
       lock: t.LOCK.UPDATE,
       include: [{ model: db.Theater }],
     });
-
-    if (!hall.isApproved) {
-  throw new HttpError(400, 'Hall is not approved yet');
-}
-
     if (!hall || String(hall.Theater.ownerUserId) !== String(req.user.id)) {
       throw new HttpError(404, 'Hall not found');
     }
+    if (!hall.isApproved) {
+      throw new HttpError(400, 'Hall is not approved yet');
+    }
 
-   const movie = await db.Movie.findByPk(body.movieId, { transaction: t });
-if (!movie || !movie.isActive) throw new HttpError(404, 'Movie not found');
+    const movie = await db.Movie.findByPk(body.movieId, { transaction: t });
+    if (!movie || !movie.isActive) {
+      throw new HttpError(404, 'Movie not found');
+    }
 
-// ✅ Release date check (keep this)
-if (body.date < String(movie.releaseDate)) {
-  throw new HttpError(400, 'Cannot schedule a show before the movie release date');
-}
+    const releaseDate = new Date(movie.releaseDate).toISOString().slice(0, 10);
+    if (body.date < releaseDate) {
+      throw new HttpError(400, 'Cannot schedule a show before the movie release date');
+    }
 
-// ✅ ADD THIS BLOCK JUST BELOW (7-day restriction FIX)
-const today = dayjs().startOf('day');
-const maxDate = dayjs().add(7, 'day').endOf('day');
-const showDate = dayjs(body.date);
+    const showDate = new Date(`${body.date}T00:00:00`);
+    if (Number.isNaN(showDate.getTime())) {
+      throw new HttpError(400, 'Invalid date');
+    }
 
-if (!showDate.isValid()) {
-  throw new HttpError(400, 'Invalid date');
-}
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 7);
+    maxDate.setHours(23, 59, 59, 999);
 
-if (showDate.startOf('day').isBefore(today)) {
-  throw new HttpError(400, 'Cannot schedule show in the past');
-}
+    if (showDate < today) {
+      throw new HttpError(400, 'Cannot schedule show in the past');
+    }
+    if (showDate > maxDate) {
+      throw new HttpError(400, 'Shows can only be scheduled within next 7 days');
+    }
 
-if (showDate.startOf('day').isAfter(maxDate)) {
-  throw new HttpError(400, 'Shows can only be scheduled within next 7 days');
-}
-
-    const durationMins = Number(movie.durationMins);
+    const durationMins = Number(movie.durationMins || body.durationMins);
+    if (!Number.isFinite(durationMins) || durationMins <= 0 || durationMins > 480) {
+      throw new HttpError(400, 'Invalid show duration');
+    }
 
     const startsAt = wallClockUtc(body.date, body.startTime);
     const endsAt = new Date(startsAt.getTime() + durationMins * 60_000);
-
     if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
       throw new HttpError(400, 'Invalid show time');
     }
@@ -558,44 +833,49 @@ if (showDate.startOf('day').isAfter(maxDate)) {
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
-    if (conflicts > 0) throw new HttpError(409, 'Show conflicts with existing timeline (30 min buffer)');
-
-    const normalizedSeatPrices = (body.seatPrices ?? []).map((seatPrice) => ({
-      ...seatPrice,
-      price: Number(seatPrice.price),
-    }));
-    const fallbackPrice =
-      typeof body.ticketPrice === 'number'
-        ? Number(body.ticketPrice)
-        : normalizedSeatPrices.length
-          ? Math.min(...normalizedSeatPrices.map((seatPrice) => seatPrice.price))
-          : 0;
+    if (conflicts > 0) {
+      throw new HttpError(409, 'Show conflicts with existing timeline (30 min buffer)');
+    }
 
     const show = await db.Show.create(
       {
         hallId: hall.id,
         movieId: body.movieId,
-        price: fallbackPrice,
-        startsAt,
-        endsAt,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
         language: body.language,
         isApproved: false,
+        approvedAt: null,
       },
       { transaction: t }
     );
 
-    if (normalizedSeatPrices.length) {
+    const seatPrices = Array.isArray(body.seatPrices) ? body.seatPrices : [];
+    if (seatPrices.length) {
       const seatTypes = await db.SeatType.findAll({ transaction: t });
-      const byCode = new Map(seatTypes.map((s) => [s.code, s]));
-      for (const sp of normalizedSeatPrices) {
-        const st = byCode.get(sp.seatTypeCode);
-        if (!st) throw new HttpError(400, `Unknown seat type: ${sp.seatTypeCode}`);
-        if (Number(sp.price) > Number(st.adminPriceCap)) {
-          throw new HttpError(400, `Price exceeds admin cap for ${st.code}`);
+      const byCode = new Map(seatTypes.map((seatType) => [String(seatType.code).toLowerCase(), seatType]));
+
+      const seenCodes = new Set();
+      for (const seatPrice of seatPrices) {
+        const seatTypeCode = String(seatPrice.seatTypeCode).trim().toLowerCase();
+        if (seenCodes.has(seatTypeCode)) {
+          throw new HttpError(400, `Duplicate seat type: ${seatPrice.seatTypeCode}`);
+        }
+        seenCodes.add(seatTypeCode);
+
+        const seatType = byCode.get(seatTypeCode);
+        if (!seatType) throw new HttpError(400, `Unknown seat type: ${seatPrice.seatTypeCode}`);
+
+        const price = Number(seatPrice.price);
+        if (!Number.isFinite(price) || price <= 0) {
+          throw new HttpError(400, `Invalid price for ${seatType.code}`);
+        }
+        if (price > Number(seatType.adminPriceCap)) {
+          throw new HttpError(400, `Price exceeds admin cap for ${seatType.code}`);
         }
 
         await db.ShowSeatPrice.create(
-          { showId: show.id, seatTypeId: st.id, price: sp.price },
+          { showId: show.id, seatTypeId: seatType.id, price },
           { transaction: t }
         );
       }
@@ -705,7 +985,7 @@ module.exports = {
   createHallWithLayout,
   listMyHalls,
   listMyShows,
-  getHallSchedule,
   createShow,
+  getHallSchedule,
   revenueSummary,
 };
