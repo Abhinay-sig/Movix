@@ -23,6 +23,12 @@ export default function OwnerNewShow() {
   const [schedule, setSchedule] = useState(null)
   const [hasConflict, setHasConflict] = useState(false)
   const [loadingHalls, setLoadingHalls] = useState(false)
+  const [viewDate, setViewDate] = useState('')
+  const [viewTheaterId, setViewTheaterId] = useState('')
+  const [viewHallId, setViewHallId] = useState('')
+  const [viewMovieId, setViewMovieId] = useState('')
+  const [ownerShows, setOwnerShows] = useState([])
+  const [loadingOwnerShows, setLoadingOwnerShows] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -37,6 +43,7 @@ export default function OwnerNewShow() {
   }, [auth.token])
 
   const filteredHalls = useMemo(() => hallsByTheater[theaterId] || [], [hallsByTheater, theaterId])
+  const viewFilteredHalls = useMemo(() => hallsByTheater[viewTheaterId] || [], [hallsByTheater, viewTheaterId])
 
   useEffect(() => {
     if (!theaterId) {
@@ -75,6 +82,31 @@ export default function OwnerNewShow() {
   }, [auth.token, theaterId])
 
   useEffect(() => {
+    if (!viewTheaterId) {
+      setViewHallId('')
+      return
+    }
+
+    setViewHallId('')
+    if (hallsByTheater[viewTheaterId]) return
+
+    let alive = true
+    api(`/owner/theaters/${viewTheaterId}/halls`, { token: auth.token })
+      .then((response) => {
+        if (!alive) return
+        setHallsByTheater((prev) => ({ ...prev, [viewTheaterId]: response.halls || [] }))
+      })
+      .catch((e) => {
+        if (!alive) return
+        setErr(e.message)
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [auth.token, hallsByTheater, viewTheaterId])
+
+  useEffect(() => {
     if (hallId && date) {
       api(`/owner/halls/${hallId}/schedule?date=${date}`, { token: auth.token })
         .then((data) => {
@@ -90,6 +122,37 @@ export default function OwnerNewShow() {
   useEffect(() => {
     checkConflicts()
   }, [schedule, startTime, durationMins, date])
+
+  useEffect(() => {
+    if (!viewDate) {
+      setOwnerShows([])
+      return
+    }
+
+    const params = new URLSearchParams({ date: viewDate })
+    if (viewTheaterId) params.set('theaterId', viewTheaterId)
+    if (viewHallId) params.set('hallId', viewHallId)
+    if (viewMovieId) params.set('movieId', viewMovieId)
+
+    let alive = true
+    setLoadingOwnerShows(true)
+    api(`/owner/shows?${params.toString()}`, { token: auth.token })
+      .then((data) => {
+        if (!alive) return
+        setOwnerShows(data.shows || [])
+      })
+      .catch((e) => {
+        if (!alive) return
+        setErr(e.message)
+      })
+      .finally(() => {
+        if (alive) setLoadingOwnerShows(false)
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [auth.token, viewDate, viewTheaterId, viewHallId, viewMovieId])
 
   useEffect(() => {
     const selectedMovie = movies.find((movie) => String(movie.id) === String(movieId))
@@ -120,6 +183,40 @@ export default function OwnerNewShow() {
 
     setHasConflict(conflict)
   }
+
+  const groupedShows = useMemo(() => {
+    const grouped = []
+    const theaterMap = new Map()
+
+    for (const show of ownerShows) {
+      let theaterGroup = theaterMap.get(show.theaterId)
+      if (!theaterGroup) {
+        theaterGroup = {
+          theaterId: show.theaterId,
+          theaterName: show.theaterName,
+          halls: [],
+          hallMap: new Map(),
+        }
+        theaterMap.set(show.theaterId, theaterGroup)
+        grouped.push(theaterGroup)
+      }
+
+      let hallGroup = theaterGroup.hallMap.get(show.hallId)
+      if (!hallGroup) {
+        hallGroup = {
+          hallId: show.hallId,
+          hallName: show.hallName,
+          shows: [],
+        }
+        theaterGroup.hallMap.set(show.hallId, hallGroup)
+        theaterGroup.halls.push(hallGroup)
+      }
+
+      hallGroup.shows.push(show)
+    }
+
+    return grouped
+  }, [ownerShows])
 
   async function submit(e) {
     e.preventDefault()
@@ -311,6 +408,24 @@ export default function OwnerNewShow() {
             <div>
               <label className="block text-gray-700 font-bold mb-4">Hall Schedule for {date}</label>
               <Timeline schedule={schedule} proposedStart={startTime} proposedDuration={durationMins} date={date} />
+              <div className="mt-4 space-y-2">
+                {schedule.schedule.map((show) => (
+                  <div key={show.id} className="flex flex-col gap-1 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 md:flex-row md:items-center md:justify-between">
+                    <div className="font-medium text-gray-900">{show.movieTitle}</div>
+                    <div>
+                      {new Date(show.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                      {' - '}
+                      {new Date(show.endsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Buffer:{' '}
+                      {new Date(show.bufferStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                      {' - '}
+                      {new Date(show.bufferEnd).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </div>
+                  </div>
+                ))}
+              </div>
               {hasConflict && (
                 <div className="mt-2 text-red-600 font-medium">
                   Time conflicts with another show (including buffer)
@@ -330,6 +445,88 @@ export default function OwnerNewShow() {
         <div className="mt-6 text-sm text-gray-600 bg-blue-50 p-4 rounded-lg">
           Buffer rule: new show must have a 30-min gap before and after any existing show in the same hall. Movies are created by admins and can only be scheduled on or after their release date.
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-lg p-8 max-w-4xl mt-8">
+        <h3 className="text-2xl font-bold text-gray-900 mb-6">Scheduled shows</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Date</label>
+            <input
+              type="date"
+              value={viewDate}
+              onChange={(e) => setViewDate(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Theater</label>
+            <select value={viewTheaterId} onChange={(e) => setViewTheaterId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">All theaters</option>
+              {theaters.map((theater) => (
+                <option key={theater.id} value={theater.id}>
+                  #{theater.id} {theater.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Hall</label>
+            <select value={viewHallId} onChange={(e) => setViewHallId(e.target.value)} disabled={!viewTheaterId} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
+              <option value="">{!viewTheaterId ? 'Select theater first' : 'All halls'}</option>
+              {viewFilteredHalls.map((hall) => (
+                <option key={hall.id} value={hall.id}>
+                  #{hall.id} {hall.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Movie</label>
+            <select value={viewMovieId} onChange={(e) => setViewMovieId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">All movies</option>
+              {movies.map((movie) => (
+                <option key={movie.id} value={movie.id}>
+                  #{movie.id} {movie.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {!viewDate ? (
+          <div className="text-gray-500">Select a date to view scheduled shows.</div>
+        ) : loadingOwnerShows ? (
+          <div className="text-gray-500">Loading scheduled shows…</div>
+        ) : groupedShows.length === 0 ? (
+          <div className="text-gray-500">No scheduled shows found for the selected filters.</div>
+        ) : (
+          <div className="space-y-6">
+            {groupedShows.map((theaterGroup) => (
+              <div key={theaterGroup.theaterId} className="space-y-4">
+                <div className="text-xl font-bold text-gray-900">{theaterGroup.theaterName}</div>
+                {theaterGroup.halls.map((hallGroup) => (
+                  <div key={hallGroup.hallId} className="rounded-lg border border-gray-200 p-4">
+                    <div className="font-semibold text-gray-800 mb-3">{hallGroup.hallName}</div>
+                    <div className="space-y-2">
+                      {hallGroup.shows.map((show) => (
+                        <div key={show.id} className="flex flex-col gap-1 rounded-lg bg-gray-50 p-3 text-sm text-gray-700 md:flex-row md:items-center md:justify-between">
+                          <div className="font-medium text-gray-900">{show.movieTitle}</div>
+                          <div>
+                            {new Date(show.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                            {' - '}
+                            {new Date(show.endsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

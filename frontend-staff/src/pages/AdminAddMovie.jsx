@@ -220,18 +220,27 @@ export default function AdminAddMovie() {
               />
             </div>
 
-            <button
-              disabled={savingMovie}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {savingMovie
-                ? isEdit
-                  ? 'Updating…'
-                  : 'Saving…'
-                : isEdit
-                ? 'Update movie'
-                : 'Create movie'}
-            </button>
+            <div className="flex gap-3">
+              <button
+                disabled={savingMovie}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {savingMovie
+                  ? isEdit
+                    ? 'Updating…'
+                    : 'Saving…'
+                  : isEdit
+                  ? 'Update movie'
+                  : 'Create movie'}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/admin/movies')}
+                className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
 
           </form>
         </div>

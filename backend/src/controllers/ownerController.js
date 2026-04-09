@@ -8,6 +8,13 @@ const createTheaterSchema = z.object({
   name: z.string().min(1).max(160),
   address: z.string().min(1).max(255),
   city: z.string().min(1).max(120),
+  state: z.string().trim().min(1).max(120),
+  pincode: z.string().trim().min(1).max(20),
+  amenities: z.string().trim().max(5000).optional().or(z.literal('')),
+});
+
+const updateTheaterSchema = z.object({
+  amenities: z.string().trim().max(5000).optional().or(z.literal('')),
 });
 
 function wallClockUtc(date, time = '00:00') {
@@ -16,14 +23,92 @@ function wallClockUtc(date, time = '00:00') {
   return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
 }
 
+function buildTheaterAddress({ address, state, pincode, amenities }) {
+  const parts = [address, state, pincode].filter(Boolean);
+  if (amenities) parts.push(`Amenities: ${amenities}`);
+  return parts.join(', ');
+}
+
+function buildMovieFilters(query) {
+  const and = [];
+
+  if (String(query.name ?? '').trim()) {
+    and.push(
+      db.sequelize.where(db.sequelize.fn('LOWER', db.sequelize.col('title')), {
+        [Op.like]: `%${String(query.name).trim().toLowerCase()}%`,
+      })
+    );
+  }
+
+  if (String(query.genre ?? '').trim()) {
+    and.push(
+      db.sequelize.where(db.sequelize.fn('LOWER', db.sequelize.col('genre')), {
+        [Op.like]: `%${String(query.genre).trim().toLowerCase()}%`,
+      })
+    );
+  }
+
+  if (String(query.releaseDate ?? '').trim()) {
+    and.push(
+      db.sequelize.where(
+        db.sequelize.fn('DATE_FORMAT', db.sequelize.col('release_date'), '%Y-%m-%d'),
+        { [Op.like]: `%${String(query.releaseDate).trim()}%` }
+      )
+    );
+  }
+
+  return and.length ? { isActive: true, [Op.and]: and } : { isActive: true };
+}
+
+function buildTheaterFilters(query, ownerUserId) {
+  const and = [{ ownerUserId, isBlocked: false }];
+
+  if (String(query.name ?? '').trim()) {
+    and.push(
+      db.sequelize.where(db.sequelize.fn('LOWER', db.sequelize.col('name')), {
+        [Op.like]: `%${String(query.name).trim().toLowerCase()}%`,
+      })
+    );
+  }
+
+  if (String(query.city ?? '').trim()) {
+    and.push(
+      db.sequelize.where(db.sequelize.fn('LOWER', db.sequelize.col('city')), {
+        [Op.like]: `%${String(query.city).trim().toLowerCase()}%`,
+      })
+    );
+  }
+
+  if (String(query.state ?? '').trim()) {
+    and.push(
+      db.sequelize.where(db.sequelize.fn('LOWER', db.sequelize.col('address')), {
+        [Op.like]: `%${String(query.state).trim().toLowerCase()}%`,
+      })
+    );
+  }
+
+  if (String(query.pincode ?? '').trim()) {
+    and.push(
+      db.sequelize.where(db.sequelize.fn('LOWER', db.sequelize.col('address')), {
+        [Op.like]: `%${String(query.pincode).trim().toLowerCase()}%`,
+      })
+    );
+  }
+
+  return { [Op.and]: and };
+}
+
 async function createTheater(req, res, next) {
   try {
     const body = createTheaterSchema.parse(req.body);
+    const fullAddress = buildTheaterAddress(body);
     const theater = await db.Theater.create({
       ownerUserId: req.user.id,
       name: body.name,
-      address: body.address,
+      address: fullAddress,
       city: body.city,
+      // Reuse the existing flag as an approval gate to avoid schema changes.
+      isBlocked: true,
     });
     res.status(201).json({ theater });
   } catch (e) {
@@ -34,8 +119,66 @@ async function createTheater(req, res, next) {
 
 async function listMyTheaters(req, res, next) {
   try {
-    const theaters = await db.Theater.findAll({ where: { ownerUserId: req.user.id } });
+    const theaters = await db.Theater.findAll({
+      where: buildTheaterFilters(req.query, req.user.id),
+      order: [['createdAt', 'DESC']],
+    });
     res.json({ theaters });
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function updateTheater(req, res, next) {
+  try {
+    const theaterId = Number(req.params.theaterId);
+    if (!Number.isInteger(theaterId) || theaterId <= 0) {
+      throw new HttpError(400, 'Invalid theater id');
+    }
+
+    const body = updateTheaterSchema.parse(req.body);
+    const theater = await db.Theater.findByPk(theaterId);
+    if (!theater || String(theater.ownerUserId) !== String(req.user.id)) {
+      throw new HttpError(404, 'Theater not found');
+    }
+
+    const addressParts = String(theater.address)
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .filter((part) => !part.startsWith('Amenities: '));
+    const fullAddress = buildTheaterAddress({
+      address: addressParts[0] ?? theater.address,
+      state: addressParts[1] ?? '',
+      pincode: addressParts[2] ?? '',
+      amenities: body.amenities ?? '',
+    });
+
+    await theater.update({
+      address: fullAddress,
+    });
+
+    res.json({ theater });
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+async function deleteTheater(req, res, next) {
+  try {
+    const theaterId = Number(req.params.theaterId);
+    if (!Number.isInteger(theaterId) || theaterId <= 0) {
+      throw new HttpError(400, 'Invalid theater id');
+    }
+
+    const theater = await db.Theater.findByPk(theaterId);
+    if (!theater || String(theater.ownerUserId) !== String(req.user.id)) {
+      throw new HttpError(404, 'Theater not found');
+    }
+
+    await theater.destroy();
+    res.json({ ok: true });
   } catch (e) {
     next(e);
   }
@@ -89,7 +232,7 @@ async function listTheaterHalls(req, res, next) {
 async function listMyMovies(req, res, next) {
   try {
     const movies = await db.Movie.findAll({
-      where: { isActive: true },
+      where: buildMovieFilters(req.query),
       order: [['title', 'ASC']],
     });
 
@@ -131,6 +274,70 @@ async function listMyMovies(req, res, next) {
     });
   } catch (e) {
     next(e);
+  }
+}
+
+const listShowsSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  theaterId: z.coerce.number().int().positive().optional(),
+  hallId: z.coerce.number().int().positive().optional(),
+  movieId: z.coerce.number().int().positive().optional(),
+});
+
+async function listMyShows(req, res, next) {
+  try {
+    const query = listShowsSchema.parse(req.query);
+    const startOfDay = wallClockUtc(query.date, '00:00');
+    const endOfDay = wallClockUtc(query.date, '23:59');
+
+    const hallWhere = {};
+    if (query.hallId) hallWhere.id = query.hallId;
+    if (query.theaterId) hallWhere.theaterId = query.theaterId;
+
+    const showWhere = {
+      isCancelled: false,
+      startsAt: { [Op.lte]: endOfDay },
+      endsAt: { [Op.gte]: startOfDay },
+    };
+    if (query.movieId) showWhere.movieId = query.movieId;
+
+    const shows = await db.Show.findAll({
+      where: showWhere,
+      include: [
+        {
+          model: db.Hall,
+          required: true,
+          where: hallWhere,
+          include: [
+            {
+              model: db.Theater,
+              required: true,
+              where: { ownerUserId: req.user.id },
+            },
+          ],
+        },
+        { model: db.Movie, required: true },
+      ],
+      order: [['startsAt', 'ASC']],
+    });
+
+    res.json({
+      shows: shows.map((show) => ({
+        id: show.id,
+        movieId: show.movieId,
+        movieTitle: show.Movie.title,
+        hallId: show.Hall.id,
+        hallName: show.Hall.name,
+        theaterId: show.Hall.Theater.id,
+        theaterName: show.Hall.Theater.name,
+        startsAt: show.startsAt,
+        endsAt: show.endsAt,
+        language: show.language,
+      })),
+    });
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
   }
 }
 
@@ -491,10 +698,13 @@ async function revenueSummary(req, res, next) {
 module.exports = {
   createTheater,
   listMyTheaters,
+  updateTheater,
+  deleteTheater,
   listTheaterHalls,
   listMyMovies,
   createHallWithLayout,
   listMyHalls,
+  listMyShows,
   getHallSchedule,
   createShow,
   revenueSummary,

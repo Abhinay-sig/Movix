@@ -8,6 +8,9 @@ export default function AdminMovies() {
   const navigate = useNavigate()
 
   const [movies, setMovies] = useState([])
+  const [nameFilter, setNameFilter] = useState('')
+  const [genreFilter, setGenreFilter] = useState('')
+  const [releaseDateFilter, setReleaseDateFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
 
@@ -15,7 +18,12 @@ export default function AdminMovies() {
   async function loadMovies() {
     setLoading(true)
     try {
-      const res = await api('/admin/movies', { token: auth.token })
+      const params = new URLSearchParams()
+      if (nameFilter.trim()) params.set('name', nameFilter.trim())
+      if (genreFilter.trim()) params.set('genre', genreFilter.trim())
+      if (releaseDateFilter.trim()) params.set('releaseDate', releaseDateFilter.trim())
+      const suffix = params.toString() ? `?${params.toString()}` : ''
+      const res = await api(`/admin/movies${suffix}`, { token: auth.token })
       setMovies(res.movies || [])
       setErr('')
     } catch (e) {
@@ -29,7 +37,7 @@ export default function AdminMovies() {
   if (auth?.token) {
     loadMovies()
   }
-}, [auth.token])
+}, [auth.token, nameFilter, genreFilter, releaseDateFilter])
   // ✅ DELETE MOVIE
   async function handleDelete(id) {
     const confirmDelete = window.confirm('Are you sure you want to delete this movie?')
@@ -66,6 +74,38 @@ export default function AdminMovies() {
         >
           Add Movie
         </button>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Movie Name</label>
+            <input
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              placeholder="Movie name"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Genre</label>
+            <input
+              value={genreFilter}
+              onChange={(e) => setGenreFilter(e.target.value)}
+              placeholder="Genre"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Release Date</label>
+            <input
+              type="date"
+              value={releaseDateFilter}
+              onChange={(e) => setReleaseDateFilter(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
       </div>
 
       {loading ? (

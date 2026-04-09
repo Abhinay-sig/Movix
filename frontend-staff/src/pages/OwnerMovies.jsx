@@ -5,12 +5,21 @@ import { useAuth } from '../AuthContext'
 export default function OwnerMovies() {
   const { auth } = useAuth()
   const [movies, setMovies] = useState([])
+  const [nameFilter, setNameFilter] = useState('')
+  const [genreFilter, setGenreFilter] = useState('')
+  const [releaseDateFilter, setReleaseDateFilter] = useState('')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let alive = true
-    api('/owner/me/movies', { token: auth.token })
+    const params = new URLSearchParams()
+    if (nameFilter.trim()) params.set('name', nameFilter.trim())
+    if (genreFilter.trim()) params.set('genre', genreFilter.trim())
+    if (releaseDateFilter.trim()) params.set('releaseDate', releaseDateFilter.trim())
+    const suffix = params.toString() ? `?${params.toString()}` : ''
+
+    api(`/owner/me/movies${suffix}`, { token: auth.token })
       .then((data) => {
         if (!alive) return
         setMovies(data.movies || [])
@@ -24,7 +33,7 @@ export default function OwnerMovies() {
     return () => {
       alive = false
     }
-  }, [auth.token])
+  }, [auth.token, nameFilter, genreFilter, releaseDateFilter])
 
   return (
     <div className="space-y-8">
@@ -35,6 +44,38 @@ export default function OwnerMovies() {
         <div className="text-lg font-bold text-gray-900 mb-2">Admin managed movies</div>
         <div className="text-sm text-gray-600">
           Movies are created by admins and become available here for show scheduling after they are added to the catalog.
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Movie Name</label>
+            <input
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              placeholder="Movie name"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Genre</label>
+            <input
+              value={genreFilter}
+              onChange={(e) => setGenreFilter(e.target.value)}
+              placeholder="Genre"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Release Date</label>
+            <input
+              type="date"
+              value={releaseDateFilter}
+              onChange={(e) => setReleaseDateFilter(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
       </div>
 

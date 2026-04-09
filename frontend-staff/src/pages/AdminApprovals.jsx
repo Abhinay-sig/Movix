@@ -22,6 +22,11 @@ export default function AdminApprovals() {
     await load()
   }
 
+  async function actTheater(theaterId, approve) {
+    await api('/admin/approvals/theater', { method: 'POST', token: auth.token, body: { theaterId, approve } })
+    await load()
+  }
+
   async function actShow(showId, approve) {
     await api('/admin/approvals/show', { method: 'POST', token: auth.token, body: { showId, approve } })
     await load()
@@ -35,6 +40,32 @@ export default function AdminApprovals() {
         <div className="text-gray-300 text-lg">Loading…</div>
       ) : (
         <div className="space-y-8">
+          <div>
+            <h3 className="text-2xl font-bold text-white mb-6">Pending theaters</h3>
+            <div className="space-y-4">
+              {(data.theaters || []).map((t) => (
+                <div key={t.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+                  <div className="font-bold text-lg text-gray-900 mb-3">
+                    #{t.id} {t.name}
+                  </div>
+                  <div className="text-gray-600 text-sm mb-4">
+                    {t.address}, {t.city}
+                    {t.owner?.name ? ` • Owner: ${t.owner.name}` : ''}
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => actTheater(t.id, true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
+                      Approve
+                    </button>
+                    <button onClick={() => actTheater(t.id, false)} className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors">
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {(data.theaters || []).length === 0 ? <div className="text-gray-300 bg-white/10 p-6 rounded-lg text-center">No pending theaters.</div> : null}
+            </div>
+          </div>
+
           <div>
             <h3 className="text-2xl font-bold text-white mb-6">Pending halls</h3>
             <div className="space-y-4">
@@ -86,4 +117,3 @@ export default function AdminApprovals() {
     </div>
   )
 }
-

@@ -56,6 +56,11 @@ const createMovieSchema = z.object({
 
 async function pendingApprovals(req, res, next) {
   try {
+    const theaters = await db.Theater.findAll({
+      where: { isBlocked: true },
+      include: [{ model: db.User, as: 'owner', attributes: ['id', 'name', 'email'] }],
+      order: [['createdAt', 'DESC']],
+    });
     const halls = await db.Hall.findAll({
       where: { isApproved: false },
       include: [{ model: db.Theater }],
@@ -64,9 +69,30 @@ async function pendingApprovals(req, res, next) {
       where: { isApproved: false },
       include: [{ model: db.Hall, include: [{ model: db.Theater }] }, { model: db.Movie }],
     });
-    res.json({ halls, shows });
+    res.json({ theaters, halls, shows });
   } catch (e) {
-    next(e);
+    return next(e);
+  }
+}
+
+const approveTheaterSchema = z.object({ theaterId: z.coerce.number().int().positive(), approve: z.boolean() });
+async function approveTheater(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const body = approveTheaterSchema.parse(req.body);
+    const theater = await db.Theater.findByPk(body.theaterId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!theater) throw new HttpError(404, 'Theater not found');
+    if (body.approve) {
+      await theater.update({ isBlocked: false }, { transaction: t });
+    } else {
+      await theater.destroy({ transaction: t });
+    }
+    await t.commit();
+    res.json({ ok: true });
+  } catch (e) {
+    await t.rollback();
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
   }
 }
 
@@ -335,6 +361,7 @@ async function deleteMovie(req, res, next) {
 
 module.exports = {
   pendingApprovals,
+  approveTheater,
   approveHall,
   approveShow,
   setBlocked,
