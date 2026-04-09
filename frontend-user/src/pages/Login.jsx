@@ -1,21 +1,80 @@
-import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
+
+function formatCountdown(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
 
 export default function Login() {
   const { setAuth } = useAuth()
   const nav = useNavigate()
   const loc = useLocation()
+  const [params] = useSearchParams()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
+  const [notice, setNotice] = useState('')
+  const [verification, setVerification] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    const oauthError = params.get('oauthError')
+    if (oauthError) setErr(oauthError)
+  }, [params])
+
+  useEffect(() => {
+    if (!verification?.nextResendAt) return undefined
+
+    const timer = window.setInterval(() => {
+      setNow(Date.now())
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [verification?.nextResendAt])
+
+  const remainingSeconds = verification?.nextResendAt
+    ? Math.max(0, Math.ceil((new Date(verification.nextResendAt).getTime() - now) / 1000))
+    : 0
+
+  async function resendVerification() {
+    if (!verification?.email) return
+    setErr('')
+    setNotice('')
+    setResending(true)
+
+    try {
+      const data = await api('/auth/resend-verification', {
+        method: 'POST',
+        body: { email: verification.email, role: 'user' },
+      })
+      setVerification(data.verification)
+      setNotice(data.message)
+    } catch (e2) {
+      if (e2.details?.verification) {
+        setVerification(e2.details.verification)
+      }
+      setErr(e2.message)
+    } finally {
+      setResending(false)
+    }
+  }
+
+  function startGoogleAuth() {
+    window.location.assign('/api/auth/google/start?role=user')
+  }
 
   async function onSubmit(e) {
     e.preventDefault()
     setErr('')
+    setNotice('')
+    setVerification(null)
     setLoading(true)
     try {
       const data = await api('/auth/login', { method: 'POST', body: { email, password } })
@@ -23,6 +82,9 @@ export default function Login() {
       setAuth(data)
       nav(loc.state?.from || '/', { replace: true })
     } catch (e2) {
+      if (e2.details?.verification) {
+        setVerification(e2.details.verification)
+      }
       setErr(e2.message)
     } finally {
       setLoading(false)
@@ -83,7 +145,27 @@ export default function Login() {
                 </div>
               )}
 
+              {notice && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {notice}
+                </div>
+              )}
+
               <form onSubmit={onSubmit} className="space-y-4">
+                <button
+                  type="button"
+                  onClick={startGoogleAuth}
+                  className="flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-blue-200 hover:text-blue-700"
+                >
+                  Continue with Google
+                </button>
+
+                <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-400">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <span>Email login</span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+
                 <input
                   placeholder="Email"
                   value={email}
@@ -103,6 +185,28 @@ export default function Login() {
                   {loading ? 'Logging in…' : 'Login'}
                 </button>
               </form>
+
+              {verification ? (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                  <div className="font-semibold text-amber-900">Email verification pending</div>
+                  <div className="mt-1">
+                    We already sent a verification link to <span className="font-medium">{verification.email}</span>.
+                  </div>
+                  <div className="mt-3">
+                    {remainingSeconds > 0
+                      ? `Resend available in ${formatCountdown(remainingSeconds)}`
+                      : 'You can request a fresh verification link now.'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resendVerification}
+                    disabled={remainingSeconds > 0 || resending}
+                    className="mt-4 rounded-full border border-amber-300 px-4 py-2 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {resending ? 'Sending…' : 'Resend verification'}
+                  </button>
+                </div>
+              ) : null}
 
               <div className="text-sm text-slate-500">
                 New user?{' '}

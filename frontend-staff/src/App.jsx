@@ -14,6 +14,8 @@ import AdminAddMovie from './pages/AdminAddMovie'
 import AdminApprovals from './pages/AdminApprovals'
 import AdminCaps from './pages/AdminCaps'
 import AdminBlocking from './pages/AdminBlocking'
+import VerifyEmail from './pages/VerifyEmail'
+import OAuthCallback from './pages/OAuthCallback'
 
 /* ✅ NEW IMPORT */
 import AdminMovies from './pages/AdminMovies'
@@ -86,6 +88,8 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/owner/signup" element={<OwnerSignup />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
 
         <Route element={<RequireRole role="theater_owner" />}>
           <Route path="/owner/theaters" element={<OwnerTheaters />} />
