@@ -232,11 +232,13 @@
 
 // module.exports = { createHold, confirmBooking, cleanupExpiredHolds };
 
+const crypto = require('crypto');
 const { z } = require('zod');
 const { Op, UniqueConstraintError } = require('sequelize');
 const { env } = require('../config/env');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
+const { sendOtpEmail } = require('../utils/emailService');
 const {
   parseSeatCodeForLayout,
   seatTypeForSeat,
@@ -262,7 +264,26 @@ const createHoldSchema = z.object({
 const confirmSchema = z.object({
   showId: z.coerce.number().int().positive(),
   seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
+  email: z.string().email().max(320),
 });
+
+const sendOtpSchema = z.object({
+  showId: z.coerce.number().int().positive(),
+  email: z.string().email().max(320),
+});
+
+const verifyOtpSchema = z.object({
+  showId: z.coerce.number().int().positive(),
+  email: z.string().email().max(320),
+  otp: z.string().length(6),
+});
+
+const otpStore = new Map();
+
+function isShowBookingOpen(show) {
+  const startsAtMs = new Date(show?.startsAt).getTime();
+  return Number.isFinite(startsAtMs) && startsAtMs > Date.now();
+}
 
 function buildBookingTicket({ booking, seatMeta, show }) {
   return {
@@ -285,6 +306,14 @@ function buildBookingTicket({ booking, seatMeta, show }) {
     },
     bookedAt: booking.createdAt,
   };
+}
+
+function otpKey({ userId, showId, email }) {
+  return `${userId}:${showId}:${String(email).trim().toLowerCase()}`;
+}
+
+function generateOtp() {
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 function isUniqueConstraintError(err) {
@@ -393,6 +422,7 @@ async function createHold(req, res, next) {
     if (!show || show.isCancelled || show.isBlocked || !show.isApproved) {
       throw new HttpError(404, 'Show not available');
     }
+    if (!isShowBookingOpen(show)) throw new HttpError(409, 'Show booking closed');
 
     await cleanupExpiredHolds(t);
 
@@ -464,6 +494,18 @@ async function confirmBooking(req, res, next) {
     const requestedSeatCodes = Array.from(
       new Set(body.seatCodes.map((s) => String(s).toUpperCase().trim()))
     );
+    const normalizedEmail = String(body.email).trim().toLowerCase();
+
+    const otpRecord = otpStore.get(
+      otpKey({
+        userId: req.user.id,
+        showId: body.showId,
+        email: normalizedEmail,
+      })
+    );
+    if (!otpRecord?.verifiedAt || otpRecord.expiresAt <= Date.now()) {
+      throw new HttpError(400, 'Payment OTP verification is required');
+    }
 
     const show = await db.Show.findByPk(body.showId, {
       transaction: t,
@@ -476,6 +518,7 @@ async function confirmBooking(req, res, next) {
     if (!show || show.isCancelled || show.isBlocked || !show.isApproved) {
       throw new HttpError(404, 'Show not available');
     }
+    if (!isShowBookingOpen(show)) throw new HttpError(409, 'Show booking closed');
 
     const hall = await db.Hall.findByPk(show.hallId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!hall) throw new HttpError(404, 'Hall not found');
@@ -599,6 +642,13 @@ async function confirmBooking(req, res, next) {
     );
 
     await t.commit();
+    otpStore.delete(
+      otpKey({
+        userId: req.user.id,
+        showId: body.showId,
+        email: normalizedEmail,
+      })
+    );
     res.status(201).json({
       bookingId: booking.id,
       showId: show.id,
@@ -668,4 +718,84 @@ async function listMyBookings(req, res, next) {
   }
 }
 
-module.exports = { createHold, confirmBooking, cleanupExpiredHolds, listMyBookings };
+async function sendPaymentOtp(req, res, next) {
+  try {
+    const body = sendOtpSchema.parse(req.body);
+    const normalizedEmail = String(body.email).trim().toLowerCase();
+
+    if (normalizedEmail !== String(req.user.email).trim().toLowerCase()) {
+      throw new HttpError(400, 'Use your registered account email for OTP verification');
+    }
+
+    const show = await db.Show.findByPk(body.showId, {
+      include: [{ model: db.Movie }],
+    });
+    if (!show || show.isCancelled || show.isBlocked || !show.isApproved) {
+      throw new HttpError(404, 'Show not available');
+    }
+    if (!isShowBookingOpen(show)) throw new HttpError(409, 'Show booking closed');
+
+    const otp = generateOtp();
+    const key = otpKey({
+      userId: req.user.id,
+      showId: body.showId,
+      email: normalizedEmail,
+    });
+
+    otpStore.set(key, {
+      otp,
+      expiresAt: Date.now() + env.otp.ttlMs,
+    });
+
+    await sendOtpEmail(normalizedEmail, req.user.name, otp);
+
+    res.json({
+      ok: true,
+      expiresInMs: env.otp.ttlMs,
+      message: 'OTP sent to your registered email address',
+    });
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+async function verifyPaymentOtp(req, res, next) {
+  try {
+    const body = verifyOtpSchema.parse(req.body);
+    const normalizedEmail = String(body.email).trim().toLowerCase();
+
+    const key = otpKey({
+      userId: req.user.id,
+      showId: body.showId,
+      email: normalizedEmail,
+    });
+
+    const record = otpStore.get(key);
+    if (!record) throw new HttpError(400, 'OTP not requested for this payment');
+    if (record.expiresAt <= Date.now()) {
+      otpStore.delete(key);
+      throw new HttpError(400, 'OTP expired. Request a new one');
+    }
+    if (record.otp !== body.otp) throw new HttpError(400, 'Invalid OTP');
+
+    otpStore.set(key, {
+      ...record,
+      verifiedAt: Date.now(),
+    });
+
+    res.json({ ok: true, message: 'OTP verified successfully' });
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+module.exports = {
+  createHold,
+  confirmBooking,
+  cleanupExpiredHolds,
+  listMyBookings,
+  sendPaymentOtp,
+  verifyPaymentOtp,
+};

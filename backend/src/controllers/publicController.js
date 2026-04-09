@@ -19,6 +19,11 @@ function buildShowSummary(show) {
   };
 }
 
+function isShowBookingOpen(show) {
+  const startsAtMs = new Date(show?.startsAt).getTime();
+  return Number.isFinite(startsAtMs) && startsAtMs > Date.now();
+}
+
 async function getSeatTypePricing(showId) {
   const seatTypes = await db.SeatType.findAll({ where: { isActive: true } });
   const showSeatPrices = await db.ShowSeatPrice.findAll({ where: { showId } });
@@ -54,8 +59,15 @@ async function listMovies(req, res, next) {
 async function listShowsForMovie(req, res, next) {
   try {
     const movieId = Number(req.params.movieId);
+    const now = new Date();
     const shows = await db.Show.findAll({
-      where: { movieId, isApproved: true, isBlocked: false, isCancelled: false },
+      where: {
+        movieId,
+        isApproved: true,
+        isBlocked: false,
+        isCancelled: false,
+        startsAt: { [Op.gt]: now },
+      },
       include: [{ model: db.Hall, where: { isApproved: true, isBlocked: false }, include: [{ model: db.Theater, where: { isBlocked: false } }] }],
       order: [['startsAt', 'ASC']],
     });
@@ -99,11 +111,12 @@ async function showSeatMap(req, res, next) {
       !show.isApproved ||
       show.isBlocked ||
       show.isCancelled ||
+      !isShowBookingOpen(show) ||
       show.Hall.isBlocked ||
       !show.Hall.isApproved ||
       show.Hall.Theater.isBlocked
     ) {
-      throw new HttpError(404, 'Show not available');
+      throw new HttpError(409, 'Show booking closed');
     }
 
     const layout = await db.HallLayout.findOne({ where: { hallId: show.hallId } });
@@ -144,6 +157,7 @@ async function estimatePrice(req, res, next) {
 
     const show = await db.Show.findByPk(showId);
     if (!show) throw new HttpError(404, 'Show not found');
+    if (!isShowBookingOpen(show)) throw new HttpError(409, 'Show booking closed');
     const layout = await db.HallLayout.findOne({ where: { hallId: show.hallId } });
     if (!layout) throw new HttpError(409, 'Seat layout not configured');
     const fullShow = await db.Show.findByPk(showId, {
