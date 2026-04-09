@@ -65,7 +65,13 @@ export default function Layout() {
 
             {auth ? (
               <div className="flex items-center gap-4">
-                  <div className="hidden rounded-full border border-white/15 bg-white/10 px-4 py-2 text-right shadow-sm backdrop-blur-sm sm:block">
+                <Link
+                  to="/my-tickets"
+                  className="hidden rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/18 md:inline-flex"
+                >
+                  My Tickets
+                </Link>
+                <div className="hidden rounded-full border border-white/15 bg-white/10 px-4 py-2 text-right shadow-sm backdrop-blur-sm sm:block">
                   <div className="text-xs uppercase tracking-[0.2em] text-pink-100/70">
                     Signed in
                   </div>

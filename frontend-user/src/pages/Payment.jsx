@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import { downloadTicketPdf, isUpcomingTicket } from '../lib/ticketPdf'
 import { useAuth } from '../useAuth'
 
 const PAYMENT_METHODS = [
@@ -56,9 +57,6 @@ export default function Payment() {
   const location = useLocation()
   const nav = useNavigate()
 
-  const seatCodes = useMemo(() => location.state?.seatCodes || [], [location.state])
-  const expiresAt = location.state?.expiresAt
-
   const [estimate, setEstimate] = useState(location.state?.estimate || null)
   const [showSummary, setShowSummary] = useState(location.state?.showSummary || null)
   const [paymentMethod, setPaymentMethod] = useState('upi')
@@ -66,7 +64,9 @@ export default function Payment() {
   const [loading, setLoading] = useState(false)
   const [, setTick] = useState(0)
   const [booking, setBooking] = useState(null)
-
+  const [successMessage, setSuccessMessage] = useState('')
+  const seatCodes = useMemo(() => location.state?.seatCodes || [], [location.state])
+  const expiresAt = location.state?.expiresAt
   const left = expiresAt ? msLeft(expiresAt) : 0
 
   useEffect(() => {
@@ -97,6 +97,19 @@ export default function Payment() {
     nav(`/shows/${showId}/seats`, { replace: true })
   }, [booking, expiresAt, left, nav, showId])
 
+  useEffect(() => {
+    if (!booking?.ticket) return
+    if (isUpcomingTicket(booking.ticket)) {
+      downloadTicketPdf(booking.ticket)
+      setSuccessMessage('Payment successful. Your ticket PDF has been downloaded.')
+      window.alert('Payment successful. Your ticket has been booked and downloaded as a PDF.')
+      return
+    }
+
+    setSuccessMessage('Payment successful. This show has expired, so PDF download is unavailable.')
+    window.alert('Payment successful. This show has expired, so PDF download is unavailable.')
+  }, [booking])
+
   if (!seatCodes.length || !expiresAt) {
     return (
       <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center px-4">
@@ -125,6 +138,7 @@ export default function Payment() {
         bookingId: response.bookingId,
         totalAmount: response.totalAmount,
         seatCodes,
+        ticket: response.ticket || null,
       })
     } catch (e) {
       setErr(e.message)
@@ -137,10 +151,17 @@ export default function Payment() {
   const totalAmount = booking?.totalAmount ?? estimate?.total ?? 0
   const breakdown = estimate?.breakdown || []
   const selectedMethod = PAYMENT_METHODS.find((item) => item.code === paymentMethod) || PAYMENT_METHODS[0]
+  const canDownloadTicket = booking?.ticket ? isUpcomingTicket(booking.ticket) : false
 
   if (booking) {
     return (
       <div className="mx-auto max-w-5xl space-y-8 px-4 py-10 md:px-6">
+        {successMessage ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 shadow-sm">
+            {successMessage}
+          </div>
+        ) : null}
+
         <section className="page-panel px-6 py-8 md:px-10">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
@@ -207,8 +228,14 @@ export default function Payment() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-blue-100/80">Status</span>
-                <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100">
-                  Success
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+                    canDownloadTicket
+                      ? 'bg-emerald-400/15 text-emerald-100'
+                      : 'bg-amber-300/20 text-amber-100'
+                  }`}
+                >
+                  {canDownloadTicket ? 'Upcoming' : 'Show Expired'}
                 </span>
               </div>
             </div>
@@ -216,6 +243,9 @@ export default function Payment() {
             <div className="mt-8 flex flex-col gap-3">
               <Link to="/" className="primary-button">
                 Book another show
+              </Link>
+              <Link to="/my-tickets" className="secondary-button">
+                Open my tickets
               </Link>
               <Link to={`/shows/${showId}/seats`} className="secondary-button">
                 View seat map again
@@ -315,7 +345,12 @@ export default function Payment() {
               </div>
             ) : null}
 
-            <button type="button" disabled={loading || secs <= 0} onClick={confirm} className="primary-button w-full">
+            <button
+              type="button"
+              disabled={loading || secs <= 0}
+              onClick={confirm}
+              className="primary-button w-full"
+            >
               {loading ? 'Processing booking...' : `Pay ${formatCurrency(totalAmount)}`}
             </button>
           </div>

@@ -384,8 +384,8 @@ async function createHallWithLayout(req, res, next) {
       {
         theaterId: theater.id,
         name: body.name,
-        isApproved: true,
-        approvedAt: new Date(),
+        isApproved: false,
+        approvedAt: null,
       },
       { transaction: t }
     );
@@ -535,8 +535,8 @@ async function createShow(req, res, next) {
         startsAt: startsAt.toISOString(),
         endsAt: endsAt.toISOString(),
         language: body.language,
-        isApproved: true,
-        approvedAt: new Date(),
+        isApproved: false,
+        approvedAt: null,
       },
       { transaction: t }
     );

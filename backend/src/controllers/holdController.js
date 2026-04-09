@@ -264,6 +264,29 @@ const confirmSchema = z.object({
   seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
 });
 
+function buildBookingTicket({ booking, seatMeta, show }) {
+  return {
+    bookingId: booking.id,
+    status: booking.status,
+    totalAmount: Number(booking.totalAmount),
+    seats: seatMeta.map((seat) => ({
+      seatCode: seat.publicSeatCode,
+      seatTypeCode: seat.typeCode,
+      price: Number(seat.price),
+    })),
+    show: {
+      showId: show.id,
+      movieTitle: show.Movie?.title ?? null,
+      theaterName: show.Hall?.Theater?.name ?? null,
+      hallName: show.Hall?.name ?? null,
+      startsAt: show.startsAt,
+      endsAt: show.endsAt,
+      language: show.language,
+    },
+    bookedAt: booking.createdAt,
+  };
+}
+
 function isUniqueConstraintError(err) {
   return (
     err instanceof UniqueConstraintError ||
@@ -442,7 +465,14 @@ async function confirmBooking(req, res, next) {
       new Set(body.seatCodes.map((s) => String(s).toUpperCase().trim()))
     );
 
-    const show = await db.Show.findByPk(body.showId, { transaction: t, lock: t.LOCK.UPDATE });
+    const show = await db.Show.findByPk(body.showId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+      include: [
+        { model: db.Movie },
+        { model: db.Hall, include: [{ model: db.Theater }] },
+      ],
+    });
     if (!show || show.isCancelled || show.isBlocked || !show.isApproved) {
       throw new HttpError(404, 'Show not available');
     }
@@ -472,15 +502,20 @@ async function confirmBooking(req, res, next) {
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
+    const holdBySeat = new Map(holds.map((hold) => [String(hold.seatCode), hold]));
 
-    if (holds.length !== absoluteSeatCodes.length) {
-      throw new HttpError(409, 'Seat hold expired');
-    }
+    for (const seatCode of absoluteSeatCodes) {
+      const hold = holdBySeat.get(String(seatCode));
+      if (!hold) continue;
 
-    for (const h of holds) {
-      if (h.status !== HOLD_STATUS.HELD) throw new HttpError(409, 'Seat hold expired');
-      if (String(h.userId) !== String(req.user.id)) throw new HttpError(409, 'Seat hold expired');
-      if (new Date(h.expiresAt).getTime() <= now.getTime()) throw new HttpError(409, 'Seat hold expired');
+      const expiresAtMs = new Date(hold.expiresAt).getTime();
+      const isExpired = !Number.isFinite(expiresAtMs) || expiresAtMs <= now.getTime();
+      const isActiveHeld = hold.status === HOLD_STATUS.HELD && !isExpired;
+      const heldByOther = isActiveHeld && String(hold.userId) !== String(req.user.id);
+
+      if (heldByOther) {
+        throw new HttpError(409, 'Some seats are temporarily locked by another user');
+      }
     }
 
     const alreadyBooked = await db.BookingSeat.findAll({
@@ -569,6 +604,7 @@ async function confirmBooking(req, res, next) {
       showId: show.id,
       seatCodes: publicSeatCodes,
       totalAmount,
+      ticket: buildBookingTicket({ booking, seatMeta, show }),
     });
   } catch (e) {
     await t.rollback();
@@ -577,4 +613,59 @@ async function confirmBooking(req, res, next) {
   }
 }
 
-module.exports = { createHold, confirmBooking, cleanupExpiredHolds };
+async function listMyBookings(req, res, next) {
+  try {
+    const bookings = await db.Booking.findAll({
+      where: {
+        userId: req.user.id,
+        status: BOOKING_STATUS.CONFIRMED,
+      },
+      include: [
+        {
+          model: db.Show,
+          include: [
+            { model: db.Movie },
+            { model: db.Hall, include: [{ model: db.Theater }] },
+          ],
+        },
+        {
+          model: db.BookingSeat,
+          required: false,
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const hallIds = Array.from(
+      new Set(bookings.map((booking) => booking.Show?.hallId).filter(Boolean))
+    );
+    const layouts = await db.HallLayout.findAll({
+      where: { hallId: { [Op.in]: hallIds } },
+    });
+    const layoutByHallId = new Map(layouts.map((layout) => [String(layout.hallId), layout]));
+
+    const tickets = bookings.map((booking) => {
+      const layout = layoutByHallId.get(String(booking.Show?.hallId));
+      const seatMeta = (booking.BookingSeats || []).map((seat) => {
+        const parsed = layout ? parseSeatCodeForLayout(layout, seat.seatCode) : null;
+        return {
+          publicSeatCode: parsed?.publicSeatCode || seat.seatCode,
+          typeCode: null,
+          price: Number(seat.price),
+        };
+      });
+
+      return buildBookingTicket({
+        booking,
+        seatMeta,
+        show: booking.Show,
+      });
+    });
+
+    res.json({ bookings: tickets });
+  } catch (e) {
+    next(e);
+  }
+}
+
+module.exports = { createHold, confirmBooking, cleanupExpiredHolds, listMyBookings };

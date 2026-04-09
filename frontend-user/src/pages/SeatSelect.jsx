@@ -236,11 +236,11 @@ export default function SeatSelect() {
 
       nav(`/shows/${showId}/payment`, {
         state: {
-          seatCodes: selectedArr,
+          seatCodes: hold.seatCodes || selectedArr,
           expiresAt: hold.expiresAt,
           estimate: {
             total: totalAmount,
-            breakdown: selectedArr.map((seatCode) => {
+            breakdown: (hold.seatCodes || selectedArr).map((seatCode) => {
               const seat = rows.flatMap((row) => row.cells).find((cell) => cell?.seatCode === seatCode)
               const seatType = seatTypeMap.get(seat?.seatTypeCode || 'standard')
               return {
