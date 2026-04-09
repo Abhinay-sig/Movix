@@ -1,3 +1,4 @@
+const { DataTypes } = require('sequelize');
 const { sequelize } = require('../db/sequelize');
 const { defineUser, USER_ROLES } = require('./User');
 const { defineTheater } = require('./Theater');
@@ -93,10 +94,74 @@ async function seedSeatTypes() {
   }
 }
 
+async function ensureMovieSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+  const table = await queryInterface.describeTable('movies');
+
+  if (!table.genre) {
+    await queryInterface.addColumn('movies', 'genre', {
+      type: DataTypes.STRING(120),
+      allowNull: false,
+      defaultValue: 'General',
+    });
+  }
+
+  if (!table.release_date) {
+    await queryInterface.addColumn('movies', 'release_date', {
+      type: DataTypes.DATEONLY,
+      allowNull: false,
+      defaultValue: '2000-01-01',
+    });
+  }
+
+  if (!table.description) {
+    await queryInterface.addColumn('movies', 'description', {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    });
+  }
+
+  if (!table.duration_mins) {
+    await queryInterface.addColumn('movies', 'duration_mins', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 120,
+    });
+  }
+
+  if (!table.poster_url) {
+    await queryInterface.addColumn('movies', 'poster_url', {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    });
+  }
+
+  if (!table.is_active) {
+    await queryInterface.addColumn('movies', 'is_active', {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    });
+  }
+}
+
+async function ensureSeatHoldSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+  const table = await queryInterface.describeTable('seat_holds');
+
+  if (!table.session_token) {
+    await queryInterface.addColumn('seat_holds', 'session_token', {
+      type: DataTypes.STRING(96),
+      allowNull: true,
+    });
+  }
+}
+
 async function syncDb() {
   await sequelize.sync();
+  await ensureMovieSchema();
+  await ensureSeatHoldSchema();
   await seedSeatTypes();
 }
 
 module.exports = { db, syncDb };
-
