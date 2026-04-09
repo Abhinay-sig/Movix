@@ -10,7 +10,11 @@ export default function MovieShows() {
   useEffect(() => {
     let alive = true
     api(`/public/movies/${movieId}/shows`)
-      .then((d) => alive && setShows(d.shows || []))
+      .then((d) => {
+        if (!alive) return
+        const upcomingShows = (d.shows || []).filter((show) => new Date(show.startsAt).getTime() > Date.now())
+        setShows(upcomingShows)
+      })
       .catch((e) => alive && setErr(e.message))
 
     return () => {
@@ -75,7 +79,7 @@ export default function MovieShows() {
 
       {shows.length === 0 ? (
         <div className="soft-card border-dashed p-10 text-center text-slate-500">
-          No shows available
+          No upcoming shows available
         </div>
       ) : (
         <div className="space-y-4">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { downloadCalendarInvite } from '../lib/ticketCalendar'
 import { downloadTicketPdf, isUpcomingTicket } from '../lib/ticketPdf'
 import { useAuth } from '../useAuth'
 
@@ -20,7 +21,8 @@ function formatCurrency(value) {
 }
 
 export default function MyTickets() {
-  const { auth } = useAuth()
+  const { auth, logout } = useAuth()
+  const [redirecting, setRedirecting] = useState(false)
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
@@ -36,6 +38,11 @@ export default function MyTickets() {
       })
       .catch((e) => {
         if (!alive) return
+        if (e.status === 401) {
+          setRedirecting(true)
+          logout()
+          return
+        }
         setErr(e.message)
       })
       .finally(() => {
@@ -45,7 +52,11 @@ export default function MyTickets() {
     return () => {
       alive = false
     }
-  }, [auth.token])
+  }, [auth.token, logout])
+
+  if (redirecting) {
+    return <div className="py-10 text-center text-slate-500">Redirecting to login...</div>
+  }
 
   if (loading) {
     return <div className="py-10 text-center text-slate-500">Loading your tickets...</div>
@@ -135,7 +146,15 @@ export default function MyTickets() {
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                 This show has already finished, so PDF download is disabled for this ticket.
               </div>
-            ) : null}
+            ) : (
+              <button
+                type="button"
+                onClick={() => downloadCalendarInvite(booking)}
+                className="secondary-button mt-4"
+              >
+                Add to calendar
+              </button>
+            )}
                 </>
               )
             })()}
