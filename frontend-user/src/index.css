@@ -1,1 +1,134 @@
 @import "tailwindcss";
+
+@theme {
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-500: #60a5fa;
+  --color-brand-600: #3b82f6;
+  --color-lilac-50: #f5f3ff;
+  --color-lilac-100: #ede9fe;
+  --color-mint-50: #ecfdf5;
+  --color-mint-100: #d1fae5;
+  --color-peach-50: #fff7ed;
+  --color-peach-100: #ffedd5;
+  --color-rose-50: #fff1f2;
+  --color-rose-100: #ffe4e6;
+  --color-surface: #ffffff;
+  --color-page: #f4f7fb;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, rgba(191, 219, 254, 0.75), transparent 30%),
+      radial-gradient(circle at top right, rgba(233, 213, 255, 0.55), transparent 24%),
+      radial-gradient(circle at 20% 80%, rgba(254, 240, 138, 0.22), transparent 24%),
+      radial-gradient(circle at 85% 75%, rgba(167, 243, 208, 0.32), transparent 26%),
+      linear-gradient(180deg, #fbfdff 0%, #f8faff 32%, #f5f7ff 58%, #f7f8fc 100%);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgba(96, 165, 250, 0.22);
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply relative min-h-screen overflow-hidden;
+  }
+
+  .app-shell::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.85), transparent 82%);
+  }
+
+  .page-panel {
+    @apply rounded-[2rem] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.88),rgba(239,246,255,0.8),rgba(245,243,255,0.82))] shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl;
+  }
+
+  .soft-card {
+    @apply rounded-[1.75rem] border border-slate-200/80 bg-[linear-gradient(160deg,rgba(255,255,255,0.94),rgba(239,246,255,0.86),rgba(255,247,237,0.8))] shadow-[0_18px_50px_rgba(15,23,42,0.07)] transition-all duration-300;
+  }
+
+  .soft-card:hover {
+    @apply -translate-y-1 shadow-[0_24px_70px_rgba(15,23,42,0.10)];
+  }
+
+  .hero-chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-fuchsia-100 bg-[linear-gradient(90deg,rgba(239,246,255,0.95),rgba(245,243,255,0.95),rgba(255,237,213,0.9))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600;
+  }
+
+  .primary-button {
+    @apply inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-blue-700 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:from-blue-700 hover:via-blue-600 hover:to-sky-500 hover:shadow-[0_18px_40px_rgba(59,130,246,0.25)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .secondary-button {
+    @apply inline-flex items-center justify-center rounded-2xl border border-pink-100 bg-gradient-to-r from-white via-blue-50 to-orange-50 px-6 py-3.5 text-sm font-semibold text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-fuchsia-200 hover:from-blue-50 hover:via-lilac-50 hover:to-peach-50 hover:text-slate-950;
+  }
+
+  .field-input {
+    @apply w-full rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,255,0.96))] px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-400 focus:-translate-y-0.5 focus:border-fuchsia-200 focus:bg-white focus:ring-4 focus:ring-fuchsia-100/70;
+  }
+
+  .section-title {
+    @apply text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl;
+  }
+
+  .section-copy {
+    @apply text-sm leading-6 text-slate-500 md:text-base;
+  }
+
+  .fade-up {
+    animation: fade-up 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .fade-up-delay {
+    animation: fade-up 850ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 90ms;
+  }
+
+  .pulse-ring {
+    animation: pulse-ring 2.6s ease-in-out infinite;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.18);
+  }
+
+  50% {
+    box-shadow: 0 0 0 12px rgba(96, 165, 250, 0);
+  }
+}
