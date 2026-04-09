@@ -13,6 +13,11 @@ function must(name, fallback) {
 const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3001),
+  app: {
+    backendBaseUrl: process.env.BACKEND_BASE_URL ?? `http://localhost:${Number(process.env.PORT ?? 3001)}`,
+    userAppUrl: process.env.USER_APP_URL ?? 'http://localhost:5173',
+    staffAppUrl: process.env.STAFF_APP_URL ?? 'http://localhost:5174',
+  },
 
   db: {
     host: must('DB_HOST'),
@@ -32,8 +37,29 @@ const env = {
     password: must('ADMIN_PASSWORD'),
   },
 
+  auth: {
+    verificationExpiresMs: Number(process.env.EMAIL_VERIFICATION_EXPIRES_MS ?? 120000),
+  },
+
+  email: {
+    from: process.env.SMTP_FROM ?? process.env.SMTP_EMAIL ?? '',
+    host: process.env.SMTP_HOST ?? '',
+    port: Number(process.env.SMTP_PORT ?? 465),
+    secure: (process.env.SMTP_SECURE ?? 'true') === 'true',
+    service: process.env.SMTP_SERVICE ?? 'gmail',
+    user: process.env.SMTP_EMAIL ?? '',
+    password: process.env.SMTP_PASSWORD ?? '',
+  },
+
+  oauth: {
+    googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+    googleRedirectUri:
+      process.env.GOOGLE_REDIRECT_URI ??
+      `${process.env.BACKEND_BASE_URL ?? `http://localhost:${Number(process.env.PORT ?? 3001)}`}/api/auth/google/callback`,
+  },
+
   seatHoldMs: Number(process.env.SEAT_HOLD_MS ?? 300000),
 };
 
 module.exports = { env };
-

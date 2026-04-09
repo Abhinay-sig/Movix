@@ -7,6 +7,11 @@ const USER_ROLES = Object.freeze({
   OWNER: 'theater_owner',
 });
 
+const AUTH_PROVIDERS = Object.freeze({
+  LOCAL: 'local',
+  GOOGLE: 'google',
+});
+
 function defineUser(sequelize) {
   const User = sequelize.define(
     'User',
@@ -20,15 +25,36 @@ function defineUser(sequelize) {
         allowNull: false,
         defaultValue: USER_ROLES.USER,
       },
+      authProvider: {
+        type: DataTypes.ENUM(AUTH_PROVIDERS.LOCAL, AUTH_PROVIDERS.GOOGLE),
+        allowNull: false,
+        defaultValue: AUTH_PROVIDERS.LOCAL,
+      },
+      oauthSubject: { type: DataTypes.STRING(191), allowNull: true },
+      emailVerifiedAt: { type: DataTypes.DATE, allowNull: true },
+      verificationTokenHash: { type: DataTypes.STRING(128), allowNull: true },
+      verificationTokenExpiresAt: { type: DataTypes.DATE, allowNull: true },
+      verificationLastSentAt: { type: DataTypes.DATE, allowNull: true },
       isBlocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     },
     {
       tableName: 'users',
       underscored: true,
-      indexes: [{ unique: true, fields: ['email'] }],
-      defaultScope: { attributes: { exclude: ['passwordHash'] } },
+      indexes: [
+        { unique: true, fields: ['email'] },
+        { fields: ['verification_token_hash'] },
+        { fields: ['oauth_subject'] },
+      ],
+      defaultScope: {
+        attributes: { exclude: ['passwordHash', 'verificationTokenHash', 'oauthSubject'] },
+      },
       scopes: {
         withPassword: { attributes: { include: ['passwordHash'] } },
+        withAuth: {
+          attributes: {
+            include: ['passwordHash', 'verificationTokenHash', 'oauthSubject'],
+          },
+        },
       },
     }
   );
@@ -42,8 +68,11 @@ function defineUser(sequelize) {
     return bcrypt.hash(password, saltRounds);
   };
 
+  User.prototype.isEmailVerified = function isEmailVerified() {
+    return Boolean(this.emailVerifiedAt);
+  };
+
   return User;
 }
 
-module.exports = { defineUser, USER_ROLES };
-
+module.exports = { defineUser, USER_ROLES, AUTH_PROVIDERS };

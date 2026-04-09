@@ -1,8 +1,8 @@
 const { z } = require('zod');
+const jwt = require('jsonwebtoken');
 const { HttpError } = require('../utils/httpError');
-const { signToken } = require('../utils/jwt');
 const { db } = require('../models');
-const { env } = require('../config/env');
+const { authService } = require('../services');
 
 const signupSchema = z.object({
   email: z.string().email().max(320),
@@ -16,27 +16,30 @@ const loginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
-function userToJson(u) {
-  return { id: u.id, email: u.email, name: u.name, role: u.role };
-}
+const resendVerificationSchema = z.object({
+  email: z.string().email().max(320),
+  role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).optional(),
+});
+
+const verifyQuerySchema = z.object({
+  token: z.string().min(1),
+  role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).optional(),
+});
+
+const googleStartSchema = z.object({
+  role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).default(db.USER_ROLES.USER),
+});
+
+const googleCallbackSchema = z.object({
+  code: z.string().min(1),
+  state: z.string().min(1),
+});
 
 async function signup(req, res, next) {
   try {
     const body = signupSchema.parse(req.body);
-    const email = body.email.toLowerCase();
-    const exists = await db.User.findOne({ where: { email } });
-    if (exists) throw new HttpError(409, 'Email already in use');
-
-    const passwordHash = await db.User.hashPassword(body.password);
-    const user = await db.User.create({
-      email,
-      name: body.name,
-      passwordHash,
-      role: body.role ?? db.USER_ROLES.USER,
-    });
-
-    const token = signToken({ sub: user.id, role: user.role });
-    res.status(201).json({ token, user: userToJson(user) });
+    const result = await authService.signup(body);
+    res.status(202).json(result);
   } catch (e) {
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
     return next(e);
@@ -46,15 +49,8 @@ async function signup(req, res, next) {
 async function login(req, res, next) {
   try {
     const body = loginSchema.parse(req.body);
-    const email = body.email.toLowerCase();
-    const user = await db.User.scope('withPassword').findOne({ where: { email } });
-    if (!user) throw new HttpError(401, 'Invalid credentials');
-    if (user.isBlocked) throw new HttpError(403, 'User is blocked');
-    const ok = await user.verifyPassword(body.password);
-    if (!ok) throw new HttpError(401, 'Invalid credentials');
-
-    const token = signToken({ sub: user.id, role: user.role });
-    res.json({ token, user: userToJson(user) });
+    const result = await authService.login(body);
+    res.json(result);
   } catch (e) {
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
     return next(e);
@@ -64,28 +60,73 @@ async function login(req, res, next) {
 async function adminLogin(req, res, next) {
   try {
     const body = loginSchema.parse(req.body);
-    const email = body.email.toLowerCase();
-    if (email !== env.admin.email.toLowerCase() || body.password !== env.admin.password) {
-      throw new HttpError(401, 'Invalid credentials');
-    }
-
-    const [admin] = await db.User.scope('withPassword').findOrCreate({
-      where: { email },
-      defaults: {
-        email,
-        name: 'Admin',
-        role: db.USER_ROLES.ADMIN,
-        passwordHash: await db.User.hashPassword(env.admin.password),
-      },
-    });
-
-    const token = signToken({ sub: admin.id, role: admin.role });
-    res.json({ token, user: userToJson(admin) });
+    const result = await authService.adminLogin(body);
+    res.json(result);
   } catch (e) {
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
     return next(e);
   }
 }
 
-module.exports = { signup, login, adminLogin };
+async function resendVerification(req, res, next) {
+  try {
+    const body = resendVerificationSchema.parse(req.body);
+    const result = await authService.resendVerification(body);
+    res.json(result);
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
 
+async function verifyEmail(req, res, next) {
+  try {
+    const query = verifyQuerySchema.parse(req.query);
+    const result = await authService.verifyEmailToken(query.token, query.role);
+    res.redirect(authService.buildVerificationRedirectUrl(result));
+  } catch (e) {
+    return next(e);
+  }
+}
+
+async function googleStart(req, res, next) {
+  try {
+    const query = googleStartSchema.parse(req.query);
+    const url = authService.buildGoogleStartUrl(query);
+    res.redirect(url);
+  } catch (e) {
+    return next(e);
+  }
+}
+
+function getRoleFromState(state) {
+  try {
+    return jwt.decode(state)?.role;
+  } catch {
+    return undefined;
+  }
+}
+
+async function googleCallback(req, res) {
+  try {
+    const query = googleCallbackSchema.parse(req.query);
+    const result = await authService.completeGoogleOAuth(query);
+    res.redirect(result.redirectUrl);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('Google OAuth callback failed:', e);
+    const role = getRoleFromState(req.query.state) ?? db.USER_ROLES.USER;
+    const message = e instanceof HttpError ? e.message : e?.message || 'Google sign-in failed';
+    res.redirect(authService.getGoogleErrorRedirect(role, message));
+  }
+}
+
+module.exports = {
+  signup,
+  login,
+  adminLogin,
+  resendVerification,
+  verifyEmail,
+  googleStart,
+  googleCallback,
+};
