@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../db/sequelize');
-const { defineUser, USER_ROLES } = require('./User');
+const { defineUser, USER_ROLES, AUTH_PROVIDERS } = require('./User');
 const { defineTheater } = require('./Theater');
 const { defineHall } = require('./Hall');
 const { defineHallLayout } = require('./HallLayout');
@@ -19,6 +19,7 @@ db.sequelize = sequelize;
 
 db.User = defineUser(sequelize);
 db.USER_ROLES = USER_ROLES;
+db.AUTH_PROVIDERS = AUTH_PROVIDERS;
 
 db.Theater = defineTheater(sequelize);
 db.Hall = defineHall(sequelize);
@@ -159,6 +160,7 @@ async function ensureSeatHoldSchema() {
 
 async function syncDb() {
   await sequelize.sync();
+  await db.User.sync({ alter: true });
   await ensureMovieSchema();
   await ensureSeatHoldSchema();
   await seedSeatTypes();

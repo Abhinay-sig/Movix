@@ -8,6 +8,8 @@ import MovieShows from './pages/MovieShows'
 import SeatSelect from './pages/SeatSelect'
 import Payment from './pages/Payment'
 import MyTickets from './pages/MyTickets'
+import VerifyEmail from './pages/VerifyEmail'
+import OAuthCallback from './pages/OAuthCallback'
 
 export default function App() {
   return (
@@ -16,6 +18,8 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
         <Route path="/movies/:movieId" element={<MovieShows />} />
 
         <Route element={<RequireAuth />}>
