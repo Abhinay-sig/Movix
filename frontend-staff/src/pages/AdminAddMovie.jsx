@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
-import { extractFieldErrors, withFieldError } from '../lib/formErrors'
+import {
+  extractFieldErrors,
+  validateNameField,
+  validatePositiveNumberField,
+  withFieldError,
+} from '../lib/formErrors'
 
 const LANGUAGE_OPTIONS = ['English', 'Hindi', 'Tamil', 'Telugu']
 
@@ -76,9 +81,8 @@ export default function AdminAddMovie() {
     const description = form.description.trim()
     const posterUrl = form.posterUrl.trim()
 
-    if (!title || !/[a-zA-Z0-9]/.test(title)) {
-      nextErrors.title = 'Enter a valid movie title.'
-    }
+    const titleError = validateNameField(title, 'Movie title')
+    if (titleError) nextErrors.title = titleError
 
     if (!genre || !/[a-zA-Z0-9]/.test(genre)) {
       nextErrors.genre = 'Enter a valid genre.'
@@ -88,9 +92,8 @@ export default function AdminAddMovie() {
       nextErrors.releaseDate = 'Release date is required.'
     }
 
-    if (!form.durationMins || Number(form.durationMins) <= 0) {
-      nextErrors.durationMins = 'Enter a valid duration.'
-    }
+    const durationError = validatePositiveNumberField(form.durationMins, 'Duration')
+    if (durationError) nextErrors.durationMins = durationError
 
     if (posterUrl) {
       try {

@@ -4,7 +4,14 @@ import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
 import Modal from '../components/Modal'
 import PaginationControls from '../components/PaginationControls'
-import { extractFieldErrors, withFieldError } from '../lib/formErrors'
+import {
+  extractFieldErrors,
+  validateAddressField,
+  validateCityField,
+  validateNameField,
+  validatePincodeField,
+  withFieldError,
+} from '../lib/formErrors'
 
 const PAGE_LIMIT = 6
 
@@ -113,7 +120,12 @@ export default function OwnerTheaters() {
   }, [auth.token, nameFilter, cityFilter, stateFilter, pincodeFilter, page])
 
   function updateField(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }))
+    const nextValue =
+      key === 'pincode'
+        ? String(value).replace(/\D/g, '').slice(0, 6)
+        : value
+
+    setForm((prev) => ({ ...prev, [key]: nextValue }))
     setFieldErrors((prev) => ({ ...prev, [key]: '' }))
   }
 
@@ -151,11 +163,17 @@ export default function OwnerTheaters() {
   function validateCreateForm() {
     const nextErrors = {}
 
-    if (!form.name.trim()) nextErrors.name = 'Theater name is required.'
-    if (!form.address.trim()) nextErrors.address = 'Address is required.'
-    if (!form.city.trim()) nextErrors.city = 'City is required.'
-    if (!form.state.trim()) nextErrors.state = 'State is required.'
-    if (!form.pincode.trim()) nextErrors.pincode = 'Pincode is required.'
+    const nameError = validateNameField(form.name, 'Theater name')
+    const addressError = validateAddressField(form.address)
+    const cityError = validateCityField(form.city)
+    const stateError = validateNameField(form.state, 'State')
+    const pincodeError = validatePincodeField(form.pincode)
+
+    if (nameError) nextErrors.name = nameError
+    if (addressError) nextErrors.address = addressError
+    if (cityError) nextErrors.city = cityError
+    if (stateError) nextErrors.state = stateError
+    if (pincodeError) nextErrors.pincode = pincodeError
 
     return nextErrors
   }

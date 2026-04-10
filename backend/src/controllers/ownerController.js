@@ -261,12 +261,15 @@ const { HttpError } = require('../utils/httpError');
 const { buildPaginationMeta, parsePagination } = require('../utils/pagination');
 const { serializeMovieWithLanguages } = require('../utils/movieLanguages');
 
+const NAME_REGEX = /^[A-Za-z ]+$/;
+const PINCODE_REGEX = /^\d{6}$/;
+
 const createTheaterSchema = z.object({
-  name: z.string().min(1).max(160),
-  address: z.string().min(1).max(255),
-  city: z.string().min(1).max(120),
-  state: z.string().trim().min(1).max(120),
-  pincode: z.string().trim().min(1).max(20),
+  name: z.string().trim().min(1).max(160).regex(NAME_REGEX, 'Name can contain only alphabets and spaces'),
+  address: z.string().trim().min(5, 'Address must be at least 5 characters').max(255),
+  city: z.string().trim().min(1).max(120).regex(NAME_REGEX, 'City can contain only alphabets and spaces'),
+  state: z.string().trim().min(1).max(120).regex(NAME_REGEX, 'State can contain only alphabets and spaces'),
+  pincode: z.string().trim().regex(PINCODE_REGEX, 'Pincode must be exactly 6 digits'),
   amenities: z.string().trim().max(5000).optional().or(z.literal('')),
 });
 
@@ -688,7 +691,7 @@ async function sumRevenueForWindow({ showIds, startAt, endAt }) {
 }
 
 const listShowsSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   theaterId: z.coerce.number().int().positive().optional(),
   hallId: z.coerce.number().int().positive().optional(),
   movieId: z.coerce.number().int().positive().optional(),
@@ -697,8 +700,10 @@ const listShowsSchema = z.object({
 async function listMyShows(req, res, next) {
   try {
     const query = listShowsSchema.parse(req.query);
-    const startOfDay = wallClockUtc(query.date, '00:00');
-    const endOfDay = wallClockUtc(query.date, '23:59');
+    const { page, limit, offset, hasPagination } = parsePagination(req.query, {
+      defaultLimit: 6,
+      maxLimit: 20,
+    });
 
     const hallWhere = {};
     if (query.hallId) hallWhere.id = query.hallId;
@@ -706,30 +711,50 @@ async function listMyShows(req, res, next) {
 
     const showWhere = {
       isCancelled: false,
-      startsAt: { [Op.lte]: endOfDay },
-      endsAt: { [Op.gte]: startOfDay },
     };
+    if (query.date) {
+      const startOfDay = wallClockUtc(query.date, '00:00');
+      const endOfDay = wallClockUtc(query.date, '23:59');
+      showWhere.startsAt = { [Op.lte]: endOfDay };
+      showWhere.endsAt = { [Op.gte]: startOfDay };
+    }
     if (query.movieId) showWhere.movieId = query.movieId;
 
-    const shows = await db.Show.findAll({
+    const include = [
+      {
+        model: db.Hall,
+        required: true,
+        where: hallWhere,
+        include: [
+          {
+            model: db.Theater,
+            required: true,
+            where: { ownerUserId: req.user.id },
+          },
+        ],
+      },
+      { model: db.Movie, required: true },
+    ];
+
+    const total = await db.Show.count({
       where: showWhere,
-      include: [
-        {
-          model: db.Hall,
-          required: true,
-          where: hallWhere,
-          include: [
-            {
-              model: db.Theater,
-              required: true,
-              where: { ownerUserId: req.user.id },
-            },
-          ],
-        },
-        { model: db.Movie, required: true },
-      ],
-      order: [['startsAt', 'ASC']],
+      include,
+      distinct: true,
+      col: 'id',
     });
+
+    const options = {
+      where: showWhere,
+      include,
+      order: [['startsAt', 'ASC']],
+    };
+
+    if (!query.date && hasPagination) {
+      options.limit = limit;
+      options.offset = offset;
+    }
+
+    const shows = await db.Show.findAll(options);
 
     res.json({
       shows: shows.map((show) => ({
@@ -744,6 +769,11 @@ async function listMyShows(req, res, next) {
         endsAt: show.endsAt,
         language: show.language,
       })),
+      pagination: buildPaginationMeta(total, {
+        page: query.date ? 1 : page,
+        limit: query.date ? total || limit : limit,
+        hasPagination: !query.date && hasPagination,
+      }),
     });
   } catch (e) {
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
@@ -855,7 +885,7 @@ const createShowSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   durationMins: z.coerce.number().int().positive().max(480).optional(),
-  language: z.string().min(1).max(40),
+  language: z.string().trim().min(1).max(40),
   seatPrices: z
     .array(
       z.object({
@@ -970,6 +1000,9 @@ async function createShow(req, res, next) {
     const endsAt = new Date(startsAt.getTime() + durationMins * 60_000);
     if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
       throw new HttpError(400, 'Invalid show time');
+    }
+    if (startsAt.getTime() < Date.now()) {
+      throw new HttpError(400, 'Cannot schedule show in the past');
     }
 
     const bufferMins = 30;

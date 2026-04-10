@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
+import PaginationControls from '../components/PaginationControls'
+import { validatePositiveNumberField, withFieldError } from '../lib/formErrors'
 import { useAuth } from '../useAuth'
 
 const TYPES = ['standard', 'premium', 'recliner', 'vip']
+const SHOWS_PAGE_LIMIT = 6
 
 function toDateInputValue(value) {
   if (!value) return ''
@@ -14,6 +17,13 @@ function toWallClockUtc(date, time) {
   return new Date(`${date}T${time}:00.000Z`)
 }
 
+function isPastDateTime(date, time) {
+  if (!date || !time) return false
+  const value = toWallClockUtc(date, time)
+  if (Number.isNaN(value.getTime())) return false
+  return value.getTime() < Date.now()
+}
+
 export default function OwnerNewShow() {
   const { auth } = useAuth()
   const [theaters, setTheaters] = useState([])
@@ -21,6 +31,7 @@ export default function OwnerNewShow() {
   const [movies, setMovies] = useState([])
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const [theaterId, setTheaterId] = useState('')
   const [hallId, setHallId] = useState('')
@@ -39,6 +50,8 @@ export default function OwnerNewShow() {
   const [viewHallId, setViewHallId] = useState('')
   const [viewMovieId, setViewMovieId] = useState('')
   const [ownerShows, setOwnerShows] = useState([])
+  const [showsPagination, setShowsPagination] = useState(null)
+  const [showsPage, setShowsPage] = useState(1)
   const [loadingOwnerShows, setLoadingOwnerShows] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -109,6 +122,10 @@ export default function OwnerNewShow() {
   }, [availableLanguages, language, movieId])
 
   useEffect(() => {
+    setShowsPage(1)
+  }, [viewDate, viewTheaterId, viewHallId, viewMovieId])
+
+  useEffect(() => {
     if (!hallId || !date) {
       setSchedule(null)
       return
@@ -151,12 +168,13 @@ export default function OwnerNewShow() {
   }, [schedule, date, startTime, durationMins])
 
   useEffect(() => {
-    if (!viewDate) {
-      setOwnerShows([])
-      return
+    const params = new URLSearchParams()
+    if (viewDate) {
+      params.set('date', viewDate)
+    } else {
+      params.set('page', String(showsPage))
+      params.set('limit', String(SHOWS_PAGE_LIMIT))
     }
-
-    const params = new URLSearchParams({ date: viewDate })
     if (viewTheaterId) params.set('theaterId', viewTheaterId)
     if (viewHallId) params.set('hallId', viewHallId)
     if (viewMovieId) params.set('movieId', viewMovieId)
@@ -168,11 +186,13 @@ export default function OwnerNewShow() {
       .then((response) => {
         if (!alive) return
         setOwnerShows(response.shows || [])
+        setShowsPagination(response.pagination || null)
         setErr('')
       })
       .catch((e) => {
         if (!alive) return
         setErr(e.message)
+        setShowsPagination(null)
       })
       .finally(() => {
         if (alive) setLoadingOwnerShows(false)
@@ -181,7 +201,7 @@ export default function OwnerNewShow() {
     return () => {
       alive = false
     }
-  }, [auth.token, viewDate, viewTheaterId, viewHallId, viewMovieId])
+  }, [auth.token, viewDate, viewTheaterId, viewHallId, viewMovieId, showsPage])
 
   const groupedShows = useMemo(() => {
     const grouped = []
@@ -221,9 +241,28 @@ export default function OwnerNewShow() {
     e.preventDefault()
     setErr('')
     setNotice('')
+    setFieldErrors({})
 
     if (!theaterId || !hallId || !movieId || !date || !startTime || !language || !durationMins) {
       setErr('Please fill all required fields before creating the show.')
+      return
+    }
+
+    const nextErrors = {}
+    if (isPastDateTime(date, startTime)) {
+      nextErrors.startTime = 'Start time cannot be in the past.'
+    }
+
+    TYPES.forEach((type) => {
+      if (!prices[type]) return
+      const priceError = validatePositiveNumberField(prices[type], `${type} price`)
+      if (priceError) {
+        nextErrors[`price_${type}`] = priceError
+      }
+    })
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors)
       return
     }
 
@@ -271,7 +310,8 @@ export default function OwnerNewShow() {
         },
       })
 
-      setNotice('Show submitted for admin approval.')
+      setNotice('Waiting for admin approval')
+      setFieldErrors({})
       setTheaterId('')
       setHallId('')
       setMovieId('')
@@ -330,8 +370,9 @@ export default function OwnerNewShow() {
                   setTheaterId(e.target.value)
                   setHallId('')
                   setSchedule(null)
+                  setFieldErrors((prev) => ({ ...prev, theaterId: '' }))
                 }}
-                className={fieldClass}
+                className={withFieldError(fieldClass, Boolean(fieldErrors.theaterId))}
               >
                 <option value="">Choose a theater…</option>
                 {theaters.map((theater) => (
@@ -348,8 +389,11 @@ export default function OwnerNewShow() {
               </label>
               <select
                 value={hallId}
-                onChange={(e) => setHallId(e.target.value)}
-                className={fieldClass}
+                onChange={(e) => {
+                  setHallId(e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, hallId: '' }))
+                }}
+                className={withFieldError(fieldClass, Boolean(fieldErrors.hallId))}
                 disabled={!theaterId}
               >
                 <option value="">
@@ -370,8 +414,11 @@ export default function OwnerNewShow() {
             </label>
             <select
               value={movieId}
-              onChange={(e) => setMovieId(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => {
+                setMovieId(e.target.value)
+                setFieldErrors((prev) => ({ ...prev, movieId: '' }))
+              }}
+              className={withFieldError(fieldClass, Boolean(fieldErrors.movieId))}
             >
               <option value="">Choose a title…</option>
               {movies.map((movie) => (
@@ -395,8 +442,11 @@ export default function OwnerNewShow() {
               <input
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className={fieldClass}
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, date: '', startTime: '' }))
+                }}
+                className={withFieldError(fieldClass, Boolean(fieldErrors.date))}
                 min={toDateInputValue(selectedMovie?.releaseDate) || undefined}
                 required
               />
@@ -409,10 +459,16 @@ export default function OwnerNewShow() {
               <input
                 type="time"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className={fieldClass}
+                onChange={(e) => {
+                  setStartTime(e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, startTime: '' }))
+                }}
+                className={withFieldError(fieldClass, Boolean(fieldErrors.startTime))}
                 required
               />
+              {fieldErrors.startTime ? (
+                <div className="text-sm text-red-600">{fieldErrors.startTime}</div>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -470,17 +526,21 @@ export default function OwnerNewShow() {
                     min="0"
                     placeholder="Price"
                     value={prices[type]}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setPrices((prev) => ({ ...prev, [type]: e.target.value }))
-                    }
+                      setFieldErrors((prev) => ({ ...prev, [`price_${type}`]: '' }))
+                    }}
                     onWheel={(e) => e.currentTarget.blur()}
                     onKeyDown={(e) => {
                       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                         e.preventDefault()
                       }
                     }}
-                    className={fieldClass}
+                    className={withFieldError(fieldClass, Boolean(fieldErrors[`price_${type}`]))}
                   />
+                  {fieldErrors[`price_${type}`] ? (
+                    <div className="text-sm text-red-600">{fieldErrors[`price_${type}`]}</div>
+                  ) : null}
                 </label>
               ))}
             </div>
@@ -605,11 +665,7 @@ export default function OwnerNewShow() {
         </div>
 
         <div className="mt-6">
-          {!viewDate ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
-              Select a date to view scheduled shows.
-            </div>
-          ) : loadingOwnerShows ? (
+          {loadingOwnerShows ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
               Loading scheduled shows…
             </div>
@@ -656,6 +712,13 @@ export default function OwnerNewShow() {
                   ))}
                 </div>
               ))}
+
+              {!viewDate ? (
+                <PaginationControls
+                  pagination={showsPagination}
+                  onPageChange={(nextPage) => setShowsPage(nextPage)}
+                />
+              ) : null}
             </div>
           )}
         </div>

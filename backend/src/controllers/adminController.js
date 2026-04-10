@@ -8,15 +8,15 @@ const {
   replaceMovieLanguages,
 } = require('../utils/movieLanguages');
 
+const NAME_REGEX = /^[A-Za-z ]+$/;
+
 const createMovieSchema = z.object({
   title: z
     .string()
     .trim()
     .min(1, 'Title is required')
     .max(200)
-    .refine((value) => /[a-zA-Z0-9]/.test(value), {
-      message: 'Title cannot be empty or only symbols',
-    }),
+    .regex(NAME_REGEX, 'Title can contain only alphabets and spaces'),
   genre: z
     .string()
     .trim()
