@@ -47,6 +47,8 @@ const SEED_USERS = {
 const SEED_MOVIES = [
   {
     title: 'The Quantum Paradox',
+    genre: 'Sci-Fi',
+    releaseDate: '2024-01-12',
     description: 'Sci-fi thriller',
     durationMins: 148,
     posterUrl: 'https://via.placeholder.com/300x450',
@@ -54,6 +56,8 @@ const SEED_MOVIES = [
   },
   {
     title: 'Love in Paris',
+    genre: 'Romance',
+    releaseDate: '2024-02-09',
     description: 'Romantic comedy',
     durationMins: 115,
     posterUrl: 'https://via.placeholder.com/300x450',
@@ -61,6 +65,8 @@ const SEED_MOVIES = [
   },
   {
   title: 'Shadow Rebellion',
+  genre: 'Action',
+  releaseDate: '2024-03-15',
   description: 'An underground resistance fights against a dystopian regime.',
   durationMins: 130,
   posterUrl: 'https://via.placeholder.com/300x450?text=Shadow+Rebellion',
@@ -68,6 +74,8 @@ const SEED_MOVIES = [
 },
 {
   title: 'Midnight Chase',
+  genre: 'Thriller',
+  releaseDate: '2024-04-05',
   description: 'A high-speed action thriller across international borders.',
   durationMins: 122,
   posterUrl: 'https://via.placeholder.com/300x450?text=Midnight+Chase',
@@ -75,6 +83,8 @@ const SEED_MOVIES = [
 },
 {
   title: 'The Silent Ocean',
+  genre: 'Adventure',
+  releaseDate: '2024-05-10',
   description: 'A deep-sea expedition uncovers terrifying secrets.',
   durationMins: 140,
   posterUrl: 'https://via.placeholder.com/300x450?text=Silent+Ocean',
@@ -82,6 +92,8 @@ const SEED_MOVIES = [
 },
 {
   title: 'Campus Diaries',
+  genre: 'Drama',
+  releaseDate: '2024-06-21',
   description: 'A coming-of-age story filled with friendship, love, and dreams.',
   durationMins: 105,
   posterUrl: 'https://via.placeholder.com/300x450?text=Campus+Diaries',
@@ -89,6 +101,8 @@ const SEED_MOVIES = [
 },
 {
   title: 'Code of Destiny',
+  genre: 'Tech Thriller',
+  releaseDate: '2024-07-19',
   description: 'A genius hacker gets caught in a global cyber conspiracy.',
   durationMins: 135,
   posterUrl: 'https://via.placeholder.com/300x450?text=Code+of+Destiny',
@@ -96,6 +110,8 @@ const SEED_MOVIES = [
 },
 {
   title: 'Haunted Manor',
+  genre: 'Horror',
+  releaseDate: '2024-08-16',
   description: 'A group of friends encounters supernatural forces in an abandoned mansion.',
   durationMins: 118,
   posterUrl: 'https://via.placeholder.com/300x450?text=Haunted+Manor',
@@ -103,6 +119,8 @@ const SEED_MOVIES = [
 },
 {
   title: 'Rise of the Titans',
+  genre: 'Fantasy',
+  releaseDate: '2024-09-13',
   description: 'Ancient giants awaken and threaten humanity’s survival.',
   durationMins: 155,
   posterUrl: 'https://via.placeholder.com/300x450?text=Rise+of+Titans',
@@ -110,6 +128,8 @@ const SEED_MOVIES = [
 },
 {
   title: 'Love & Lattes',
+  genre: 'Romantic Drama',
+  releaseDate: '2024-10-04',
   description: 'A barista and a writer find love in a cozy café.',
   durationMins: 98,
   posterUrl: 'https://via.placeholder.com/300x450?text=Love+%26+Lattes',
@@ -117,6 +137,8 @@ const SEED_MOVIES = [
 },
 {
   title: 'The Final Verdict',
+  genre: 'Courtroom Drama',
+  releaseDate: '2024-11-08',
   description: 'A courtroom drama where nothing is as it seems.',
   durationMins: 125,
   posterUrl: 'https://via.placeholder.com/300x450?text=Final+Verdict',
@@ -124,6 +146,8 @@ const SEED_MOVIES = [
 },
 {
   title: 'Galaxy Warriors',
+  genre: 'Sci-Fi Action',
+  releaseDate: '2024-12-20',
   description: 'An elite team defends the universe from alien invasions.',
   durationMins: 145,
   posterUrl: 'https://via.placeholder.com/300x450?text=Galaxy+Warriors',

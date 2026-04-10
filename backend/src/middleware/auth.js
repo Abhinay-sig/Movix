@@ -17,6 +17,7 @@ async function requireAuth(req, res, next) {
     next();
   } catch (e) {
     if (e instanceof HttpError) return next(e);
+    if (e?.name === 'TokenExpiredError') return next(new HttpError(401, 'Token expired'));
     return next(new HttpError(401, 'Invalid token'));
   }
 }
@@ -30,4 +31,3 @@ function requireRole(...roles) {
 }
 
 module.exports = { requireAuth, requireRole };
-

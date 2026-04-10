@@ -13,6 +13,7 @@ function defineSeatHold(sequelize) {
       showId: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
       seatCode: { type: DataTypes.STRING(16), allowNull: false }, // e.g. A1, AX80
       userId: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+      sessionToken: { type: DataTypes.STRING(96), allowNull: true },
       status: {
         type: DataTypes.ENUM(HOLD_STATUS.HELD, HOLD_STATUS.RELEASED),
         allowNull: false,
@@ -34,4 +35,3 @@ function defineSeatHold(sequelize) {
 }
 
 module.exports = { defineSeatHold, HOLD_STATUS };
-
