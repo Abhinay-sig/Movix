@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 export default function MovieShows() {
   const { movieId } = useParams()
   const [shows, setShows] = useState([])
+  const [movie, setMovie] = useState(null)
   const [err, setErr] = useState('')
 
   useEffect(() => {
@@ -14,6 +15,7 @@ export default function MovieShows() {
         if (!alive) return
         const upcomingShows = (d.shows || []).filter((show) => new Date(show.startsAt).getTime() > Date.now())
         setShows(upcomingShows)
+        setMovie(d.movie || null)
       })
       .catch((e) => alive && setErr(e.message))
 
@@ -41,6 +43,18 @@ export default function MovieShows() {
               Compare theater, timing, and language details before choosing your
               seats.
             </p>
+            {movie?.languages?.length ? (
+              <div className="flex flex-wrap gap-2">
+                {movie.languages.map((language) => (
+                  <span
+                    key={language}
+                    className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-slate-600"
+                  >
+                    {language}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
