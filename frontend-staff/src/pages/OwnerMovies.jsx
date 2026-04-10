@@ -1,39 +1,56 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
+import PaginationControls from '../components/PaginationControls'
+
+const PAGE_LIMIT = 5
 
 export default function OwnerMovies() {
   const { auth } = useAuth()
   const [movies, setMovies] = useState([])
+  const [pagination, setPagination] = useState(null)
   const [nameFilter, setNameFilter] = useState('')
   const [genreFilter, setGenreFilter] = useState('')
   const [releaseDateFilter, setReleaseDateFilter] = useState('')
+  const [page, setPage] = useState(1)
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setPage(1)
+  }, [nameFilter, genreFilter, releaseDateFilter])
+
+  useEffect(() => {
     let alive = true
-    const params = new URLSearchParams()
+    setLoading(true)
+
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(PAGE_LIMIT),
+    })
     if (nameFilter.trim()) params.set('name', nameFilter.trim())
     if (genreFilter.trim()) params.set('genre', genreFilter.trim())
     if (releaseDateFilter.trim()) params.set('releaseDate', releaseDateFilter.trim())
-    const suffix = params.toString() ? `?${params.toString()}` : ''
 
-    api(`/owner/me/movies${suffix}`, { token: auth.token })
+    api(`/owner/me/movies?${params.toString()}`, { token: auth.token })
       .then((data) => {
         if (!alive) return
         setMovies(data.movies || [])
-        setLoading(false)
+        setPagination(data.pagination || null)
+        setErr('')
       })
       .catch((e) => {
         if (!alive) return
         setErr(e.message)
-        setLoading(false)
       })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+
     return () => {
       alive = false
     }
-  }, [auth.token, nameFilter, genreFilter, releaseDateFilter])
+  }, [auth.token, nameFilter, genreFilter, releaseDateFilter, page])
 
   return (
     <div className="space-y-8">
@@ -86,36 +103,43 @@ export default function OwnerMovies() {
         ) : movies.length === 0 ? (
           <div className="text-gray-300 bg-white/10 p-6 rounded-lg text-center">No movies available yet.</div>
         ) : (
-          <div className="grid gap-4">
-            {movies.map((movie) => (
-              <div key={movie.id} className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  <div className="space-y-2">
-                    <div className="text-xl font-bold text-gray-900">{movie.title}</div>
-                    <div className="text-sm text-gray-600">
-                      {movie.genre} • {movie.durationMins} mins • Release{' '}
-                      {new Date(movie.releaseDate).toLocaleDateString()}
-                      {movie.description ? ` • ${movie.description}` : ''}
+          <>
+            <div className="grid gap-4">
+              {movies.map((movie) => (
+                <div key={movie.id} className="bg-white rounded-xl shadow-md p-6">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="text-xl font-bold text-gray-900">{movie.title}</div>
+                      <div className="text-sm text-gray-600">
+                        {movie.genre} • {movie.durationMins} mins • Release{' '}
+                        {new Date(movie.releaseDate).toLocaleDateString()}
+                        {movie.description ? ` • ${movie.description}` : ''}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Languages: {(movie.languages || []).join(', ') || 'English'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Added on {new Date(movie.addedAt).toLocaleDateString()} • Used in {movie.showCount} show
+                        {movie.showCount === 1 ? '' : 's'}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      Added on {new Date(movie.addedAt).toLocaleDateString()} • Used in {movie.showCount} show
-                      {movie.showCount === 1 ? '' : 's'}
-                    </div>
+                    {movie.posterUrl ? (
+                      <a
+                        href={movie.posterUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        View poster
+                      </a>
+                    ) : null}
                   </div>
-                  {movie.posterUrl ? (
-                    <a
-                      href={movie.posterUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      View poster
-                    </a>
-                  ) : null}
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+
+            <PaginationControls pagination={pagination} onPageChange={setPage} />
+          </>
         )}
       </div>
     </div>

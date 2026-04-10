@@ -258,6 +258,8 @@ const { z } = require('zod');
 const { Op } = require('sequelize');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
+const { buildPaginationMeta, parsePagination } = require('../utils/pagination');
+const { serializeMovieWithLanguages } = require('../utils/movieLanguages');
 
 const createTheaterSchema = z.object({
   name: z.string().min(1).max(160),
@@ -270,6 +272,14 @@ const createTheaterSchema = z.object({
 
 const updateTheaterSchema = z.object({
   amenities: z.string().trim().max(5000).optional().or(z.literal('')),
+});
+
+const revenueQuerySchema = z.object({
+  range: z.enum(['today', 'last7', 'last30', 'custom']).optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  theaterId: z.coerce.number().int().positive().optional(),
+  movieId: z.coerce.number().int().positive().optional(),
 });
 
 function wallClockUtc(date, time = '00:00') {
@@ -376,11 +386,28 @@ async function createTheater(req, res, next) {
 
 async function listMyTheaters(req, res, next) {
   try {
-    const theaters = await db.Theater.findAll({
-      where: buildTheaterFilters(req.query, req.user.id),
-      order: [['createdAt', 'DESC']],
+    const where = buildTheaterFilters(req.query, req.user.id);
+    const { page, limit, offset, hasPagination } = parsePagination(req.query, {
+      defaultLimit: 5,
+      maxLimit: 20,
     });
-    res.json({ theaters });
+
+    const total = await db.Theater.count({ where });
+    const options = {
+      where,
+      order: [['createdAt', 'DESC']],
+    };
+
+    if (hasPagination) {
+      options.limit = limit;
+      options.offset = offset;
+    }
+
+    const theaters = await db.Theater.findAll(options);
+    res.json({
+      theaters,
+      pagination: buildPaginationMeta(total, { page, limit, hasPagination }),
+    });
   } catch (e) {
     next(e);
   }
@@ -488,10 +515,25 @@ async function listTheaterHalls(req, res, next) {
 
 async function listMyMovies(req, res, next) {
   try {
-    const movies = await db.Movie.findAll({
-      where: buildMovieFilters(req.query),
-      order: [['title', 'ASC']],
+    const where = buildMovieFilters(req.query);
+    const { page, limit, offset, hasPagination } = parsePagination(req.query, {
+      defaultLimit: 5,
+      maxLimit: 20,
     });
+
+    const total = await db.Movie.count({ where });
+    const options = {
+      where,
+      include: [{ model: db.MovieLanguage, required: false }],
+      order: [['title', 'ASC']],
+    };
+
+    if (hasPagination) {
+      options.limit = limit;
+      options.offset = offset;
+    }
+
+    const movies = await db.Movie.findAll(options);
 
     const movieIds = movies.map((movie) => movie.id);
     const ownerShows = movieIds.length
@@ -524,14 +566,125 @@ async function listMyMovies(req, res, next) {
 
     res.json({
       movies: movies.map((movie) => ({
-        ...movie.toJSON(),
+        ...serializeMovieWithLanguages(movie),
         addedAt: movie.createdAt,
         showCount: showCountByMovieId.get(String(movie.id)) ?? 0,
       })),
+      pagination: buildPaginationMeta(total, { page, limit, hasPagination }),
     });
   } catch (e) {
     next(e);
   }
+}
+
+function endOfUtcDay(date) {
+  const value = wallClockUtc(date, '23:59');
+  value.setUTCSeconds(59, 999);
+  return value;
+}
+
+function toDateKey(value) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function shiftUtcDate(date, days) {
+  const value = new Date(date);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value;
+}
+
+function buildDateKeys(startAt, endAt) {
+  if (!startAt || !endAt) return [];
+
+  const keys = [];
+  const cursor = new Date(startAt);
+  cursor.setUTCHours(0, 0, 0, 0);
+
+  const finish = new Date(endAt);
+  finish.setUTCHours(0, 0, 0, 0);
+
+  while (cursor <= finish) {
+    keys.push(toDateKey(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return keys;
+}
+
+function resolveRevenueWindow(query) {
+  if (query.startDate && query.endDate) {
+    if (query.startDate > query.endDate) {
+      throw new HttpError(400, 'Start date cannot be after end date');
+    }
+
+    return {
+      startDate: query.startDate,
+      endDate: query.endDate,
+      startAt: wallClockUtc(query.startDate, '00:00'),
+      endAt: endOfUtcDay(query.endDate),
+      range: query.range || 'custom',
+    };
+  }
+
+  if (!query.range) return null;
+
+  const today = new Date();
+  const todayKey = today.toISOString().slice(0, 10);
+
+  if (query.range === 'today') {
+    return {
+      startDate: todayKey,
+      endDate: todayKey,
+      startAt: wallClockUtc(todayKey, '00:00'),
+      endAt: endOfUtcDay(todayKey),
+      range: query.range,
+    };
+  }
+
+  const daysBack = query.range === 'last7' ? 6 : 29;
+  const endAt = endOfUtcDay(todayKey);
+  const startAt = wallClockUtc(toDateKey(shiftUtcDate(endAt, -daysBack)), '00:00');
+
+  return {
+    startDate: toDateKey(startAt),
+    endDate: todayKey,
+    startAt,
+    endAt,
+    range: query.range,
+  };
+}
+
+function peakBucketLabel(hour) {
+  if (hour >= 6 && hour < 12) return 'Morning';
+  if (hour >= 12 && hour < 17) return 'Afternoon';
+  if (hour >= 17 && hour < 22) return 'Evening';
+  return 'Night';
+}
+
+function buildDailyMetricSeries(keys, values, keyName) {
+  return keys.map((date) => ({
+    date,
+    [keyName]: values.get(date) ?? 0,
+  }));
+}
+
+async function sumRevenueForWindow({ showIds, startAt, endAt }) {
+  if (!showIds.length || !startAt || !endAt) return 0;
+
+  const bookingWhere = {
+    showId: { [Op.in]: showIds },
+    status: db.BOOKING_STATUS.CONFIRMED,
+    createdAt: { [Op.gte]: startAt, [Op.lte]: endAt },
+  };
+
+  if (!showIds.length) return 0;
+
+  const bookings = await db.Booking.findAll({
+    attributes: ['totalAmount'],
+    where: bookingWhere,
+  });
+
+  return bookings.reduce((sum, booking) => sum + Number(booking.totalAmount), 0);
 }
 
 const listShowsSchema = z.object({
@@ -892,85 +1045,343 @@ async function createShow(req, res, next) {
 
 async function revenueSummary(req, res, next) {
   try {
-    const theaters = await db.Theater.findAll({ where: { ownerUserId: req.user.id } });
-    const theaterIds = theaters.map((t) => t.id);
-    const halls = theaterIds.length
-      ? await db.Hall.findAll({ where: { theaterId: { [Op.in]: theaterIds } } })
+    const query = revenueQuerySchema.parse(req.query);
+    const window = resolveRevenueWindow(query);
+
+    const allTheaters = await db.Theater.findAll({
+      where: { ownerUserId: req.user.id },
+      order: [['name', 'ASC']],
+    });
+    const ownedTheaterIds = allTheaters.map((theater) => theater.id);
+
+    if (query.theaterId && !ownedTheaterIds.includes(query.theaterId)) {
+      throw new HttpError(404, 'Theater not found');
+    }
+
+    const filteredTheaterIds = query.theaterId ? [query.theaterId] : ownedTheaterIds;
+    const halls = filteredTheaterIds.length
+      ? await db.Hall.findAll({
+          where: { theaterId: { [Op.in]: filteredTheaterIds } },
+          include: [{ model: db.HallLayout }],
+          order: [['name', 'ASC']],
+        })
       : [];
-    const hallIds = halls.map((h) => h.id);
-    const shows = hallIds.length ? await db.Show.findAll({ where: { hallId: { [Op.in]: hallIds } } }) : [];
-    const showIds = shows.map((s) => s.id);
+    const hallIds = halls.map((hall) => hall.id);
+
+    const filterMovieRows = hallIds.length
+      ? await db.Show.findAll({
+          attributes: ['movieId'],
+          where: { hallId: { [Op.in]: hallIds }, isCancelled: false },
+          group: ['movieId'],
+        })
+      : [];
+    const filterMovieIds = filterMovieRows.map((row) => row.movieId);
+    const filterMovies = filterMovieIds.length
+      ? await db.Movie.findAll({
+          where: { id: { [Op.in]: filterMovieIds } },
+          include: [{ model: db.MovieLanguage, required: false }],
+          order: [['title', 'ASC']],
+        })
+      : [];
+
+    const showWhere = {
+      hallId: { [Op.in]: hallIds },
+      isCancelled: false,
+    };
+    if (query.movieId) showWhere.movieId = query.movieId;
+
+    const shows = hallIds.length
+      ? await db.Show.findAll({
+          where: showWhere,
+          include: [
+            { model: db.Hall, required: true, include: [{ model: db.Theater, required: true }] },
+            { model: db.Movie, required: true, include: [{ model: db.MovieLanguage, required: false }] },
+          ],
+          order: [['startsAt', 'ASC']],
+        })
+      : [];
+    const showIds = shows.map((show) => show.id);
 
     const bookings = showIds.length
       ? await db.Booking.findAll({
           where: {
             showId: { [Op.in]: showIds },
             status: db.BOOKING_STATUS.CONFIRMED,
+            ...(window ? { createdAt: { [Op.gte]: window.startAt, [Op.lte]: window.endAt } } : {}),
           },
+          include: [
+            { model: db.User, required: false, attributes: ['id', 'name', 'email'] },
+            { model: db.BookingSeat, required: false },
+          ],
+          order: [['createdAt', 'DESC']],
         })
       : [];
-    const totalRevenue = bookings.reduce((sum, b) => sum + Number(b.totalAmount), 0);
 
-    const soldTickets = showIds.length
-      ? await db.BookingSeat.count({
-          where: { showId: { [Op.in]: showIds } },
-        })
-      : 0;
-
-    const theaterById = new Map(theaters.map((theater) => [String(theater.id), theater]));
-    const hallToTheaterId = new Map(halls.map((hall) => [String(hall.id), String(hall.theaterId)]));
-    const showToHallId = new Map(shows.map((show) => [String(show.id), String(show.hallId)]));
-
-    const breakdownMap = new Map(
-      theaters.map((theater) => [
-        String(theater.id),
+    const hallById = new Map(
+      halls.map((hall) => [
+        String(hall.id),
         {
-          theaterId: theater.id,
-          theaterName: theater.name,
-          city: theater.city,
-          totalRevenue: 0,
-          bookingCount: 0,
+          ...hall.toJSON(),
+          seatingCapacity: countLayoutSeats(hall.HallLayout) ?? 0,
         },
       ])
     );
 
-    for (const booking of bookings) {
-      const hallId = showToHallId.get(String(booking.showId));
-      const theaterId = hallToTheaterId.get(String(hallId));
-      if (!theaterId || !breakdownMap.has(theaterId)) continue;
-      const row = breakdownMap.get(theaterId);
-      row.totalRevenue += Number(booking.totalAmount);
-      row.bookingCount += 1;
+    const theaterBreakdownMap = new Map();
+    const moviePerformanceMap = new Map();
+    const showMetaById = new Map();
+    const revenueOverTimeMap = new Map();
+    const ticketsPerDayMap = new Map();
+    const revenueByMovieMap = new Map();
+    const peakTimeBuckets = new Map([
+      ['Morning', 0],
+      ['Afternoon', 0],
+      ['Evening', 0],
+      ['Night', 0],
+    ]);
+
+    for (const show of shows) {
+      const hall = hallById.get(String(show.hallId));
+      const theater = show.Hall?.Theater;
+      const movie = show.Movie;
+      const seatingCapacity = hall?.seatingCapacity ?? 0;
+      if (!theaterBreakdownMap.has(String(theater.id))) {
+        theaterBreakdownMap.set(String(theater.id), {
+          theaterId: theater.id,
+          theaterName: theater.name,
+          city: theater.city,
+          grossRevenue: 0,
+          bookingCount: 0,
+          ticketsSold: 0,
+          totalSeatsAvailable: 0,
+          occupancyPct: 0,
+          averageTicketPrice: 0,
+          shows: [],
+        });
+      }
+
+      if (!moviePerformanceMap.has(String(movie.id))) {
+        moviePerformanceMap.set(String(movie.id), {
+          movieId: movie.id,
+          movieName: movie.title,
+          languages: serializeMovieWithLanguages(movie).languages,
+          ticketsSold: 0,
+          revenue: 0,
+          totalSeatsAvailable: 0,
+          occupancyPct: 0,
+          showCount: 0,
+        });
+      }
+
+      const theaterRow = theaterBreakdownMap.get(String(theater.id));
+      const movieRow = moviePerformanceMap.get(String(movie.id));
+      const showRow = {
+        showId: show.id,
+        movieId: movie.id,
+        movieName: movie.title,
+        hallName: show.Hall?.name ?? hall?.name ?? 'Unknown hall',
+        startsAt: show.startsAt,
+        language: show.language,
+        ticketsSold: 0,
+        grossRevenue: 0,
+        totalSeatsAvailable: seatingCapacity,
+        occupancyPct: 0,
+        averageTicketPrice: 0,
+      };
+
+      theaterRow.totalSeatsAvailable += seatingCapacity;
+      theaterRow.shows.push(showRow);
+      movieRow.totalSeatsAvailable += seatingCapacity;
+      movieRow.showCount += 1;
+      showMetaById.set(String(show.id), { show, theaterRow, movieRow, showRow });
     }
 
-    const breakdown = Array.from(breakdownMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
-
     const recentBookings = bookings
-      .slice()
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 10)
       .map((booking) => {
-        const hallId = showToHallId.get(String(booking.showId));
-        const theaterId = hallToTheaterId.get(String(hallId));
-        const theater = theaterById.get(String(theaterId));
+        const meta = showMetaById.get(String(booking.showId));
+        if (!meta) return null;
+
+        const ticketCount = booking.BookingSeats?.length ?? 0;
+        const amount = Number(booking.totalAmount);
+        const peakBucket = peakBucketLabel(new Date(meta.show.startsAt).getUTCHours());
+        const bookingDateKey = toDateKey(booking.createdAt);
+
+        meta.showRow.ticketsSold += ticketCount;
+        meta.showRow.grossRevenue += amount;
+        meta.theaterRow.grossRevenue += amount;
+        meta.theaterRow.bookingCount += 1;
+        meta.theaterRow.ticketsSold += ticketCount;
+        meta.movieRow.revenue += amount;
+        meta.movieRow.ticketsSold += ticketCount;
+
+        revenueOverTimeMap.set(
+          bookingDateKey,
+          (revenueOverTimeMap.get(bookingDateKey) ?? 0) + amount
+        );
+        ticketsPerDayMap.set(
+          bookingDateKey,
+          (ticketsPerDayMap.get(bookingDateKey) ?? 0) + ticketCount
+        );
+
+        const movieRevenueRow = revenueByMovieMap.get(String(meta.show.Movie.id)) ?? {
+          movieId: meta.show.Movie.id,
+          movieName: meta.show.Movie.title,
+          revenue: 0,
+          ticketsSold: 0,
+        };
+        movieRevenueRow.revenue += amount;
+        movieRevenueRow.ticketsSold += ticketCount;
+        revenueByMovieMap.set(String(meta.show.Movie.id), movieRevenueRow);
+
+        peakTimeBuckets.set(peakBucket, (peakTimeBuckets.get(peakBucket) ?? 0) + ticketCount);
+
         return {
           bookingId: booking.id,
           showId: booking.showId,
-          totalAmount: Number(booking.totalAmount),
+          user: booking.User?.name ?? 'Guest user',
+          userEmail: booking.User?.email ?? '',
+          movie: meta.show.Movie.title,
+          movieId: meta.show.Movie.id,
+          theater: meta.show.Hall?.Theater?.name ?? meta.theaterRow.theaterName,
+          theaterName: meta.show.Hall?.Theater?.name ?? meta.theaterRow.theaterName,
+          hall: meta.show.Hall?.name ?? meta.showRow.hallName,
+          seats: (booking.BookingSeats || [])
+            .map((seat) => seat.seatCode)
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+          amount,
+          totalAmount: amount,
           createdAt: booking.createdAt,
-          theaterName: theater?.name ?? 'Unknown theater',
+          language: meta.show.language,
         };
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 10);
+
+    const totalRevenue = bookings.reduce((sum, booking) => sum + Number(booking.totalAmount), 0);
+    const soldTickets = bookings.reduce((sum, booking) => sum + (booking.BookingSeats?.length ?? 0), 0);
+
+    const theaterBreakdown = Array.from(theaterBreakdownMap.values())
+      .map((row) => {
+        row.occupancyPct = row.totalSeatsAvailable
+          ? (row.ticketsSold / row.totalSeatsAvailable) * 100
+          : 0;
+        row.averageTicketPrice = row.ticketsSold ? row.grossRevenue / row.ticketsSold : 0;
+        row.shows = row.shows
+          .map((showRow) => ({
+            ...showRow,
+            occupancyPct: showRow.totalSeatsAvailable
+              ? (showRow.ticketsSold / showRow.totalSeatsAvailable) * 100
+              : 0,
+            averageTicketPrice: showRow.ticketsSold
+              ? showRow.grossRevenue / showRow.ticketsSold
+              : 0,
+          }))
+          .filter((showRow) => showRow.ticketsSold > 0 || showRow.grossRevenue > 0)
+          .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+        return row;
+      })
+      .filter((row) => row.ticketsSold > 0 || row.grossRevenue > 0)
+      .sort((a, b) => b.grossRevenue - a.grossRevenue);
+
+    const breakdown = theaterBreakdown.map((row) => ({
+      theaterId: row.theaterId,
+      theaterName: row.theaterName,
+      city: row.city,
+      totalRevenue: row.grossRevenue,
+      bookingCount: row.bookingCount,
+    }));
+
+    const moviePerformance = Array.from(moviePerformanceMap.values())
+      .map((row) => ({
+        ...row,
+        occupancyPct: row.totalSeatsAvailable
+          ? (row.ticketsSold / row.totalSeatsAvailable) * 100
+          : 0,
+      }))
+      .filter((row) => row.ticketsSold > 0 || row.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue);
+
+    const revenueByMovie = Array.from(revenueByMovieMap.values()).sort((a, b) => b.revenue - a.revenue);
+
+    const dateKeys = window
+      ? buildDateKeys(window.startAt, window.endAt)
+      : Array.from(
+          new Set([...revenueOverTimeMap.keys(), ...ticketsPerDayMap.keys()])
+        ).sort((a, b) => a.localeCompare(b));
+
+    let revenueChangePct = 0;
+    if (window) {
+      const dayCount = Math.max(buildDateKeys(window.startAt, window.endAt).length, 1);
+      const previousEnd = shiftUtcDate(window.startAt, -1);
+      previousEnd.setUTCHours(23, 59, 59, 999);
+      const previousStart = shiftUtcDate(previousEnd, -(dayCount - 1));
+      previousStart.setUTCHours(0, 0, 0, 0);
+
+      const previousRevenue = await sumRevenueForWindow({
+        showIds,
+        startAt: previousStart,
+        endAt: previousEnd,
       });
+
+      revenueChangePct = previousRevenue > 0
+        ? ((totalRevenue - previousRevenue) / previousRevenue) * 100
+        : totalRevenue > 0
+          ? 100
+          : 0;
+    }
+
+    const peakTime = Array.from(peakTimeBuckets.entries()).sort((a, b) => b[1] - a[1])[0];
+    const platformFee = totalRevenue * 0.05;
+    const gst = totalRevenue * 0.18;
+    const netEarnings = totalRevenue - platformFee - gst;
 
     res.json({
       totalRevenue,
       totalBookings: bookings.length,
       soldTickets,
-      theaterCount: theaters.length,
+      theaterCount: theaterBreakdown.length,
       breakdown,
       recentBookings,
+      filters: {
+        theaters: allTheaters.map((theater) => ({
+          theaterId: theater.id,
+          theaterName: theater.name,
+        })),
+        movies: filterMovies.map(serializeMovieWithLanguages).map((movie) => ({
+          movieId: movie.id,
+          movieName: movie.title,
+          languages: movie.languages,
+        })),
+      },
+      appliedFilters: {
+        range: window?.range || query.range || 'all',
+        startDate: window?.startDate || null,
+        endDate: window?.endDate || null,
+        theaterId: query.theaterId ?? null,
+        movieId: query.movieId ?? null,
+      },
+      totals: {
+        grossRevenue: totalRevenue,
+        platformFee,
+        gst,
+        netEarnings,
+      },
+      charts: {
+        revenueOverTime: buildDailyMetricSeries(dateKeys, revenueOverTimeMap, 'revenue'),
+        ticketsSoldPerDay: buildDailyMetricSeries(dateKeys, ticketsPerDayMap, 'ticketsSold'),
+        revenueByMovie,
+      },
+      moviePerformance,
+      theaterBreakdown,
+      insights: {
+        revenueChangePct,
+        topPerformingMovie: revenueByMovie[0] || null,
+        peakTime: peakTime?.[1] ? peakTime[0] : 'No peak time yet',
+      },
     });
   } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
     next(e);
   }
 }

@@ -78,6 +78,16 @@ export default function OwnerNewShow() {
     [movieId, movies]
   )
 
+  const availableLanguages = useMemo(() => {
+    const movieLanguages = Array.isArray(selectedMovie?.languages)
+      ? selectedMovie.languages
+          .map((entry) => String(entry || '').trim())
+          .filter(Boolean)
+      : []
+
+    return movieLanguages.length ? movieLanguages : ['English']
+  }, [selectedMovie])
+
   useEffect(() => {
     if (!selectedMovie) {
       if (!movieId) setDurationMins('')
@@ -86,6 +96,17 @@ export default function OwnerNewShow() {
 
     setDurationMins(String(selectedMovie.durationMins || ''))
   }, [movieId, selectedMovie])
+
+  useEffect(() => {
+    if (!movieId) {
+      setLanguage('English')
+      return
+    }
+
+    if (!availableLanguages.includes(language)) {
+      setLanguage(availableLanguages[0] || 'English')
+    }
+  }, [availableLanguages, language, movieId])
 
   useEffect(() => {
     if (!hallId || !date) {
@@ -415,12 +436,18 @@ export default function OwnerNewShow() {
             <label className="block text-sm font-medium text-slate-700">
               Language
             </label>
-            <input
+            <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
               className={fieldClass}
               required
-            />
+            >
+              {availableLanguages.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-4">

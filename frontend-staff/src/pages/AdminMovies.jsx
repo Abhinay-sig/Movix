@@ -2,43 +2,61 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
+import PaginationControls from '../components/PaginationControls'
+
+const PAGE_LIMIT = 5
 
 export default function AdminMovies() {
   const { auth } = useAuth()
   const navigate = useNavigate()
 
   const [movies, setMovies] = useState([])
+  const [pagination, setPagination] = useState(null)
   const [nameFilter, setNameFilter] = useState('')
   const [genreFilter, setGenreFilter] = useState('')
   const [releaseDateFilter, setReleaseDateFilter] = useState('')
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
 
-  // ✅ FETCH MOVIES
-  async function loadMovies() {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (nameFilter.trim()) params.set('name', nameFilter.trim())
-      if (genreFilter.trim()) params.set('genre', genreFilter.trim())
-      if (releaseDateFilter.trim()) params.set('releaseDate', releaseDateFilter.trim())
-      const suffix = params.toString() ? `?${params.toString()}` : ''
-      const res = await api(`/admin/movies${suffix}`, { token: auth.token })
-      setMovies(res.movies || [])
-      setErr('')
-    } catch (e) {
-      setErr(e.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+  useEffect(() => {
+    setPage(1)
+  }, [nameFilter, genreFilter, releaseDateFilter])
 
- useEffect(() => {
-  if (auth?.token) {
-    loadMovies()
-  }
-}, [auth.token, nameFilter, genreFilter, releaseDateFilter])
-  // ✅ DELETE MOVIE
+  useEffect(() => {
+    if (!auth?.token) return
+
+    let alive = true
+    setLoading(true)
+
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(PAGE_LIMIT),
+    })
+    if (nameFilter.trim()) params.set('name', nameFilter.trim())
+    if (genreFilter.trim()) params.set('genre', genreFilter.trim())
+    if (releaseDateFilter.trim()) params.set('releaseDate', releaseDateFilter.trim())
+
+    api(`/admin/movies?${params.toString()}`, { token: auth.token })
+      .then((res) => {
+        if (!alive) return
+        setMovies(res.movies || [])
+        setPagination(res.pagination || null)
+        setErr('')
+      })
+      .catch((e) => {
+        if (!alive) return
+        setErr(e.message)
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [auth?.token, nameFilter, genreFilter, releaseDateFilter, page])
+
   async function handleDelete(id) {
     const confirmDelete = window.confirm('Are you sure you want to delete this movie?')
     if (!confirmDelete) return
@@ -49,10 +67,12 @@ export default function AdminMovies() {
         token: auth.token,
       })
 
-      // refresh list
-      setMovies((prev) => prev.filter((m) => m.id !== id))
+      setMovies((prev) => prev.filter((movie) => movie.id !== id))
+      if (movies.length === 1 && page > 1) {
+        setPage((prev) => prev - 1)
+      }
     } catch (e) {
-      alert(e.message)
+      setErr(e.message)
     }
   }
 
@@ -66,7 +86,6 @@ export default function AdminMovies() {
         </div>
       ) : null}
 
-      {/* ✅ ADD MOVIE BUTTON */}
       <div className="mb-6">
         <button
           onClick={() => navigate('/admin/movies/new')}
@@ -119,22 +138,18 @@ export default function AdminMovies() {
               key={movie.id}
               className="bg-white rounded-xl shadow-lg p-6 flex justify-between items-center"
             >
-              {/* LEFT SIDE */}
               <div>
-                <div className="text-xl font-bold text-gray-900">
-                  {movie.title}
-                </div>
+                <div className="text-xl font-bold text-gray-900">{movie.title}</div>
                 <div className="text-gray-600">
                   {movie.genre} • {movie.durationMins} mins
                 </div>
+                <div className="text-gray-500 text-sm">Release: {movie.releaseDate}</div>
                 <div className="text-gray-500 text-sm">
-                  Release: {movie.releaseDate}
+                  Languages: {(movie.languages || []).join(', ') || 'English'}
                 </div>
               </div>
 
-              {/* RIGHT SIDE */}
               <div className="flex gap-3">
-                {/* EDIT */}
                 <button
                   onClick={() => navigate(`/admin/movies/${movie.id}/edit`)}
                   className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium"
@@ -142,7 +157,6 @@ export default function AdminMovies() {
                   Edit
                 </button>
 
-                {/* DELETE */}
                 <button
                   onClick={() => handleDelete(movie.id)}
                   className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium"
@@ -152,6 +166,8 @@ export default function AdminMovies() {
               </div>
             </div>
           ))}
+
+          <PaginationControls pagination={pagination} onPageChange={setPage} />
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
+const { serializeMovieWithLanguages } = require('../utils/movieLanguages');
 const {
   parseSeatCodeForLayout,
   seatTypeForSeat,
@@ -56,6 +57,7 @@ async function listMovies(req, res, next) {
           model: db.Movie,
           required: true,
           where: { isActive: true },
+          include: [{ model: db.MovieLanguage, required: false }],
         },
         {
           model: db.Hall,
@@ -80,9 +82,10 @@ async function listMovies(req, res, next) {
       if (!movie || !theater) continue;
 
       if (!movieMap.has(String(movie.id))) {
+        const baseMovie = serializeMovieWithLanguages(movie);
         movieMap.set(String(movie.id), {
-          ...movie.toJSON(),
-          languages: [],
+          ...baseMovie,
+          languages: [...baseMovie.languages],
           cities: [],
           theaterCount: 0,
           nextShowAt: null,
@@ -160,10 +163,28 @@ async function listShowsForMovie(req, res, next) {
     const movieId = Number(req.params.movieId);
     const shows = await db.Show.findAll({
       where: { movieId, isApproved: true, isBlocked: false, isCancelled: false },
-      include: [{ model: db.Hall, where: { isApproved: true, isBlocked: false }, include: [{ model: db.Theater, where: { isBlocked: false } }] }],
+      include: [
+        {
+          model: db.Movie,
+          required: true,
+          include: [{ model: db.MovieLanguage, required: false }],
+        },
+        {
+          model: db.Hall,
+          where: { isApproved: true, isBlocked: false },
+          include: [{ model: db.Theater, where: { isBlocked: false } }],
+        },
+      ],
       order: [['startsAt', 'ASC']],
     });
-    res.json({ shows });
+    const movie =
+      shows[0]?.Movie ||
+      (await db.Movie.findByPk(movieId, {
+        include: [{ model: db.MovieLanguage, required: false }],
+      }));
+    if (!movie) throw new HttpError(404, 'Movie not found');
+
+    res.json({ shows, movie: serializeMovieWithLanguages(movie) });
   } catch (e) {
     next(e);
   }
