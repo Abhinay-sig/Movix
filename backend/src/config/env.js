@@ -39,9 +39,10 @@ const env = {
 
   auth: {
     verificationExpiresMs: Number(process.env.EMAIL_VERIFICATION_EXPIRES_MS ?? 120000),
+    paymentOtpExpiresMs: Number(process.env.PAYMENT_OTP_EXPIRES_MS ?? 300000),
   },
 
-  email: {
+  smtp: {
     from: process.env.SMTP_FROM ?? process.env.SMTP_EMAIL ?? '',
     host: process.env.SMTP_HOST ?? '',
     port: Number(process.env.SMTP_PORT ?? 465),
@@ -60,16 +61,6 @@ const env = {
   },
 
   seatHoldMs: Number(process.env.SEAT_HOLD_MS ?? 300000),
-
-  otp: {
-    ttlMs: Number(process.env.OTP_TTL_MS ?? 600000),
-    emailFrom: process.env.OTP_EMAIL_FROM ?? '',
-    smtpHost: process.env.OTP_SMTP_HOST ?? '',
-    smtpPort: Number(process.env.OTP_SMTP_PORT ?? 587),
-    smtpSecure: String(process.env.OTP_SMTP_SECURE ?? 'false') === 'true',
-    smtpUser: process.env.OTP_SMTP_USER ?? '',
-    smtpPass: process.env.OTP_SMTP_PASS ?? '',
-  },
 };
 
 module.exports = { env };

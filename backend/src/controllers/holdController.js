@@ -366,7 +366,10 @@ async function claimSeatHold({ t, showId, seatCode, userId, sessionToken, expire
     const expiresAtMs = new Date(existing.expiresAt).getTime();
     const isExpired = Number.isFinite(expiresAtMs) ? expiresAtMs <= nowMs : true;
     const isActiveHeld = existing.status === HOLD_STATUS.HELD && !isExpired;
-    const heldByOther = isActiveHeld && String(existing.sessionToken || '') !== String(sessionToken);
+    const heldByOther =
+      isActiveHeld &&
+      String(existing.userId) !== String(userId) &&
+      String(existing.sessionToken || '') !== String(sessionToken);
 
     if (heldByOther) {
       throw new HttpError(409, 'Some seats are temporarily locked by another user');
@@ -390,6 +393,7 @@ async function claimSeatHold({ t, showId, seatCode, userId, sessionToken, expire
         showId,
         seatCode,
         userId,
+        sessionToken,
         status: HOLD_STATUS.HELD,
         expiresAt,
       },
@@ -409,7 +413,10 @@ async function claimSeatHold({ t, showId, seatCode, userId, sessionToken, expire
     const expiresAtMs = new Date(row.expiresAt).getTime();
     const isExpired = Number.isFinite(expiresAtMs) ? expiresAtMs <= nowMs : true;
     const isActiveHeld = row.status === HOLD_STATUS.HELD && !isExpired;
-    const heldByOther = isActiveHeld && String(row.sessionToken || '') !== String(sessionToken);
+    const heldByOther =
+      isActiveHeld &&
+      String(row.userId) !== String(userId) &&
+      String(row.sessionToken || '') !== String(sessionToken);
 
     if (heldByOther) {
       throw new HttpError(409, 'Some seats are temporarily locked by another user');
@@ -860,14 +867,14 @@ async function sendPaymentOtp(req, res, next) {
 
     otpStore.set(key, {
       otp,
-      expiresAt: Date.now() + env.otp.ttlMs,
+      expiresAt: Date.now() + env.auth.paymentOtpExpiresMs,
     });
 
     await sendOtpEmail(normalizedEmail, req.user.name, otp);
 
     res.json({
       ok: true,
-      expiresInMs: env.otp.ttlMs,
+      expiresInMs: env.auth.paymentOtpExpiresMs,
       expiresAt: holdState.expiresAt,
       holdMs: holdState.holdMs,
       message: 'OTP sent to your registered email address',
