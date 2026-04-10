@@ -7,11 +7,6 @@ const sequelize = new Sequelize(env.db.name, env.db.user, env.db.password, {
   dialect: 'mysql',
   logging: false,
   timezone: '+00:00',
-  dialectOptions: {
-    dateStrings: true,
-    typeCast: true,
-  },
 });
 
 module.exports = { sequelize };
-

@@ -20,6 +20,17 @@ function buildShowSummary(show) {
   };
 }
 
+function isShowBookingOpen(show) {
+  const startsAtMs = new Date(show?.startsAt).getTime();
+  return Number.isFinite(startsAtMs) && startsAtMs > Date.now();
+}
+
+function getOptionalSeatSessionToken(req) {
+  const value = req.headers['x-seat-session'];
+  if (!value) return null;
+  return String(value).trim() || null;
+}
+
 async function getSeatTypePricing(showId) {
   const seatTypes = await db.SeatType.findAll({ where: { isActive: true } });
   const showSeatPrices = await db.ShowSeatPrice.findAll({ where: { showId } });
@@ -161,8 +172,15 @@ async function listMovies(req, res, next) {
 async function listShowsForMovie(req, res, next) {
   try {
     const movieId = Number(req.params.movieId);
+    const now = new Date();
     const shows = await db.Show.findAll({
-      where: { movieId, isApproved: true, isBlocked: false, isCancelled: false },
+      where: {
+        movieId,
+        isApproved: true,
+        isBlocked: false,
+        isCancelled: false,
+        startsAt: { [Op.gt]: now },
+      },
       include: [
         {
           model: db.Movie,
@@ -212,6 +230,7 @@ async function listTheaterTimeline(req, res, next) {
 
 async function showSeatMap(req, res, next) {
   try {
+    const currentSeatSessionToken = getOptionalSeatSessionToken(req);
     const showId = Number(req.params.showId);
     const show = await db.Show.findByPk(showId, {
       include: [
@@ -224,11 +243,12 @@ async function showSeatMap(req, res, next) {
       !show.isApproved ||
       show.isBlocked ||
       show.isCancelled ||
+      !isShowBookingOpen(show) ||
       show.Hall.isBlocked ||
       !show.Hall.isApproved ||
       show.Hall.Theater.isBlocked
     ) {
-      throw new HttpError(404, 'Show not available');
+      throw new HttpError(409, 'Show booking closed');
     }
 
     const layout = await db.HallLayout.findOne({ where: { hallId: show.hallId } });
@@ -240,6 +260,22 @@ async function showSeatMap(req, res, next) {
       where: { showId: show.id, status: db.HOLD_STATUS.HELD, expiresAt: { [Op.gt]: now } },
     });
     const booked = await db.BookingSeat.findAll({ where: { showId: show.id } });
+    const heldByOthers = [];
+    const heldByMe = [];
+
+    for (const hold of held) {
+      const parsedSeat = parseSeatCodeForLayout(layout, hold.seatCode);
+      if (!parsedSeat) continue;
+
+      if (
+        currentSeatSessionToken &&
+        String(hold.sessionToken || '') === String(currentSeatSessionToken)
+      ) {
+        heldByMe.push(parsedSeat.absoluteSeatCode);
+      } else {
+        heldByOthers.push(parsedSeat.absoluteSeatCode);
+      }
+    }
 
     res.json({
       showId: show.id,
@@ -247,14 +283,12 @@ async function showSeatMap(req, res, next) {
       showSummary: buildShowSummary(show),
       seatTypes: seatTypesWithPricing,
       layout: { rows: layout.rows, cols: layout.cols, segmentsByRow: layout.segmentsByRow, typedSegmentsByRow: layout.typedSegmentsByRow },
-      heldSeats: held
-        .map((h) => parseSeatCodeForLayout(layout, h.seatCode))
-        .filter(Boolean)
-        .map((seat) => seat.publicSeatCode),
+      heldSeats: heldByOthers,
+      heldByMeSeats: heldByMe,
       bookedSeats: booked
         .map((b) => parseSeatCodeForLayout(layout, b.seatCode))
         .filter(Boolean)
-        .map((seat) => seat.publicSeatCode),
+        .map((seat) => seat.absoluteSeatCode),
     });
   } catch (e) {
     next(e);
@@ -269,6 +303,7 @@ async function estimatePrice(req, res, next) {
 
     const show = await db.Show.findByPk(showId);
     if (!show) throw new HttpError(404, 'Show not found');
+    if (!isShowBookingOpen(show)) throw new HttpError(409, 'Show booking closed');
     const layout = await db.HallLayout.findOne({ where: { hallId: show.hallId } });
     if (!layout) throw new HttpError(409, 'Seat layout not configured');
     const fullShow = await db.Show.findByPk(showId, {

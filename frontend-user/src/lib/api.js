@@ -1,10 +1,11 @@
-export async function api(path, { method = 'GET', body, token } = {}) {
-  const headers = { 'content-type': 'application/json' }
+export async function api(path, { method = 'GET', body, token, keepalive, headers: extraHeaders } = {}) {
+  const headers = { 'content-type': 'application/json', ...(extraHeaders || {}) }
   if (token) headers.authorization = `Bearer ${token}`
   const res = await fetch(`/api${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
+    keepalive,
   })
   const text = await res.text()
   const data = text ? JSON.parse(text) : null
@@ -17,4 +18,3 @@ export async function api(path, { method = 'GET', body, token } = {}) {
   }
   return data
 }
-
