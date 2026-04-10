@@ -39,9 +39,10 @@ const env = {
 
   auth: {
     verificationExpiresMs: Number(process.env.EMAIL_VERIFICATION_EXPIRES_MS ?? 120000),
+    paymentOtpExpiresMs: Number(process.env.PAYMENT_OTP_EXPIRES_MS ?? 300000),
   },
 
-  email: {
+  smtp: {
     from: process.env.SMTP_FROM ?? process.env.SMTP_EMAIL ?? '',
     host: process.env.SMTP_HOST ?? '',
     port: Number(process.env.SMTP_PORT ?? 465),

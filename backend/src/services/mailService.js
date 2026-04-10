@@ -7,26 +7,26 @@ let transporter;
 function getTransporter() {
   if (transporter) return transporter;
 
-  if (!env.email.user || !env.email.password) {
+  if (!env.smtp.user || !env.smtp.password) {
     throw new HttpError(500, 'Email delivery is not configured');
   }
 
   transporter = nodemailer.createTransport(
-    env.email.host
+    env.smtp.host
       ? {
-          host: env.email.host,
-          port: env.email.port,
-          secure: env.email.secure,
+          host: env.smtp.host,
+          port: env.smtp.port,
+          secure: env.smtp.secure,
           auth: {
-            user: env.email.user,
-            pass: env.email.password,
+            user: env.smtp.user,
+            pass: env.smtp.password,
           },
         }
       : {
-          service: env.email.service,
+          service: env.smtp.service,
           auth: {
-            user: env.email.user,
-            pass: env.email.password,
+            user: env.smtp.user,
+            pass: env.smtp.password,
           },
         }
   );
@@ -37,7 +37,7 @@ function getTransporter() {
 async function sendMail({ to, subject, text, html }) {
   const mailer = getTransporter();
   await mailer.sendMail({
-    from: env.email.from || env.email.user,
+    from: env.smtp.from || env.smtp.user,
     to,
     subject,
     text,

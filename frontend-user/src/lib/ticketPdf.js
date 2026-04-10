@@ -5,18 +5,33 @@ function escapePdfText(value) {
     .replace(/\)/g, '\\)');
 }
 
-function buildPdfContent(lines) {
-  const commands = ['BT', '/F1 18 Tf', '50 780 Td']
-  let firstLine = true
+function pad(value) {
+  return String(Math.round(value * 100) / 100)
+}
 
-  for (const line of lines) {
-    if (!firstLine) commands.push('0 -22 Td')
-    commands.push(`(${escapePdfText(line)}) Tj`)
-    firstLine = false
-  }
+function textCommand(x, y, size, text, font = 'F1') {
+  return `BT /${font} ${size} Tf 1 0 0 1 ${pad(x)} ${pad(y)} Tm (${escapePdfText(text)}) Tj ET`
+}
 
-  commands.push('ET')
-  return commands.join('\n')
+function rectCommand(x, y, width, height, stroke = true, fill = false) {
+  const mode = fill && stroke ? 'B' : fill ? 'f' : 'S'
+  return `${pad(x)} ${pad(y)} ${pad(width)} ${pad(height)} re ${mode}`
+}
+
+function lineCommand(x1, y1, x2, y2) {
+  return `${pad(x1)} ${pad(y1)} m ${pad(x2)} ${pad(y2)} l S`
+}
+
+function colorFill(r, g, b) {
+  return `${r} ${g} ${b} rg`
+}
+
+function colorStroke(r, g, b) {
+  return `${r} ${g} ${b} RG`
+}
+
+function isFiniteTime(value) {
+  return Number.isFinite(new Date(value).getTime())
 }
 
 export function isUpcomingTicket(ticket) {
@@ -32,22 +47,70 @@ export function isUpcomingTicket(ticket) {
 export function downloadTicketPdf(ticket) {
   if (!ticket || !isUpcomingTicket(ticket)) return
 
+  const bookedAt = isFiniteTime(ticket.bookedAt)
+    ? new Date(ticket.bookedAt).toLocaleString()
+    : new Date().toLocaleString()
+  const showtime = isFiniteTime(ticket.show?.startsAt)
+    ? new Date(ticket.show.startsAt).toLocaleString()
+    : 'TBA'
   const seatList = (ticket.seats || []).map((seat) => seat.seatCode).join(', ') || 'N/A'
-  const lines = [
-    'Movix Ticket',
-    `Booking ID: ${ticket.bookingId}`,
-    `Movie: ${ticket.show?.movieTitle || 'Movie'}`,
-    `Theater: ${ticket.show?.theaterName || 'Theater'}`,
-    `Hall: ${ticket.show?.hallName || 'Hall'}`,
-    `Showtime: ${ticket.show?.startsAt ? new Date(ticket.show.startsAt).toLocaleString() : 'TBA'}`,
-    `Language: ${ticket.show?.language || 'Standard'}`,
-    `Seats: ${seatList}`,
-    `Total Paid: INR ${Number(ticket.totalAmount || 0)}`,
-    `Booked At: ${ticket.bookedAt ? new Date(ticket.bookedAt).toLocaleString() : new Date().toLocaleString()}`,
-    'Status: Confirmed',
+  const seatTypes = (ticket.seats || [])
+    .map((seat) => `${seat.seatCode} (${String(seat.seatTypeCode || 'standard').toUpperCase()})`)
+    .join(', ')
+
+  const commands = [
+    '1 w',
+    colorStroke(0.16, 0.24, 0.46),
+    rectCommand(28, 28, 539, 786),
+    colorFill(0.05, 0.17, 0.41),
+    rectCommand(28, 724, 539, 90, false, true),
+    colorFill(1, 1, 1),
+    rectCommand(48, 752, 44, 44, false, true),
+    colorFill(0.05, 0.17, 0.41),
+    textCommand(63, 769, 22, 'M', 'F2'),
+    colorFill(1, 1, 1),
+    textCommand(108, 780, 26, 'MOVIX TICKET', 'F2'),
+    textCommand(108, 758, 11, 'Premium booking receipt and entry pass'),
+    colorFill(0.94, 0.96, 1),
+    textCommand(428, 780, 10, `BOOKING #${ticket.bookingId}`, 'F2'),
+    textCommand(444, 760, 10, String(ticket.status || 'confirmed').toUpperCase(), 'F2'),
+    colorFill(0.98, 0.99, 1),
+    colorStroke(0.84, 0.89, 0.98),
+    rectCommand(48, 640, 499, 64, true, true),
+    colorFill(0.05, 0.1, 0.2),
+    textCommand(64, 678, 18, ticket.show?.movieTitle || 'Movie Experience', 'F2'),
+    textCommand(64, 655, 11, `${ticket.show?.theaterName || 'Theater'}  |  ${ticket.show?.hallName || 'Hall'}`),
+    colorStroke(0.84, 0.89, 0.98),
+    colorFill(1, 1, 1),
+    rectCommand(48, 508, 239, 112, true, true),
+    rectCommand(308, 508, 239, 112, true, true),
+    rectCommand(48, 372, 499, 116, true, true),
+    rectCommand(48, 224, 499, 128, true, true),
+    colorFill(0.16, 0.24, 0.46),
+    textCommand(64, 598, 11, 'SHOW DETAILS', 'F2'),
+    textCommand(324, 598, 11, 'PAYMENT DETAILS', 'F2'),
+    textCommand(64, 466, 11, 'SEAT SUMMARY', 'F2'),
+    textCommand(64, 330, 11, 'IMPORTANT INFORMATION', 'F2'),
+    colorFill(0.07, 0.1, 0.16),
+    textCommand(64, 572, 11, `Showtime: ${showtime}`),
+    textCommand(64, 550, 11, `Language: ${ticket.show?.language || 'Standard'}`),
+    textCommand(64, 528, 11, `Booked At: ${bookedAt}`),
+    textCommand(324, 572, 11, `Amount Paid: INR ${Number(ticket.totalAmount || 0)}`),
+    textCommand(324, 550, 11, 'Mode: Movix Pay Secure Checkout'),
+    textCommand(324, 528, 11, 'Verification: OTP Confirmed'),
+    textCommand(64, 438, 11, `Seats: ${seatList}`),
+    textCommand(64, 416, 11, `Seat Types: ${seatTypes || 'N/A'}`),
+    textCommand(64, 394, 11, `Ticket Count: ${(ticket.seats || []).length}`),
+    textCommand(64, 300, 11, 'Present this ticket PDF or the booking ID at entry.'),
+    textCommand(64, 278, 11, 'Seat allocation and show access remain subject to theater policies.'),
+    textCommand(64, 256, 11, 'For support, refer to the booked ticket in your Movix dashboard.'),
+    colorStroke(0.82, 0.87, 0.97),
+    lineCommand(48, 208, 547, 208),
+    colorFill(0.38, 0.44, 0.56),
+    textCommand(48, 190, 9, 'Generated by Movix. This is a demo ticket styled as a production receipt.'),
   ]
 
-  const stream = buildPdfContent(lines)
+  const stream = commands.join('\n')
   const objects = []
   const addObject = (body) => {
     objects.push(body)
@@ -56,9 +119,12 @@ export function downloadTicketPdf(ticket) {
 
   addObject('<< /Type /Catalog /Pages 2 0 R >>')
   addObject('<< /Type /Pages /Kids [3 0 R] /Count 1 >>')
-  addObject('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>')
+  addObject(
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>'
+  )
   addObject(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`)
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>')
 
   let pdf = '%PDF-1.4\n'
   const offsets = [0]
