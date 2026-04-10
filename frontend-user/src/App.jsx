@@ -7,6 +7,7 @@ import Signup from './pages/Signup'
 import MovieShows from './pages/MovieShows'
 import SeatSelect from './pages/SeatSelect'
 import Payment from './pages/Payment'
+import MyTickets from './pages/MyTickets'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route element={<RequireAuth />}>
           <Route path="/shows/:showId/seats" element={<SeatSelect />} />
           <Route path="/shows/:showId/payment" element={<Payment />} />
+          <Route path="/my-tickets" element={<MyTickets />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

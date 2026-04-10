@@ -1,6 +1,31 @@
+function resolveStoredToken() {
+  try {
+    const userRaw = localStorage.getItem('mvp_user_auth')
+    if (userRaw) {
+      const userAuth = JSON.parse(userRaw)
+      if (userAuth?.token) return userAuth.token
+    }
+  } catch {
+    // ignore localStorage/parse errors
+  }
+
+  try {
+    const staffRaw = localStorage.getItem('mvp_staff_auth')
+    if (staffRaw) {
+      const staffAuth = JSON.parse(staffRaw)
+      if (staffAuth?.token) return staffAuth.token
+    }
+  } catch {
+    // ignore localStorage/parse errors
+  }
+
+  return null
+}
+
 export async function api(path, { method = 'GET', body, token } = {}) {
   const headers = { 'content-type': 'application/json' }
-  if (token) headers.authorization = `Bearer ${token}`
+  const bearer = token || resolveStoredToken()
+  if (bearer) headers.authorization = `Bearer ${bearer}`
   const res = await fetch(`/api${path}`, {
     method,
     headers,
@@ -17,4 +42,3 @@ export async function api(path, { method = 'GET', body, token } = {}) {
   }
   return data
 }
-

@@ -53,7 +53,7 @@ export default function ShowDetails() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-4xl font-bold text-white">Pending Show Details</h2>
+        <h2 className="text-4xl font-bold text-black">Pending Show Details</h2>
         <Link to="/admin/approvals" className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-medium transition-colors">
           Back to approvals
         </Link>
@@ -65,7 +65,7 @@ export default function ShowDetails() {
       {!loading && data ? (
         <div className="space-y-6">
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Movie Details</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Movie Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
               <div><span className="font-semibold">Title:</span> <span className="text-gray-900 font-bold">{data.movie?.title || '—'}</span></div>
               <div><span className="font-semibold">Movie ID:</span> {data.movie?.movieId || '—'}</div>
@@ -82,7 +82,7 @@ export default function ShowDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Theater & Hall</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Theater & Hall</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
               <div><span className="font-semibold">Theater:</span> {data.theater?.theaterName || '—'}</div>
               <div><span className="font-semibold">Hall:</span> {data.hall?.hallName || '—'}</div>
@@ -99,7 +99,7 @@ export default function ShowDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Show Timing</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Show Timing</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
               <div><span className="font-semibold">Show ID:</span> {data.show?.showId}</div>
               <div><span className="font-semibold">Status:</span> {data.approvalStatus}</div>
@@ -114,7 +114,7 @@ export default function ShowDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Pricing</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Pricing</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left border border-gray-200 rounded-lg overflow-hidden">
                 <thead className="bg-gray-100 text-gray-700">
@@ -136,7 +136,7 @@ export default function ShowDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Availability</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Availability</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-lg bg-blue-50">
                 <div className="text-sm text-gray-600">Total Seats</div>
@@ -154,7 +154,7 @@ export default function ShowDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Decision</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Decision</h3>
             <div className="flex flex-wrap gap-3">
               <button disabled={acting} onClick={() => decide(true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50">
                 Approve Show

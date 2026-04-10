@@ -122,11 +122,11 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-4xl font-bold text-white">Reports</h2>
+      <h2 className="text-4xl font-bold text-black">Reports</h2>
       {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900">{err}</div> : null}
 
       <div className="bg-white rounded-xl shadow-lg p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Filters</h3>
+        <h3 className="text-xl font-bold text-black mb-4">Filters</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
@@ -173,7 +173,7 @@ export default function Reports() {
       </div>
 
       <div className="bg-white rounded-xl shadow-lg p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Report Data</h3>
+        <h3 className="text-xl font-bold text-black mb-4">Report Data</h3>
         {loading ? (
           <div className="text-gray-600">Loading report…</div>
         ) : rows.length === 0 ? (
@@ -205,4 +205,3 @@ export default function Reports() {
     </div>
   )
 }
-

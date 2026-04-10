@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
 
 const ALL_THEATERS = '__all_theaters__'
 const ALL_HALLS = '__all_halls__'
@@ -81,7 +81,6 @@ export default function AdminBlocking() {
 
   useEffect(() => {
     load().catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.token])
 
   useEffect(() => {
@@ -141,7 +140,7 @@ export default function AdminBlocking() {
 
   return (
     <div>
-      <h2 className="text-4xl font-bold text-white mb-8">Manage Visibility</h2>
+      <h2 className="text-4xl font-bold text-black mb-8">Manage Visibility</h2>
       {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900 mb-6">{err}</div> : null}
       {loading ? <div className="text-gray-300 text-lg mb-6">Loading visibility data…</div> : null}
 
@@ -162,9 +161,7 @@ export default function AdminBlocking() {
               <option value="">Select theater</option>
               <option value={ALL_THEATERS}>All Theaters</option>
               {theaters.map((t) => (
-                <option key={t.id} value={t.id}>
-                  #{t.id} {t.name}
-                </option>
+                <option key={t.id} value={t.id}>#{t.id} {t.name}</option>
               ))}
             </select>
           </div>
@@ -172,17 +169,11 @@ export default function AdminBlocking() {
           {(entity === 'hall' || entity === 'show') && theaterId && !isAllTheaters ? (
             <div className="transition-all duration-200">
               <label className="block text-gray-700 font-medium mb-2">Hall</label>
-              <select
-                value={hallId}
-                onChange={(e) => setHallId(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
+              <select value={hallId} onChange={(e) => setHallId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select hall</option>
                 <option value={ALL_HALLS}>All Halls</option>
                 {hallsForTheater.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    #{h.id} {h.name}
-                  </option>
+                  <option key={h.id} value={h.id}>#{h.id} {h.name}</option>
                 ))}
               </select>
             </div>
@@ -191,16 +182,10 @@ export default function AdminBlocking() {
           {entity === 'show' && theaterId && !isAllTheaters && hallId && !isAllHalls ? (
             <div className="transition-all duration-200">
               <label className="block text-gray-700 font-medium mb-2">Show</label>
-              <select
-                value={showId}
-                onChange={(e) => setShowId(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
+              <select value={showId} onChange={(e) => setShowId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select show</option>
                 {showsForHall.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    #{s.id} {s.Movie?.title || 'Movie'} ({new Date(s.startsAt).toLocaleString()})
-                  </option>
+                  <option key={s.id} value={s.id}>#{s.id} {s.Movie?.title || 'Movie'} ({new Date(s.startsAt).toLocaleString()})</option>
                 ))}
               </select>
               <div className="text-xs text-gray-500 mt-1">Show options currently use pending shows list.</div>
@@ -212,21 +197,11 @@ export default function AdminBlocking() {
             <div className="text-xs text-gray-500">Applies to all halls in selected theater</div>
           ) : null}
 
-          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 p-3 rounded-lg">
-            {impactText}
-          </div>
+          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 p-3 rounded-lg">{impactText}</div>
 
           <div>
             <label className="block text-gray-700 font-medium mb-2">Visibility</label>
-            <button
-              type="button"
-              onClick={() => setVisible((v) => !v)}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
-                visible
-                  ? 'bg-green-50 border-green-300 text-green-700'
-                  : 'bg-red-50 border-red-300 text-red-700'
-              }`}
-            >
+            <button type="button" onClick={() => setVisible((v) => !v)} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${visible ? 'bg-green-50 border-green-300 text-green-700' : 'bg-red-50 border-red-300 text-red-700'}`}>
               <span className="font-medium">{visible ? 'Visible (Shown to users)' : 'Hidden (Blocked from users)'}</span>
               <span className={`inline-block w-11 h-6 rounded-full relative ${visible ? 'bg-green-500' : 'bg-red-500'}`}>
                 <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${visible ? 'left-5' : 'left-0.5'}`} />
@@ -245,34 +220,23 @@ export default function AdminBlocking() {
           </div>
 
           {reason === 'other' ? (
-            <input
-              placeholder="Enter custom reason"
-              value={customReason}
-              onChange={(e) => setCustomReason(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <input placeholder="Enter custom reason" value={customReason} onChange={(e) => setCustomReason(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           ) : null}
 
-          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-lg">
-            Blocking will hide this from users.
-          </div>
+          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-lg">Blocking will hide this from users.</div>
 
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
-            Apply Visibility
-          </button>
+          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Apply Visibility</button>
         </form>
       </div>
 
       <div className="mt-8 bg-white rounded-xl shadow-lg p-8">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Currently Blocked Entities</h3>
+        <h3 className="text-xl font-bold text-black mb-4">Currently Blocked Entities</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <h4 className="font-semibold text-gray-800 mb-2">Theaters</h4>
             <div className="space-y-2">
               {blockedTheaters.map((t) => (
-                <div key={t.id} className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">
-                  #{t.id} {t.name}
-                </div>
+                <div key={t.id} className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">#{t.id} {t.name}</div>
               ))}
               {blockedTheaters.length === 0 ? <div className="text-sm text-gray-500">None blocked</div> : null}
             </div>
@@ -281,9 +245,7 @@ export default function AdminBlocking() {
             <h4 className="font-semibold text-gray-800 mb-2">Halls</h4>
             <div className="space-y-2">
               {blockedHalls.map((h) => (
-                <div key={h.id} className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">
-                  #{h.id} {h.name}
-                </div>
+                <div key={h.id} className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">#{h.id} {h.name}</div>
               ))}
               {blockedHalls.length === 0 ? <div className="text-sm text-gray-500">None blocked</div> : null}
             </div>
@@ -292,9 +254,7 @@ export default function AdminBlocking() {
             <h4 className="font-semibold text-gray-800 mb-2">Shows</h4>
             <div className="space-y-2">
               {blockedShows.map((s) => (
-                <div key={s.id} className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">
-                  #{s.id} {s.Movie?.title || 'Movie'}
-                </div>
+                <div key={s.id} className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">#{s.id} {s.Movie?.title || 'Movie'}</div>
               ))}
               {blockedShows.length === 0 ? <div className="text-sm text-gray-500">None blocked</div> : null}
             </div>

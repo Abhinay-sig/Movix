@@ -5,17 +5,21 @@ import OwnerSignup from './pages/OwnerSignup'
 import RequireRole from './components/RequireRole'
 import ProtectedRoute from './components/ProtectedRoute'
 import OwnerTheaters from './pages/OwnerTheaters'
+import OwnerTheaterHalls from './pages/OwnerTheaterHalls'
+import OwnerMovies from './pages/OwnerMovies'
 import OwnerNewHall from './pages/OwnerNewHall'
 import OwnerNewShow from './pages/OwnerNewShow'
 import OwnerRevenue from './pages/OwnerRevenue'
 import AdminDashboard from './pages/AdminDashboard'
+import AdminAddMovie from './pages/AdminAddMovie'
+import AdminMovies from './pages/AdminMovies'
 import AdminApprovals from './pages/AdminApprovals'
 import HallDetails from './pages/HallDetails'
 import ShowDetails from './pages/ShowDetails'
 import AdminCaps from './pages/AdminCaps'
 import AdminBlocking from './pages/AdminBlocking'
 import Reports from './pages/Reports'
-import { useAuth } from './AuthContext'
+import { useAuth } from './useAuth'
 
 function DashboardRedirect() {
   const { auth } = useAuth()
@@ -42,6 +46,8 @@ export default function App() {
 
         <Route element={<ProtectedRoute><RequireRole role="theater_owner" /></ProtectedRoute>}>
           <Route path="/owner/theaters" element={<OwnerTheaters />} />
+          <Route path="/owner/theatres/:theatreId/halls" element={<OwnerTheaterHalls />} />
+          <Route path="/owner/movies" element={<OwnerMovies />} />
           <Route path="/owner/halls/new" element={<OwnerNewHall />} />
           <Route path="/owner/shows/new" element={<OwnerNewShow />} />
           <Route path="/owner/revenue" element={<OwnerRevenue />} />
@@ -49,6 +55,9 @@ export default function App() {
 
         <Route element={<ProtectedRoute><RequireRole role="admin" /></ProtectedRoute>}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/movies" element={<AdminMovies />} />
+          <Route path="/admin/movies/new" element={<AdminAddMovie />} />
+          <Route path="/admin/movies/:id/edit" element={<AdminAddMovie />} />
           <Route path="/admin/approvals" element={<AdminApprovals />} />
           <Route path="/admin/approvals/:id" element={<HallDetails />} />
           <Route path="/admin/shows/:id" element={<ShowDetails />} />

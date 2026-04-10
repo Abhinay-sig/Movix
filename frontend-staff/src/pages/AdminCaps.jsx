@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
 import SeatCapModal from '../components/SeatCapModal'
 import SeatCapHistoryModal from '../components/SeatCapHistoryModal'
 
@@ -46,7 +46,6 @@ export default function AdminCaps() {
 
   useEffect(() => {
     load().catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.token])
 
   async function onTheaterChange(nextId) {
@@ -56,7 +55,7 @@ export default function AdminCaps() {
 
   return (
     <div>
-      <h2 className="text-4xl font-bold text-white mb-8">Seat Caps</h2>
+      <h2 className="text-4xl font-bold text-black mb-8">Seat Caps</h2>
       {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900 mb-6">{err}</div> : null}
 
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6 max-w-md">
@@ -88,10 +87,10 @@ export default function AdminCaps() {
                 {h.Theater?.city}, {h.Theater?.address}
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
-                <button onClick={() => setEditHallId(h.id)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
+                <button type="button" onClick={() => setEditHallId(h.id)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
                   Edit Caps
                 </button>
-                <button onClick={() => setHistoryHallId(h.id)} className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-medium">
+                <button type="button" onClick={() => setHistoryHallId(h.id)} className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-medium">
                   View History
                 </button>
               </div>

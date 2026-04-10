@@ -3,8 +3,64 @@ const { Op } = require('sequelize');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
 
+const createMovieSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(200)
+    .refine((val) => /[a-zA-Z0-9]/.test(val), {
+      message: 'Title cannot be empty or only symbols',
+    }),
+
+  genre: z
+    .string()
+    .trim()
+    .min(1, 'Genre is required')
+    .max(120)
+    .refine((val) => /[a-zA-Z0-9]/.test(val), {
+      message: 'Genre cannot be empty or only symbols',
+    }),
+
+  releaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+
+  description: z
+    .string()
+    .trim()
+    .max(5000)
+    .optional()
+    .or(z.literal('')),
+
+  durationMins: z.coerce
+    .number()
+    .int()
+    .positive('Duration must be > 0')
+    .max(480, 'Max duration is 480 mins'),
+
+  posterUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .or(z.literal(''))
+    .refine((val) => {
+      if (!val) return true;
+      try {
+        new URL(val);
+        return true;
+      } catch {
+        return false;
+      }
+    }, { message: 'Invalid URL format' }),
+});
+
 async function pendingApprovals(req, res, next) {
   try {
+    const theaters = await db.Theater.findAll({
+      where: { isBlocked: true },
+      include: [{ model: db.User, as: 'owner', attributes: ['id', 'name', 'email'] }],
+      order: [['createdAt', 'DESC']],
+    });
     const halls = await db.Hall.findAll({
       where: { isApproved: false },
       include: [{ model: db.Theater }],
@@ -13,9 +69,30 @@ async function pendingApprovals(req, res, next) {
       where: { isApproved: false },
       include: [{ model: db.Hall, include: [{ model: db.Theater }] }, { model: db.Movie }],
     });
-    res.json({ halls, shows });
+    res.json({ theaters, halls, shows });
   } catch (e) {
-    next(e);
+    return next(e);
+  }
+}
+
+const approveTheaterSchema = z.object({ theaterId: z.coerce.number().int().positive(), approve: z.boolean() });
+async function approveTheater(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const body = approveTheaterSchema.parse(req.body);
+    const theater = await db.Theater.findByPk(body.theaterId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!theater) throw new HttpError(404, 'Theater not found');
+    if (body.approve) {
+      await theater.update({ isBlocked: false }, { transaction: t });
+    } else {
+      await theater.destroy({ transaction: t });
+    }
+    await t.commit();
+    res.json({ ok: true });
+  } catch (e) {
+    await t.rollback();
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
   }
 }
 
@@ -130,10 +207,20 @@ function relativeTimeFrom(dateValue) {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
+function calcPctChange(current, previous) {
+  const c = Number(current) || 0;
+  const p = Number(previous) || 0;
+  if (p === 0) return c > 0 ? 100 : 0;
+  return Number((((c - p) / p) * 100).toFixed(2));
+}
+
 const reportsQuerySchema = z.object({
   fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   theaterId: z.coerce.number().int().positive().optional(),
+});
+const revenueByTheaterQuerySchema = reportsQuerySchema.extend({
+  movieId: z.coerce.number().int().positive().optional(),
 });
 
 function parseReportQuery(req) {
@@ -150,6 +237,31 @@ function parseReportQuery(req) {
   }
 
   return { bookingWhere, theaterId: parsed.theaterId ?? null };
+}
+
+function parseRevenueByTheaterQuery(req) {
+  const parsed = revenueByTheaterQuerySchema.parse(req.query ?? {});
+  const bookingWhere = { status: db.BOOKING_STATUS.CONFIRMED };
+  const showWhere = {};
+
+  if (parsed.fromDate) {
+    const from = new Date(`${parsed.fromDate}T00:00:00.000Z`);
+    bookingWhere.createdAt = { ...(bookingWhere.createdAt || {}), [Op.gte]: from };
+  }
+  if (parsed.toDate) {
+    const to = new Date(`${parsed.toDate}T23:59:59.999Z`);
+    bookingWhere.createdAt = { ...(bookingWhere.createdAt || {}), [Op.lte]: to };
+  }
+  if (parsed.movieId) {
+    showWhere.movieId = parsed.movieId;
+  }
+
+  return {
+    bookingWhere,
+    showWhere,
+    theaterId: parsed.theaterId ?? null,
+    movieId: parsed.movieId ?? null,
+  };
 }
 
 async function pendingHallDetails(req, res, next) {
@@ -741,6 +853,7 @@ const capSchema = z.object({
   seatTypeCode: z.string().min(1).max(40),
   adminPriceCap: z.coerce.number().nonnegative(),
 });
+
 async function setSeatTypeCap(req, res, next) {
   try {
     const body = capSchema.parse(req.body);
@@ -765,13 +878,32 @@ async function setSeatTypeCap(req, res, next) {
 
 async function revenueDashboard(req, res, next) {
   try {
-    const bookings = await db.Booking.findAll({ where: { status: db.BOOKING_STATUS.CONFIRMED } });
-    const gross = bookings.reduce((sum, b) => sum + Number(b.totalAmount), 0);
-    const adminRevenue = gross * 0.05;
+    const totalAmountField = db.Booking.rawAttributes.totalAmount?.field || 'total_amount';
+    const now = new Date();
+    const currentStart = new Date(now);
+    currentStart.setDate(now.getDate() - 7);
+    const previousStart = new Date(now);
+    previousStart.setDate(now.getDate() - 14);
+    const totalRevenueResult = await db.Booking.findOne({
+      attributes: [[db.sequelize.fn('SUM', db.sequelize.col(totalAmountField)), 'totalRevenue']],
+      where: { status: db.BOOKING_STATUS.CONFIRMED },
+      raw: true,
+    });
+    const grossRevenue = Number(totalRevenueResult?.totalRevenue) || 0;
+    const adminRevenue = Number((grossRevenue * 0.05).toFixed(2));
 
-    // Top 5 theaters by gross
+    const bookings = await db.Booking.findAll({
+      where: { status: db.BOOKING_STATUS.CONFIRMED },
+      attributes: ['showId', 'totalAmount'],
+      raw: true,
+    });
+
     const shows = await db.Show.findAll({ include: [{ model: db.Hall, include: [{ model: db.Theater }] }] });
-    const showToTheater = new Map(shows.map((s) => [String(s.id), String(s.Hall.theaterId)]));
+    const showToTheater = new Map(
+      shows
+        .filter((s) => s?.Hall?.theaterId)
+        .map((s) => [String(s.id), String(s.Hall.theaterId)])
+    );
 
     const totalsByTheater = new Map();
     for (const b of bookings) {
@@ -789,10 +921,31 @@ async function revenueDashboard(req, res, next) {
 
     const top5 = ranked.slice(0, 5).map((x) => ({
       ...x,
-      contributionPct: gross > 0 ? (x.total / gross) * 100 : 0,
+      contributionPct: grossRevenue > 0 ? (x.total / grossRevenue) * 100 : 0,
     }));
+    const [currentWindow, previousWindow] = await Promise.all([
+      db.Booking.findOne({
+        attributes: [[db.sequelize.fn('SUM', db.sequelize.col(totalAmountField)), 'totalRevenue']],
+        where: {
+          status: db.BOOKING_STATUS.CONFIRMED,
+          createdAt: { [Op.gte]: currentStart, [Op.lte]: now },
+        },
+        raw: true,
+      }),
+      db.Booking.findOne({
+        attributes: [[db.sequelize.fn('SUM', db.sequelize.col(totalAmountField)), 'totalRevenue']],
+        where: {
+          status: db.BOOKING_STATUS.CONFIRMED,
+          createdAt: { [Op.gte]: previousStart, [Op.lt]: currentStart },
+        },
+        raw: true,
+      }),
+    ]);
+    const currentRevenue = Number(currentWindow?.totalRevenue) || 0;
+    const previousRevenue = Number(previousWindow?.totalRevenue) || 0;
+    const revenueChangePct = calcPctChange(currentRevenue, previousRevenue);
 
-    res.json({ grossRevenue: gross, adminRevenue, top5 });
+    res.json({ grossRevenue, adminRevenue, revenueChangePct, top5 });
   } catch (e) {
     next(e);
   }
@@ -800,15 +953,22 @@ async function revenueDashboard(req, res, next) {
 
 async function revenueTrend(req, res, next) {
   try {
+    const days = [7, 30].includes(Number(req.query?.days)) ? Number(req.query.days) : 30;
+    const createdAtField = db.Booking.rawAttributes.createdAt?.field || 'created_at';
+    const totalAmountField = db.Booking.rawAttributes.totalAmount?.field || 'total_amount';
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - days + 1);
     const rows = await db.Booking.findAll({
       where: {
         status: db.BOOKING_STATUS.CONFIRMED,
+        createdAt: { [Op.gte]: fromDate },
       },
       attributes: [
-        [db.sequelize.fn('DATE', db.sequelize.col('created_at')), 'date'],
-        [db.sequelize.fn('SUM', db.sequelize.col('total_amount')), 'revenue'],
+        [db.sequelize.fn('DATE', db.sequelize.col(createdAtField)), 'date'],
+        [db.sequelize.fn('SUM', db.sequelize.col(totalAmountField)), 'revenue'],
+        [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'bookings'],
       ],
-      group: [db.sequelize.fn('DATE', db.sequelize.col('created_at'))],
+      group: [db.sequelize.fn('DATE', db.sequelize.col(createdAtField))],
       order: [[db.sequelize.literal('date'), 'ASC']],
       raw: true,
     });
@@ -816,6 +976,7 @@ async function revenueTrend(req, res, next) {
     const trend = rows.map((r) => ({
       date: String(r.date),
       revenue: Number(r.revenue || 0),
+      bookings: Number(r.bookings || 0),
     }));
     res.json(trend);
   } catch (e) {
@@ -831,7 +992,12 @@ async function dashboardStats(req, res, next) {
     tomorrowStart.setDate(todayStart.getDate() + 1);
     const now = new Date();
 
-    const [totalBookings, todayTickets, activeShows] = await Promise.all([
+    const current7Start = new Date(now);
+    current7Start.setDate(now.getDate() - 7);
+    const previous7Start = new Date(now);
+    previous7Start.setDate(now.getDate() - 14);
+
+    const [totalBookings, todayTickets, activeShows, current7Bookings, previous7Bookings] = await Promise.all([
       db.Booking.count({ where: { status: db.BOOKING_STATUS.CONFIRMED } }),
       db.BookingSeat.count({
         include: [
@@ -853,9 +1019,54 @@ async function dashboardStats(req, res, next) {
           endsAt: { [Op.gte]: now },
         },
       }),
+      db.Booking.count({
+        where: {
+          status: db.BOOKING_STATUS.CONFIRMED,
+          createdAt: { [Op.gte]: current7Start, [Op.lte]: now },
+        },
+      }),
+      db.Booking.count({
+        where: {
+          status: db.BOOKING_STATUS.CONFIRMED,
+          createdAt: { [Op.gte]: previous7Start, [Op.lt]: current7Start },
+        },
+      }),
+    ]);
+    res.json({
+      totalBookings,
+      todayTickets,
+      activeShows,
+      bookingsChangePct: calcPctChange(current7Bookings, previous7Bookings),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function systemHealth(req, res, next) {
+  try {
+    const now = new Date();
+    const [activeShows, pendingTheaters, pendingHalls, pendingShows, blockedTheaters] = await Promise.all([
+      db.Show.count({
+        where: {
+          isApproved: true,
+          isCancelled: false,
+          isBlocked: false,
+          startsAt: { [Op.lte]: now },
+          endsAt: { [Op.gte]: now },
+        },
+      }),
+      db.Theater.count({ where: { isBlocked: true } }),
+      db.Hall.count({ where: { isApproved: false } }),
+      db.Show.count({ where: { isApproved: false } }),
+      db.Theater.count({ where: { isBlocked: true } }),
     ]);
 
-    res.json({ totalBookings, todayTickets, activeShows });
+    res.json({
+      activeShows,
+      pendingApprovals: pendingTheaters + pendingHalls + pendingShows,
+      blockedTheaters,
+    });
   } catch (e) {
     next(e);
   }
@@ -988,7 +1199,10 @@ async function bookingReport(req, res, next) {
             { model: db.Movie, attributes: ['title'] },
             {
               model: db.Hall,
-              include: [{ model: db.Theater, ...(theaterId ? { where: { id: theaterId } } : {}) }],
+              include: [
+                { model: db.Theater, ...(theaterId ? { where: { id: theaterId } } : {}) },
+                { model: db.HallLayout, required: false },
+              ],
             },
           ],
         },
@@ -1124,6 +1338,193 @@ async function listTheatersWithContribution(req, res, next) {
   }
 }
 
+async function revenueByTheater(req, res, next) {
+  try {
+    const { bookingWhere, showWhere, theaterId, movieId } = parseRevenueByTheaterQuery(req);
+    const bookings = await db.Booking.findAll({
+      where: bookingWhere,
+      include: [
+        { model: db.BookingSeat, attributes: ['id'] },
+        {
+          model: db.Show,
+          where: Object.keys(showWhere).length ? showWhere : undefined,
+          include: [
+            {
+              model: db.Hall,
+              include: [
+                { model: db.Theater, ...(theaterId ? { where: { id: theaterId } } : {}) },
+                { model: db.HallLayout, required: false },
+              ],
+            },
+          ],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const byTheater = new Map();
+    const uniqueShowsByTheater = new Map();
+    for (const booking of bookings) {
+      const theater = booking.Show?.Hall?.Theater;
+      if (!theater) continue;
+      const key = String(theater.id);
+      const prev = byTheater.get(key) || {
+        theaterId: theater.id,
+        theaterName: theater.name,
+        totalRevenue: 0,
+        totalBookings: 0,
+        ticketsSold: 0,
+        seatInventory: 0,
+      };
+      prev.totalRevenue += Number(booking.totalAmount || 0);
+      prev.totalBookings += 1;
+      prev.ticketsSold += Array.isArray(booking.BookingSeats) ? booking.BookingSeats.length : 0;
+
+      const showId = booking.Show?.id;
+      if (showId) {
+        const showKey = `${key}:${showId}`;
+        if (!uniqueShowsByTheater.has(showKey)) {
+          uniqueShowsByTheater.set(showKey, true);
+          const seatsFromHall = Number(booking.Show?.Hall?.totalSeats) || 0;
+          const seatsFromLayout = countSeatsFromSegments(booking.Show?.Hall?.HallLayout?.segmentsByRow);
+          prev.seatInventory += seatsFromLayout || seatsFromHall;
+        }
+      }
+      byTheater.set(key, prev);
+    }
+
+    const rows = Array.from(byTheater.values())
+      .map((row) => ({
+        ...row,
+        totalRevenue: Number(row.totalRevenue.toFixed(2)),
+        occupancyPct: row.seatInventory > 0 ? Number(((row.ticketsSold / row.seatInventory) * 100).toFixed(2)) : 0,
+        avgTicketPrice: row.ticketsSold > 0 ? Number((row.totalRevenue / row.ticketsSold).toFixed(2)) : 0,
+      }))
+      .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    res.json({
+      filters: {
+        fromDate: req.query?.fromDate || null,
+        toDate: req.query?.toDate || null,
+        theaterId,
+        movieId,
+      },
+      rows,
+    });
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid query', e.flatten()));
+    return next(e);
+  }
+}
+
+async function createMovie(req, res, next) {
+  try {
+    const body = createMovieSchema.parse(req.body);
+
+    const title = body.title.trim();
+    const normalizedTitle = title.toLowerCase();
+
+    const existingMovie = await db.Movie.findOne({
+      where: db.sequelize.where(
+        db.sequelize.fn('LOWER', db.sequelize.col('title')),
+        normalizedTitle
+      ),
+    });
+
+    if (existingMovie) {
+      throw new HttpError(409, 'Movie already exists');
+    }
+
+    const movie = await db.Movie.create({
+      title,
+      genre: body.genre.trim(),
+      releaseDate: body.releaseDate,
+      description: body.description?.trim() || null,
+      durationMins: body.durationMins,
+      posterUrl: body.posterUrl?.trim() || null,
+      isActive: true,
+    });
+
+    res.status(201).json({ movie });
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+/* ---------------- NEW FUNCTIONS ---------------- */
+
+// GET SINGLE MOVIE
+async function getMovieById(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const movie = await db.Movie.findByPk(id);
+    if (!movie) throw new HttpError(404, 'Movie not found');
+    res.json({ movie });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// PATCH UPDATE
+async function updateMovie(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const movie = await db.Movie.findByPk(id);
+    if (!movie) throw new HttpError(404, 'Movie not found');
+
+    const body = req.body;
+    const updates = {};
+
+    if (body.title !== undefined) {
+      const title = body.title.trim();
+      if (!title || !/[a-zA-Z0-9]/.test(title)) {
+        throw new HttpError(400, 'Invalid title');
+      }
+      updates.title = title;
+    }
+
+    if (body.genre !== undefined) updates.genre = body.genre.trim();
+    if (body.releaseDate !== undefined) updates.releaseDate = body.releaseDate;
+    if (body.description !== undefined) updates.description = body.description?.trim() || null;
+    if (body.durationMins !== undefined) updates.durationMins = Number(body.durationMins);
+
+    if (body.posterUrl !== undefined) {
+      if (body.posterUrl) {
+        try {
+          new URL(body.posterUrl);
+        } catch {
+          throw new HttpError(400, 'Invalid poster URL');
+        }
+      }
+      updates.posterUrl = body.posterUrl?.trim() || null;
+    }
+
+    await movie.update(updates);
+
+    res.json({ movie });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// DELETE MOVIE
+async function deleteMovie(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const movie = await db.Movie.findByPk(id);
+    if (!movie) throw new HttpError(404, 'Movie not found');
+
+    await movie.destroy();
+
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+}
+
+/* ---------------- EXPORT ---------------- */
+
 module.exports = {
   pendingApprovals,
   pendingHallDetails,
@@ -1135,6 +1536,7 @@ module.exports = {
   hallCapHistory,
   suggestedCapsForHall,
   approvePendingHallWithCaps,
+  approveTheater,
   approveHall,
   approveShow,
   rejectHall,
@@ -1144,6 +1546,7 @@ module.exports = {
   revenueTrend,
   dashboardStats,
   activityFeed,
+  systemHealth,
   revenueReport,
   bookingReport,
   theaterPerformanceReport,
@@ -1151,4 +1554,9 @@ module.exports = {
   revenueDashboard,
   cancelShow,
   listTheatersWithContribution,
+  revenueByTheater,
+  createMovie,
+  getMovieById,
+  updateMovie,
+  deleteMovie,
 };

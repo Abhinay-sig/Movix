@@ -70,7 +70,7 @@ export default function HallDetails() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-4xl font-bold text-white">Pending Hall Details</h2>
+        <h2 className="text-4xl font-bold text-black">Pending Hall Details</h2>
         <Link to="/admin/approvals" className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-medium transition-colors">
           Back to approvals
         </Link>
@@ -82,7 +82,7 @@ export default function HallDetails() {
       {!loading && data ? (
         <div className="space-y-6">
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Theater Info</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Theater Info</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
               <div><span className="font-semibold">Theater:</span> {data.theaterName || '—'}</div>
               <div><span className="font-semibold">Theater ID:</span> {data.theaterId || '—'}</div>
@@ -92,7 +92,7 @@ export default function HallDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Hall Info</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Hall Info</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-gray-700">
               <div><span className="font-semibold">Hall Name:</span> {data.hallName}</div>
               <div><span className="font-semibold">Hall ID:</span> {data.hallId}</div>
@@ -104,7 +104,7 @@ export default function HallDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Seat Configuration</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Seat Configuration</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left border border-gray-200 rounded-lg overflow-hidden">
                 <thead className="bg-gray-100 text-gray-700">
@@ -126,7 +126,7 @@ export default function HallDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Facilities</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Facilities</h3>
             {Array.isArray(data.facilities) && data.facilities.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {data.facilities.map((f) => (
@@ -141,7 +141,7 @@ export default function HallDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Images</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Images</h3>
             {Array.isArray(data.images) && data.images.length > 0 ? (
               <div className="space-y-2">
                 {data.images.map((img) => (
@@ -162,7 +162,7 @@ export default function HallDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Layout Preview</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Layout Preview</h3>
             {preview.length ? (
               <div className="overflow-auto max-h-[500px] border border-gray-200 rounded-lg p-4 bg-gray-50">
                 <div
@@ -195,7 +195,7 @@ export default function HallDetails() {
           </section>
 
           <section className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Decision</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Decision</h3>
             <div className="flex flex-wrap gap-3">
               <button disabled={acting} onClick={() => setCapModalOpen(true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50">
                 Approve Hall

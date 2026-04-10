@@ -1,225 +1,636 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
 
 const TYPES = ['standard', 'premium', 'recliner', 'vip']
 
+function toDateInputValue(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+}
+
+function toWallClockUtc(date, time) {
+  return new Date(`${date}T${time}:00.000Z`)
+}
+
 export default function OwnerNewShow() {
   const { auth } = useAuth()
+  const [theaters, setTheaters] = useState([])
   const [halls, setHalls] = useState([])
   const [movies, setMovies] = useState([])
   const [err, setErr] = useState('')
+  const [notice, setNotice] = useState('')
 
+  const [theaterId, setTheaterId] = useState('')
   const [hallId, setHallId] = useState('')
   const [movieId, setMovieId] = useState('')
   const [date, setDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [durationMins, setDurationMins] = useState('')
   const [language, setLanguage] = useState('English')
-  const [prices, setPrices] = useState(() => Object.fromEntries(TYPES.map((t) => [t, ''])))
+  const [prices, setPrices] = useState(() =>
+    Object.fromEntries(TYPES.map((type) => [type, '']))
+  )
 
   const [schedule, setSchedule] = useState(null)
-  const [hasConflict, setHasConflict] = useState(false)
+  const [viewDate, setViewDate] = useState('')
+  const [viewTheaterId, setViewTheaterId] = useState('')
+  const [viewHallId, setViewHallId] = useState('')
+  const [viewMovieId, setViewMovieId] = useState('')
+  const [ownerShows, setOwnerShows] = useState([])
+  const [loadingOwnerShows, setLoadingOwnerShows] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     Promise.all([
+      api('/owner/me/theaters', { token: auth.token }),
       api('/owner/me/halls', { token: auth.token }),
-      api('/public/movies'),
+      api('/owner/me/movies', { token: auth.token }),
     ])
-      .then(([h, m]) => {
-        setHalls(h.halls || [])
-        setMovies(m.movies || [])
+      .then(([theatersResponse, hallsResponse, moviesResponse]) => {
+        setTheaters(theatersResponse.theaters || [])
+        setHalls(hallsResponse.halls || [])
+        setMovies(moviesResponse.movies || [])
+        setErr('')
       })
       .catch((e) => setErr(e.message))
   }, [auth.token])
 
-  useEffect(() => {
-    if (hallId && date) {
-      api(`/owner/halls/${hallId}/schedule?date=${date}`, { token: auth.token })
-        .then((data) => {
-          setSchedule(data)
-          checkConflicts()
-        })
-        .catch((e) => setErr(e.message))
-    } else {
-      setSchedule(null)
-    }
-  }, [hallId, date, auth.token])
+  const filteredHalls = useMemo(
+    () =>
+      theaterId
+        ? halls.filter((hall) => String(hall.theaterId) === String(theaterId))
+        : [],
+    [halls, theaterId]
+  )
+
+  const viewFilteredHalls = useMemo(
+    () =>
+      viewTheaterId
+        ? halls.filter((hall) => String(hall.theaterId) === String(viewTheaterId))
+        : [],
+    [halls, viewTheaterId]
+  )
+
+  const selectedMovie = useMemo(
+    () => movies.find((movie) => String(movie.id) === String(movieId)) || null,
+    [movieId, movies]
+  )
 
   useEffect(() => {
-    checkConflicts()
-  }, [schedule, startTime, durationMins])
-
-  function checkConflicts() {
-    if (!schedule || !startTime || !durationMins) {
-      setHasConflict(false)
+    if (!selectedMovie) {
+      if (!movieId) setDurationMins('')
       return
     }
 
-    const proposedStart = new Date(`${date}T${startTime}`)
-    const proposedEnd = new Date(proposedStart.getTime() + durationMins * 60000)
-    const bufferMins = schedule.bufferMins || 30
+    setDurationMins(String(selectedMovie.durationMins || ''))
+  }, [movieId, selectedMovie])
 
-    const conflict = schedule.schedule.some(show => {
-      const showStart = new Date(show.startsAt)
-      const showEnd = new Date(show.endsAt)
-      const bufferedStart = new Date(showStart.getTime() - bufferMins * 60000)
-      const bufferedEnd = new Date(showEnd.getTime() + bufferMins * 60000)
+  useEffect(() => {
+    if (!hallId || !date) {
+      setSchedule(null)
+      return
+    }
+
+    let alive = true
+
+    api(`/owner/halls/${hallId}/schedule?date=${date}`, { token: auth.token })
+      .then((response) => {
+        if (!alive) return
+        setSchedule(response)
+        setErr('')
+      })
+      .catch((e) => {
+        if (!alive) return
+        setErr(e.message)
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [auth.token, hallId, date])
+
+  const hasConflict = useMemo(() => {
+    if (!schedule || !date || !startTime || !durationMins) return false
+
+    const proposedStart = toWallClockUtc(date, startTime)
+    const proposedEnd = new Date(proposedStart.getTime() + Number(durationMins) * 60000)
+
+    return (schedule.schedule || []).some((show) => {
+      const bufferedStart = show.bufferStart
+        ? new Date(show.bufferStart)
+        : new Date(new Date(show.startsAt).getTime() - (schedule.bufferMins || 30) * 60000)
+      const bufferedEnd = show.bufferEnd
+        ? new Date(show.bufferEnd)
+        : new Date(new Date(show.endsAt).getTime() + (schedule.bufferMins || 30) * 60000)
 
       return proposedStart < bufferedEnd && proposedEnd > bufferedStart
     })
+  }, [schedule, date, startTime, durationMins])
 
-    setHasConflict(conflict)
-  }
+  useEffect(() => {
+    if (!viewDate) {
+      setOwnerShows([])
+      return
+    }
+
+    const params = new URLSearchParams({ date: viewDate })
+    if (viewTheaterId) params.set('theaterId', viewTheaterId)
+    if (viewHallId) params.set('hallId', viewHallId)
+    if (viewMovieId) params.set('movieId', viewMovieId)
+
+    let alive = true
+    setLoadingOwnerShows(true)
+
+    api(`/owner/shows?${params.toString()}`, { token: auth.token })
+      .then((response) => {
+        if (!alive) return
+        setOwnerShows(response.shows || [])
+        setErr('')
+      })
+      .catch((e) => {
+        if (!alive) return
+        setErr(e.message)
+      })
+      .finally(() => {
+        if (alive) setLoadingOwnerShows(false)
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [auth.token, viewDate, viewTheaterId, viewHallId, viewMovieId])
+
+  const groupedShows = useMemo(() => {
+    const grouped = []
+    const theaterMap = new Map()
+
+    for (const show of ownerShows) {
+      let theaterGroup = theaterMap.get(show.theaterId)
+      if (!theaterGroup) {
+        theaterGroup = {
+          theaterId: show.theaterId,
+          theaterName: show.theaterName,
+          halls: [],
+          hallMap: new Map(),
+        }
+        theaterMap.set(show.theaterId, theaterGroup)
+        grouped.push(theaterGroup)
+      }
+
+      let hallGroup = theaterGroup.hallMap.get(show.hallId)
+      if (!hallGroup) {
+        hallGroup = {
+          hallId: show.hallId,
+          hallName: show.hallName,
+          shows: [],
+        }
+        theaterGroup.hallMap.set(show.hallId, hallGroup)
+        theaterGroup.halls.push(hallGroup)
+      }
+
+      hallGroup.shows.push(show)
+    }
+
+    return grouped
+  }, [ownerShows])
 
   async function submit(e) {
     e.preventDefault()
     setErr('')
-    if (hasConflict) {
-      setErr('Cannot create show: conflicts with existing schedule')
+    setNotice('')
+
+    if (!theaterId || !hallId || !movieId || !date || !startTime || !language || !durationMins) {
+      setErr('Please fill all required fields before creating the show.')
       return
     }
+
+    const selectedHall = filteredHalls.find((hall) => String(hall.id) === String(hallId))
+    if (selectedHall && !selectedHall.isApproved) {
+      setErr('Selected hall is not approved yet.')
+      return
+    }
+
+    const releaseDate = toDateInputValue(selectedMovie?.releaseDate)
+    if (releaseDate && date < releaseDate) {
+      setErr('Cannot schedule a show before the movie release date.')
+      return
+    }
+
+    if (hasConflict) {
+      setErr('Time conflicts with another show, including the required buffer window.')
+      return
+    }
+
+    const seatPrices = TYPES.filter((type) => prices[type]).map((type) => ({
+      seatTypeCode: type,
+      price: Number(prices[type]),
+    }))
+
+    if (seatPrices.length === 0) {
+      setErr('Add at least one seat price before submitting the show.')
+      return
+    }
+
+    setSubmitting(true)
+
     try {
-      const seatPrices = TYPES.filter((t) => prices[t]).map((t) => ({
-        seatTypeCode: t,
-        price: Number(prices[t]),
-      }))
       await api('/owner/shows', {
         method: 'POST',
         token: auth.token,
-        body: { hallId: Number(hallId), movieId: Number(movieId), date, startTime, durationMins: Number(durationMins), language, seatPrices },
+        body: {
+          hallId: Number(hallId),
+          movieId: Number(movieId),
+          date,
+          startTime,
+          durationMins: Number(durationMins),
+          language,
+          seatPrices,
+        },
       })
-      alert('Show submitted for admin approval.')
+
+      setNotice('Show submitted for admin approval.')
+      setTheaterId('')
       setHallId('')
       setMovieId('')
       setDate('')
       setStartTime('')
       setDurationMins('')
+      setLanguage('English')
+      setPrices(Object.fromEntries(TYPES.map((type) => [type, ''])))
+      setSchedule(null)
     } catch (e2) {
-      setErr(e2.message)
+      setErr(e2.message || 'Something went wrong.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
+  const fieldClass =
+    'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100'
+
+  const panelClass =
+    'rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8'
+
   return (
-    <div>
-      <h2 className="text-4xl font-bold text-white mb-8">Add show</h2>
-      {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900 mb-6">{err}</div> : null}
-      <div className="bg-white rounded-xl shadow-lg p-8 max-w-4xl">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          Create showtime
+        </h2>
+        <p className="text-sm text-slate-500">
+          Choose a theater, then one of its halls, and schedule a show without breaking release-date or buffer rules.
+        </p>
+      </div>
+
+      {err ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
+          {err}
+        </div>
+      ) : null}
+
+      {notice ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-sm">
+          {notice}
+        </div>
+      ) : null}
+
+      <div className={`max-w-5xl ${panelClass}`}>
         <form onSubmit={submit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">Select hall</label>
-              <select value={hallId} onChange={(e) => setHallId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Select hall…</option>
-                {halls.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    #{h.id} {h.Theater?.name} — {h.name} {h.isApproved ? '' : '(pending)'}
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Choose theater
+              </label>
+              <select
+                value={theaterId}
+                onChange={(e) => {
+                  setTheaterId(e.target.value)
+                  setHallId('')
+                  setSchedule(null)
+                }}
+                className={fieldClass}
+              >
+                <option value="">Choose a theater…</option>
+                {theaters.map((theater) => (
+                  <option key={theater.id} value={theater.id}>
+                    {theater.name} • {theater.city}
                   </option>
                 ))}
               </select>
             </div>
-            
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">Select movie</label>
-              <select value={movieId} onChange={(e) => setMovieId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Select movie…</option>
-                {movies.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    #{m.id} {m.title}
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Choose hall
+              </label>
+              <select
+                value={hallId}
+                onChange={(e) => setHallId(e.target.value)}
+                className={fieldClass}
+                disabled={!theaterId}
+              >
+                <option value="">
+                  {theaterId ? 'Choose a hall…' : 'Choose a theater first…'}
+                </option>
+                {filteredHalls.map((hall) => (
+                  <option key={hall.id} value={hall.id} disabled={!hall.isApproved}>
+                    {hall.name} {hall.isApproved ? '' : '(under review)'}
                   </option>
                 ))}
               </select>
             </div>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">Date</label>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">
+              Choose title
+            </label>
+            <select
+              value={movieId}
+              onChange={(e) => setMovieId(e.target.value)}
+              className={fieldClass}
+            >
+              <option value="">Choose a title…</option>
+              {movies.map((movie) => (
+                <option key={movie.id} value={movie.id}>
+                  #{movie.id} {movie.title} ({movie.durationMins} mins)
+                </option>
+              ))}
+            </select>
+            {selectedMovie ? (
+              <div className="text-xs text-slate-500">
+                Release date: {toDateInputValue(selectedMovie.releaseDate)}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-3">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Date
+              </label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={fieldClass}
+                min={toDateInputValue(selectedMovie?.releaseDate) || undefined}
                 required
               />
             </div>
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">Start Time</label>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Start time
+              </label>
               <input
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={fieldClass}
                 required
               />
             </div>
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">Duration (minutes)</label>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Duration (minutes)
+              </label>
               <input
                 type="number"
                 min="1"
                 max="480"
                 value={durationMins}
-                onChange={(e) => setDurationMins(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. 120"
+                readOnly
+                className={fieldClass}
+                placeholder="Select a movie first"
                 required
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Language</label>
-            <input 
-              value={language} 
-              onChange={(e) => setLanguage(e.target.value)} 
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">
+              Language
+            </label>
+            <input
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className={fieldClass}
               required
             />
           </div>
 
-          <div>
-            <label className="block text-gray-700 font-bold mb-4">Seat prices (must be ≤ admin cap)</label>
-            <div className="grid grid-cols-2 gap-4">
-              {TYPES.map((t) => (
-                <label key={t} className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-gray-700 capitalize">{t}</span>
+          <div className="space-y-4">
+            <div className="text-sm font-medium text-slate-700">
+              Seat prices
+              <span className="ml-2 font-normal text-slate-500">
+                for each guest experience
+              </span>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {TYPES.map((type) => (
+                <label key={type} className="space-y-2">
+                  <span className="block text-sm font-medium capitalize text-slate-700">
+                    {type}
+                  </span>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     placeholder="Price"
-                    value={prices[t]}
-                    onChange={(e) => setPrices((p) => ({ ...p, [t]: e.target.value }))}
-                    className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={prices[type]}
+                    onChange={(e) =>
+                      setPrices((prev) => ({ ...prev, [type]: e.target.value }))
+                    }
+                    onWheel={(e) => e.currentTarget.blur()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                        e.preventDefault()
+                      }
+                    }}
+                    className={fieldClass}
                   />
                 </label>
               ))}
             </div>
           </div>
 
-          {schedule && (
-            <div>
-              <label className="block text-gray-700 font-bold mb-4">Hall Schedule for {date}</label>
-              <Timeline schedule={schedule} proposedStart={startTime} proposedDuration={durationMins} date={date} />
-              {hasConflict && (
-                <div className="mt-2 text-red-600 font-medium">
-                  ⚠️ Proposed show conflicts with existing schedule
+          {schedule ? (
+            <div className="space-y-4">
+              <div className="text-sm font-medium text-slate-700">
+                Day schedule for {date}
+              </div>
+
+              <Timeline
+                schedule={schedule}
+                proposedStart={startTime}
+                proposedDuration={durationMins}
+                date={date}
+              />
+
+              <div className="space-y-2">
+                {(schedule.schedule || []).map((show) => (
+                  <div
+                    key={show.id}
+                    className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="font-medium text-slate-900">{show.movieTitle}</div>
+                    <div>
+                      {formatWallClock(show.startsAt)} - {formatWallClock(show.endsAt)}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Buffer: {formatWallClock(show.bufferStart)} - {formatWallClock(show.bufferEnd)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {hasConflict ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                  This start time overlaps with another scheduled guest experience.
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  This time slot is available.
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
-          <button 
+          <button
             type="submit"
-            disabled={hasConflict}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-3 rounded-lg transition-colors"
+            disabled={submitting || hasConflict}
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-600 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Create show request
+            {submitting ? 'Submitting…' : 'Publish showtime'}
           </button>
         </form>
-        <div className="mt-6 text-sm text-gray-600 bg-blue-50 p-4 rounded-lg">
-          Buffer rule: new show must have a 30-min gap before/after any existing show in the same hall.
+
+        <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
+          The flow is Theater → Hall → Showtime. One theater can have multiple halls, and each hall must keep a 30-minute buffer before and after every scheduled show.
+        </div>
+      </div>
+
+      <div className={panelClass}>
+        <div className="mb-6 flex flex-col gap-2">
+          <h3 className="text-xl font-semibold text-slate-900">Scheduled shows</h3>
+          <p className="text-sm text-slate-500">
+            Review the day plan by theater, hall, or movie.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <input
+            type="date"
+            value={viewDate}
+            onChange={(e) => setViewDate(e.target.value)}
+            className={fieldClass}
+          />
+
+          <select
+            value={viewTheaterId}
+            onChange={(e) => {
+              setViewTheaterId(e.target.value)
+              setViewHallId('')
+            }}
+            className={fieldClass}
+          >
+            <option value="">All theaters</option>
+            {theaters.map((theater) => (
+              <option key={theater.id} value={theater.id}>
+                #{theater.id} {theater.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={viewHallId}
+            onChange={(e) => setViewHallId(e.target.value)}
+            disabled={!viewTheaterId}
+            className={fieldClass}
+          >
+            <option value="">
+              {!viewTheaterId ? 'Select theater first' : 'All halls'}
+            </option>
+            {viewFilteredHalls.map((hall) => (
+              <option key={hall.id} value={hall.id}>
+                #{hall.id} {hall.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={viewMovieId}
+            onChange={(e) => setViewMovieId(e.target.value)}
+            className={fieldClass}
+          >
+            <option value="">All movies</option>
+            {movies.map((movie) => (
+              <option key={movie.id} value={movie.id}>
+                #{movie.id} {movie.title}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mt-6">
+          {!viewDate ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+              Select a date to view scheduled shows.
+            </div>
+          ) : loadingOwnerShows ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+              Loading scheduled shows…
+            </div>
+          ) : groupedShows.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+              No scheduled shows found for the selected filters.
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {groupedShows.map((theaterGroup) => (
+                <div key={theaterGroup.theaterId} className="space-y-4">
+                  <div className="text-lg font-semibold text-slate-900">
+                    {theaterGroup.theaterName}
+                  </div>
+
+                  {theaterGroup.halls.map((hallGroup) => (
+                    <div
+                      key={hallGroup.hallId}
+                      className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5"
+                    >
+                      <div className="mb-3 font-medium text-slate-900">
+                        {hallGroup.hallName}
+                      </div>
+
+                      <div className="space-y-3">
+                        {hallGroup.shows.map((show) => (
+                          <div
+                            key={show.id}
+                            className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between"
+                          >
+                            <div className="font-medium text-slate-900">
+                              {show.movieTitle}
+                            </div>
+                            <div>
+                              {formatWallClock(show.startsAt)} - {formatWallClock(show.endsAt)}
+                            </div>
+                            <div className="capitalize text-slate-500">
+                              {show.language}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -227,32 +638,29 @@ export default function OwnerNewShow() {
 }
 
 function Timeline({ schedule, proposedStart, proposedDuration, date }) {
-  const bufferMins = schedule.bufferMins || 30
-  const dayStart = new Date(`${date}T00:00`)
-  const dayEnd = new Date(`${date}T23:59`)
+  const dayStart = new Date(`${date}T00:00:00.000Z`)
+  const dayEnd = new Date(`${date}T23:59:59.999Z`)
 
-  // Calculate proposed show times
-  let proposedShow = null
-  if (proposedStart && proposedDuration) {
-    const start = new Date(`${date}T${proposedStart}`)
-    const end = new Date(start.getTime() + proposedDuration * 60000)
-    proposedShow = { start, end }
-  }
+  const proposedShow =
+    proposedStart && proposedDuration
+      ? {
+          start: toWallClockUtc(date, proposedStart),
+          end: new Date(toWallClockUtc(date, proposedStart).getTime() + Number(proposedDuration) * 60000),
+        }
+      : null
 
-  // Create timeline segments
   const segments = []
   let currentTime = new Date(dayStart)
-
-  // Sort shows by start time
-  const sortedShows = [...schedule.schedule].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
+  const sortedShows = [...(schedule.schedule || [])].sort(
+    (a, b) => new Date(a.startsAt) - new Date(b.startsAt)
+  )
 
   for (const show of sortedShows) {
     const showStart = new Date(show.startsAt)
     const showEnd = new Date(show.endsAt)
-    const bufferStart = new Date(showStart.getTime() - bufferMins * 60000)
-    const bufferEnd = new Date(showEnd.getTime() + bufferMins * 60000)
+    const bufferStart = new Date(show.bufferStart)
+    const bufferEnd = new Date(show.bufferEnd)
 
-    // Add free time before buffer
     if (currentTime < bufferStart) {
       segments.push({
         type: 'free',
@@ -262,7 +670,6 @@ function Timeline({ schedule, proposedStart, proposedDuration, date }) {
       currentTime = bufferStart
     }
 
-    // Add buffer time
     if (currentTime < showStart) {
       segments.push({
         type: 'buffer',
@@ -272,7 +679,6 @@ function Timeline({ schedule, proposedStart, proposedDuration, date }) {
       currentTime = showStart
     }
 
-    // Add show time
     if (currentTime < showEnd) {
       segments.push({
         type: 'booked',
@@ -283,7 +689,6 @@ function Timeline({ schedule, proposedStart, proposedDuration, date }) {
       currentTime = showEnd
     }
 
-    // Add buffer after show
     if (currentTime < bufferEnd) {
       segments.push({
         type: 'buffer',
@@ -294,7 +699,6 @@ function Timeline({ schedule, proposedStart, proposedDuration, date }) {
     }
   }
 
-  // Add remaining free time
   if (currentTime < dayEnd) {
     segments.push({
       type: 'free',
@@ -303,7 +707,6 @@ function Timeline({ schedule, proposedStart, proposedDuration, date }) {
     })
   }
 
-  // Add proposed show if it exists
   if (proposedShow) {
     segments.push({
       type: 'proposed',
@@ -312,57 +715,54 @@ function Timeline({ schedule, proposedStart, proposedDuration, date }) {
     })
   }
 
-  // Sort all segments by start time
   segments.sort((a, b) => a.start - b.start)
 
+  const legendItem = (label, dotClass) => (
+    <div className="flex items-center gap-2">
+      <span className={`h-3 w-3 rounded-full ${dotClass}`} />
+      <span>{label}</span>
+    </div>
+  )
+
   return (
-    <div className="border rounded-lg p-4 bg-gray-50">
-      <div className="flex flex-wrap gap-2 text-xs mb-4">
-        <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-blue-200 rounded"></div>
-          <span>Free</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-orange-200 rounded"></div>
-          <span>Buffer</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-red-200 rounded"></div>
-          <span>Booked</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-green-200 rounded"></div>
-          <span>Proposed</span>
-        </div>
+    <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
+      <div className="mb-4 flex flex-wrap gap-4 text-xs font-medium text-slate-600">
+        {legendItem('Free', 'bg-sky-400')}
+        {legendItem('Buffer', 'bg-amber-400')}
+        {legendItem('Booked', 'bg-rose-400')}
+        {legendItem('Proposed', 'bg-emerald-400')}
       </div>
-      <div className="flex flex-wrap gap-1">
+
+      <div className="flex flex-wrap gap-2">
         {segments.map((segment, index) => {
-          const duration = (segment.end - segment.start) / (1000 * 60) // minutes
+          const duration = (segment.end - segment.start) / (1000 * 60)
           if (duration <= 0) return null
 
-          let bgColor = 'bg-gray-200'
+          let blockClass = 'bg-slate-200 text-slate-700 border-slate-200'
           let text = ''
-          if (segment.type === 'free') bgColor = 'bg-blue-200'
-          else if (segment.type === 'buffer') bgColor = 'bg-orange-200'
-          else if (segment.type === 'booked') {
-            bgColor = 'bg-red-200'
+
+          if (segment.type === 'free') {
+            blockClass = 'bg-sky-100 text-sky-900 border-sky-200'
+          } else if (segment.type === 'buffer') {
+            blockClass = 'bg-amber-100 text-amber-900 border-amber-200'
+          } else if (segment.type === 'booked') {
+            blockClass = 'bg-rose-100 text-rose-900 border-rose-200'
             text = `${segment.show.movieTitle} (${segment.show.language})`
           } else if (segment.type === 'proposed') {
-            bgColor = 'bg-green-200'
-            text = 'Proposed Show'
+            blockClass = 'bg-emerald-100 text-emerald-900 border-emerald-200'
+            text = 'Planned showtime'
           }
-
-          const startTime = segment.start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-          const endTime = segment.end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 
           return (
             <div
               key={index}
-              className={`flex flex-col justify-center items-center p-2 rounded text-xs min-w-[80px] ${bgColor}`}
-              style={{ flex: duration / 60 }} // Scale by hours
+              className={`flex min-w-[120px] flex-col justify-center rounded-2xl border px-3 py-2 text-xs shadow-sm transition-transform duration-200 hover:-translate-y-0.5 ${blockClass}`}
+              style={{ flex: duration / 60 }}
             >
-              <div className="font-medium">{startTime} - {endTime}</div>
-              {text && <div className="text-center mt-1">{text}</div>}
+              <div className="font-semibold">
+                {formatWallClock(segment.start)} - {formatWallClock(segment.end)}
+              </div>
+              {text ? <div className="mt-1 leading-tight">{text}</div> : null}
             </div>
           )
         })}
@@ -371,3 +771,11 @@ function Timeline({ schedule, proposedStart, proposedDuration, date }) {
   )
 }
 
+function formatWallClock(value) {
+  return new Date(value).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'UTC',
+  })
+}

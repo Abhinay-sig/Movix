@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
 import SeatCapModal from '../components/SeatCapModal'
 import RejectModal from '../components/RejectModal'
 
@@ -71,9 +71,7 @@ export default function AdminApprovals() {
   const [capModalHallId, setCapModalHallId] = useState(null)
   const [activeTab, setActiveTab] = useState('halls')
   const [sortOrder, setSortOrder] = useState('newest')
-  const [rejectTarget, setRejectTarget] = useState(null)
-  const [rejecting, setRejecting] = useState(false)
-  const [rejectErr, setRejectErr] = useState('')
+  const [rejectModal, setRejectModal] = useState({ open: false, type: '', id: null, title: '' })
   const [toast, setToast] = useState('')
 
   async function load() {
@@ -87,49 +85,44 @@ export default function AdminApprovals() {
     load().catch((e) => setErr(e.message))
   }, [auth?.token])
 
-  async function actHall(hallId, approve) {
-    await api('/admin/approvals/hall', { method: 'POST', token: auth.token, body: { hallId, approve } })
+  async function actTheater(theaterId, approve) {
+    await api('/admin/approvals/theater', {
+      method: 'POST',
+      token: auth.token,
+      body: { theaterId, approve },
+    })
     await load()
   }
 
-  async function actShow(showId, approve, extra = {}) {
-    await api('/admin/approvals/show', { method: 'POST', token: auth.token, body: { showId, approve, ...extra } })
+  async function actHall(hallId, approve) {
+    await api('/admin/approvals/hall', {
+      method: 'POST',
+      token: auth.token,
+      body: { hallId, approve },
+    })
+    await load()
+  }
+
+  async function actShow(showId, approve) {
+    await api('/admin/approvals/show', {
+      method: 'POST',
+      token: auth.token,
+      body: { showId, approve },
+    })
     await load()
   }
 
   function openRejectModal(e, entity, item) {
     e.preventDefault()
     e.stopPropagation()
-    setRejectErr('')
-    setRejectTarget({
-      entity,
+    setRejectModal({
+      open: true,
+      type: entity,
       id: item.id,
-      title:
-        entity === 'hall'
-          ? `Hall #${item.id} • ${item.Theater?.name || ''} • ${item.name || ''}`
-          : `Show #${item.id} • ${item.Movie?.title || 'Movie'}`,
+      title: entity === 'hall'
+        ? `Hall #${item.id} • ${item.Theater?.name || ''} • ${item.name || ''}`
+        : `Show #${item.id} • ${item.Movie?.title || 'Movie'}`,
     })
-  }
-
-  async function submitReject(payload) {
-    if (!rejectTarget?.entity || !rejectTarget?.id) return
-    setRejecting(true)
-    setRejectErr('')
-    try {
-      const basePath = rejectTarget.entity === 'hall' ? `/admin/halls/${rejectTarget.id}/reject` : `/admin/shows/${rejectTarget.id}/reject`
-      await api(basePath, {
-        method: 'POST',
-        token: auth.token,
-        body: payload,
-      })
-      setRejectTarget(null)
-      setToast(`${rejectTarget.entity === 'hall' ? 'Hall' : 'Show'} rejected successfully`)
-      await load()
-    } catch (e) {
-      setRejectErr(e.message)
-    } finally {
-      setRejecting(false)
-    }
   }
 
   useEffect(() => {
@@ -160,47 +153,48 @@ export default function AdminApprovals() {
 
   return (
     <div>
-      <h2 className="text-4xl font-bold text-white">Approvals</h2>
+      <h2 className="text-4xl font-bold text-black">Approvals</h2>
       {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900 mb-6">{err}</div> : null}
       {toast ? (
-        <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg">
-          {toast}
-        </div>
+        <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg">{toast}</div>
       ) : null}
+
       {!data ? (
         <div className="text-gray-300 text-lg">Loading…</div>
       ) : (
         <div className="space-y-8">
+          {(data.theaters || []).length ? (
+            <div className="bg-white rounded-xl p-4 shadow-md">
+              <h3 className="text-lg font-bold text-black mb-3">Pending theaters</h3>
+              <div className="space-y-3">
+                {data.theaters.map((t) => (
+                  <div key={t.id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-slate-900">{t.name}</div>
+                      <div className="text-sm text-slate-500">{t.address}, {t.city}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => actTheater(t.id, true)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">Approve</button>
+                      <button type="button" onClick={() => actTheater(t.id, false)} className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg">Reject</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="mt-4 flex items-center justify-between gap-3">
             <div className="bg-white rounded-xl p-2 flex gap-2">
-              <button
-                onClick={() => setActiveTab('halls')}
-                className={`px-7 py-3 rounded-xl font-semibold transition-all ${
-                  activeTab === 'halls'
-                    ? 'bg-blue-700 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
+              <button onClick={() => setActiveTab('halls')} className={`px-7 py-3 rounded-xl font-semibold transition-all ${activeTab === 'halls' ? 'bg-blue-700 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                 Halls ({data.halls.length})
               </button>
-              <button
-                onClick={() => setActiveTab('shows')}
-                className={`px-7 py-3 rounded-xl font-semibold transition-all ${
-                  activeTab === 'shows'
-                    ? 'bg-blue-700 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
+              <button onClick={() => setActiveTab('shows')} className={`px-7 py-3 rounded-xl font-semibold transition-all ${activeTab === 'shows' ? 'bg-blue-700 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                 Shows ({data.shows.length})
               </button>
             </div>
             <div className="flex items-center gap-2 text-white">
               <label className="text-sm font-medium whitespace-nowrap">Sort:</label>
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-                className="h-[52px] px-4 border border-gray-300 rounded-xl bg-white text-gray-700 min-w-[180px]"
-              >
+              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="h-[52px] px-4 border border-gray-300 rounded-xl bg-white text-gray-700 min-w-[180px]">
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
               </select>
@@ -209,49 +203,18 @@ export default function AdminApprovals() {
 
           {activeTab === 'halls' ? (
             <div>
-              <h3 className="text-2xl font-bold text-white mb-6">Pending halls</h3>
+              <h3 className="text-2xl font-bold text-black mb-6">Pending halls</h3>
               <div className="space-y-4">
                 {sortedHalls.map((h) => (
                   <div key={h.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
-                    {priorityForHall(h) ? (
-                      <div className="mb-2">
-                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${priorityForHall(h).className}`}>
-                          {priorityForHall(h).label}
-                        </span>
-                      </div>
-                    ) : null}
-                    <div className="font-extrabold text-xl text-gray-900 mb-2">
-                      #{h.id} {h.Theater?.name} — {h.name}
-                    </div>
-                    <div className="text-sm text-gray-400 mb-2">
-                      Submitted {timeAgo(h.createdAt)}
-                    </div>
-                    <div className="mb-4">
-                      <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700">
-                        {h.screenType || 'Not specified'}
-                      </span>
-                    </div>
+                    {priorityForHall(h) ? <div className="mb-2"><span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${priorityForHall(h).className}`}>{priorityForHall(h).label}</span></div> : null}
+                    <div className="font-extrabold text-xl text-gray-900 mb-2">#{h.id} {h.Theater?.name} — {h.name}</div>
+                    <div className="text-sm text-gray-400 mb-2">Submitted {timeAgo(h.createdAt)}</div>
+                    <div className="mb-4"><span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700">{h.screenType || 'Not specified'}</span></div>
                     <div className="flex flex-wrap gap-3">
-                      <button type="button" onClick={() => setCapModalHallId(h.id)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
-                        Approve
-                      </button>
-                      <Link
-                        to={`/admin/approvals/${h.id}`}
-                        className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300"
-                      >
-                        View details
-                      </Link>
-                      <button
-                        type="button"
-                        onPointerDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                        }}
-                        onClick={(e) => openRejectModal(e, 'hall', h)}
-                        className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200"
-                      >
-                        Reject
-                      </button>
+                      <button type="button" onClick={() => setCapModalHallId(h.id)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">Approve</button>
+                      <Link to={`/admin/approvals/${h.id}`} className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300">View details</Link>
+                      <button type="button" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => openRejectModal(e, 'hall', h)} className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200">Reject</button>
                     </div>
                   </div>
                 ))}
@@ -262,47 +225,18 @@ export default function AdminApprovals() {
 
           {activeTab === 'shows' ? (
             <div>
-              <h3 className="text-2xl font-bold text-white mb-6">Pending shows</h3>
+              <h3 className="text-2xl font-bold text-black mb-6">Pending shows</h3>
               <div className="space-y-4">
                 {sortedShows.map((s) => (
                   <div key={s.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
-                    {priorityForShow(s) ? (
-                      <div className="mb-2">
-                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${priorityForShow(s).className}`}>
-                          {priorityForShow(s).label}
-                        </span>
-                      </div>
-                    ) : null}
-                    <div className="font-extrabold text-xl text-gray-900 mb-2">
-                      #{s.id} {s.Hall?.Theater?.name} — {s.Hall?.name} — {s.Movie?.title}
-                    </div>
-                    <div className="text-sm text-gray-400 mb-2">
-                      Submitted {timeAgo(s.createdAt)}
-                    </div>
-                    <div className="text-gray-500 text-sm mb-4">
-                      {new Date(s.startsAt).toLocaleString()} ({s.language}) • {startsInText(s.startsAt)}
-                    </div>
+                    {priorityForShow(s) ? <div className="mb-2"><span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${priorityForShow(s).className}`}>{priorityForShow(s).label}</span></div> : null}
+                    <div className="font-extrabold text-xl text-gray-900 mb-2">#{s.id} {s.Hall?.Theater?.name} — {s.Hall?.name} — {s.Movie?.title}</div>
+                    <div className="text-sm text-gray-400 mb-2">Submitted {timeAgo(s.createdAt)}</div>
+                    <div className="text-gray-500 text-sm mb-4">{new Date(s.startsAt).toLocaleString()} ({s.language}) • {startsInText(s.startsAt)}</div>
                     <div className="flex flex-wrap gap-3">
-                      <button type="button" onClick={() => actShow(s.id, true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
-                        Approve
-                      </button>
-                      <Link
-                        to={`/admin/shows/${s.id}`}
-                        className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300"
-                      >
-                        View details
-                      </Link>
-                      <button
-                        type="button"
-                        onPointerDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                        }}
-                        onClick={(e) => openRejectModal(e, 'show', s)}
-                        className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200"
-                      >
-                        Reject
-                      </button>
+                      <button type="button" onClick={() => actShow(s.id, true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">Approve</button>
+                      <Link to={`/admin/shows/${s.id}`} className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300">View details</Link>
+                      <button type="button" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => openRejectModal(e, 'show', s)} className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200">Reject</button>
                     </div>
                   </div>
                 ))}
@@ -322,17 +256,16 @@ export default function AdminApprovals() {
       />
 
       <RejectModal
-        open={Boolean(rejectTarget)}
-        entityLabel={rejectTarget?.entity === 'hall' ? 'Hall' : 'Show'}
-        itemTitle={rejectTarget?.title}
-        submitting={rejecting}
-        error={rejectErr}
-        onClose={() => {
-          if (rejecting) return
-          setRejectTarget(null)
-          setRejectErr('')
+        open={rejectModal.open}
+        entityType={rejectModal.type}
+        entityId={rejectModal.id}
+        token={auth?.token}
+        itemTitle={rejectModal.title}
+        onClose={() => setRejectModal({ open: false, type: '', id: null, title: '' })}
+        onRejected={async ({ entityType }) => {
+          setToast(`${entityType === 'hall' ? 'Hall' : 'Show'} rejected successfully`)
+          await load()
         }}
-        onSubmit={submitReject}
       />
     </div>
   )
