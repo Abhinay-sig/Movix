@@ -218,6 +218,35 @@ async function ensureUserSchema() {
     });
   }
 
+  if (!table.has_usable_password) {
+    await queryInterface.addColumn('users', 'has_usable_password', {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: null,
+    });
+  }
+
+  if (!table.password_reset_token_hash) {
+    await queryInterface.addColumn('users', 'password_reset_token_hash', {
+      type: DataTypes.STRING(128),
+      allowNull: true,
+    });
+  }
+
+  if (!table.password_reset_token_expires_at) {
+    await queryInterface.addColumn('users', 'password_reset_token_expires_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+  }
+
+  if (!table.password_reset_last_sent_at) {
+    await queryInterface.addColumn('users', 'password_reset_last_sent_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+  }
+
   if (!table.is_blocked) {
     await queryInterface.addColumn('users', 'is_blocked', {
       type: DataTypes.BOOLEAN,
@@ -238,6 +267,12 @@ async function ensureUserSchema() {
   if (!indexNames.has('users_oauth_subject')) {
     await queryInterface.addIndex('users', ['oauth_subject'], {
       name: 'users_oauth_subject',
+    });
+  }
+
+  if (!indexNames.has('users_password_reset_token_hash')) {
+    await queryInterface.addIndex('users', ['password_reset_token_hash'], {
+      name: 'users_password_reset_token_hash',
     });
   }
 }
@@ -295,9 +330,30 @@ async function syncDb() {
   // Avoid repeated ALTER-based index churn (can hit MySQL max-keys limit on long-lived DBs).
   // Schema evolution is handled by explicit ensure* functions below.
   await sequelize.sync();
+
   await ensureMovieSchema();
   await ensureSeatHoldSchema();
   await ensureApprovalStatusSchema();
+
+  await db.User.update(
+    { hasUsablePassword: true },
+    {
+      where: {
+        authProvider: db.AUTH_PROVIDERS.LOCAL,
+        hasUsablePassword: null,
+      },
+    }
+  );
+  await db.User.update(
+    { hasUsablePassword: false },
+    {
+      where: {
+        authProvider: db.AUTH_PROVIDERS.GOOGLE,
+        hasUsablePassword: null,
+      },
+    }
+  );
+
   await seedSeatTypes();
 }
 

@@ -12,6 +12,7 @@ export default function Signup() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
   const [verification, setVerification] = useState(null)
@@ -80,155 +81,120 @@ export default function Signup() {
 
   return (
     <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center px-4 py-8">
-      <div className="page-panel w-full max-w-5xl overflow-hidden">
-        <div className="grid lg:grid-cols-[1.02fr_0.98fr]">
-          <div className="p-6 md:p-10">
-            <div className="mx-auto w-full max-w-md space-y-6">
-              <div className="space-y-2">
-                <div className="hero-chip">Join Now</div>
-                <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
-                  Create account
-                </h2>
-                <p className="section-copy">
-                  Get started with a smoother movie booking experience.
-                </p>
-              </div>
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <div className="space-y-2">
+          <div className="hero-chip">Join Now</div>
+          <h2 className="text-3xl font-semibold tracking-tight text-slate-900">Create account</h2>
+          <p className="section-copy">Get started with a smoother movie booking experience.</p>
+        </div>
 
-              {err && (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                  {err}
-                </div>
-              )}
+        {err && (
+          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {err}
+          </div>
+        )}
 
-              {notice && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {notice}
-                </div>
-              )}
+        {notice && (
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {notice}
+          </div>
+        )}
 
-              {verification ? (
-                <div className="space-y-4 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-5 text-sm text-amber-800">
-                  <div>
-                    <div className="font-semibold text-amber-950">Check your inbox</div>
-                    <div className="mt-1">
-                      We sent a verification link to <span className="font-medium">{verification.email}</span>.
-                    </div>
-                  </div>
-
-                  <div>
-                    {remainingSeconds > 0
-                      ? `A fresh link can be sent in ${formatCountdown(remainingSeconds)}.`
-                      : 'Your countdown is over, so you can resend a new verification link now.'}
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={resendVerification}
-                      disabled={remainingSeconds > 0 || resending}
-                      className="rounded-full border border-amber-300 px-4 py-2 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {resending ? 'Sending…' : 'Resend verification link'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setVerification(null)}
-                      className="rounded-full border border-slate-200 px-4 py-2 font-semibold text-slate-700 transition-colors hover:bg-white"
-                    >
-                      Use a different email
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={onSubmit} className="space-y-4">
-                  <button
-                    type="button"
-                    onClick={startGoogleAuth}
-                    className="flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-blue-200 hover:text-blue-700"
-                  >
-                    Continue with Google
-                  </button>
-
-                  <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-400">
-                    <div className="h-px flex-1 bg-slate-200" />
-                    <span>Email signup</span>
-                    <div className="h-px flex-1 bg-slate-200" />
-                  </div>
-
-                  <input
-                    placeholder="Full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="field-input"
-                  />
-
-                  <input
-                    placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="field-input"
-                  />
-
-                  <input
-                    placeholder="Password (min 8)"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="field-input"
-                  />
-
-                  <button disabled={loading} className="primary-button w-full">
-                    {loading ? 'Creating…' : 'Create account'}
-                  </button>
-                </form>
-              )}
-
-              <div className="text-sm text-slate-500">
-                Already have an account?{' '}
-                <Link
-                  to="/login"
-                  className="font-semibold text-slate-950 transition-colors hover:text-blue-600"
-                >
-                  Login
-                </Link>
+        {verification ? (
+          <div className="mt-6 space-y-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-5 text-sm text-amber-800">
+            <div>
+              <div className="font-semibold text-amber-950">Check your inbox</div>
+              <div className="mt-1">
+                We sent a verification link to <span className="font-medium">{verification.email}</span>.
               </div>
             </div>
-          </div>
 
-          <div className="relative hidden overflow-hidden border-l border-white/70 bg-gradient-to-br from-blue-50 via-white to-slate-100 p-10 lg:block">
-            <div className="absolute -right-16 top-16 h-56 w-56 rounded-full bg-blue-200/40 blur-3xl" />
-            <div className="absolute left-8 bottom-8 h-44 w-44 rounded-full bg-slate-200/70 blur-3xl" />
+            <div>
+              {remainingSeconds > 0
+                ? `A fresh link can be sent in ${formatCountdown(remainingSeconds)}.`
+                : 'Your countdown is over, so you can resend a new verification link now.'}
+            </div>
 
-            <div className="relative space-y-6">
-              <div className="rounded-3xl border border-white/80 bg-white/88 p-6 shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
-                <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
-                  Your booking journey
-                </div>
-                <div className="mt-4 space-y-4">
-                  {[
-                    'Create your account',
-                    'Choose a movie and showtime',
-                    'Reserve seats and confirm payment',
-                  ].map((step, index) => (
-                    <div key={step} className="flex gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white">
-                        {index + 1}
-                      </div>
-                      <div className="pt-2 text-sm font-medium text-slate-700">
-                        {step}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={resendVerification}
+                disabled={remainingSeconds > 0 || resending}
+                className="rounded-full border border-amber-300 px-4 py-2 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {resending ? 'Sending…' : 'Resend verification link'}
+              </button>
 
-              <div className="rounded-3xl border border-blue-100 bg-blue-50/90 p-6 text-sm leading-7 text-slate-600 shadow-sm">
-                Light colors, cleaner spacing, and calmer motion make the booking
-                flow easier to navigate from the first screen onward.
-              </div>
+              <button
+                type="button"
+                onClick={() => setVerification(null)}
+                className="rounded-full border border-slate-200 px-4 py-2 font-semibold text-slate-700 transition-colors hover:bg-white"
+              >
+                Use a different email
+              </button>
             </div>
           </div>
+        ) : (
+          <form onSubmit={onSubmit} className="mt-6 space-y-4">
+            <button
+              type="button"
+              onClick={startGoogleAuth}
+              className="flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              Continue with Google
+            </button>
+
+            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-400">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span>Email signup</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <input
+              placeholder="Full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="field-input"
+            />
+
+            <input
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="field-input"
+            />
+
+            <div className="relative">
+              <input
+                placeholder="Password (min 8)"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="field-input pr-20"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+
+            <button disabled={loading} className="primary-button w-full">
+              {loading ? 'Creating…' : 'Create account'}
+            </button>
+          </form>
+        )}
+
+        <div className="mt-6 text-sm text-slate-500">
+          Already have an account?{' '}
+          <Link
+            to="/login"
+            className="font-semibold text-slate-900 transition-colors hover:text-blue-600"
+          >
+            Login
+          </Link>
         </div>
       </div>
     </div>

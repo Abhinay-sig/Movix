@@ -6,16 +6,24 @@ export default function Layout() {
 
   return (
     <div className="staff-shell text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-fuchsia-100/70 bg-[linear-gradient(90deg,#0f172a_0%,#1e3a8a_25%,#7c3aed_58%,#ec4899_100%)] text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4 py-4">
-            <Link to="/dashboard" className="group flex items-center gap-3 transition-all duration-300 hover:opacity-90">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/20 bg-white/12 text-sm font-bold text-white shadow-sm backdrop-blur-sm">
-                S
-              </span>
+      <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/95 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-4">
+            <Link
+              to="/"
+              className="group flex items-center gap-3 transition-opacity duration-300 hover:opacity-85"
+            >
+              {/* <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-sm font-bold text-white">
+                M
+              </div> */}
+              <img src="../../public/movix.svg" alt="" srcset="" className="h-10 w-10" />
               <span>
-                <span className="block text-xl font-semibold tracking-tight text-white">MVP Staff</span>
-                <span className="block text-xs text-pink-100/85">Owner and admin workspace</span>
+                <span className="block text-xl font-semibold tracking-[0.01em] text-slate-900">
+                  Movix Staff
+                </span>
+                <span className="block text-xs uppercase tracking-[0.18em] text-slate-500">
+                  Theater workspace
+                </span>
               </span>
             </Link>
 
@@ -45,14 +53,20 @@ export default function Layout() {
             <div className="flex items-center gap-3">
               {auth ? (
                 <>
-                  <div className="hidden rounded-full border border-white/16 bg-white/10 px-4 py-2 text-right leading-tight shadow-sm backdrop-blur-sm sm:block">
-                    <div className="text-xs uppercase tracking-[0.18em] text-pink-100/70">Signed in</div>
-                    <div className="mt-1 text-sm font-medium text-white">{auth.user?.name}</div>
-                    <div className="text-xs capitalize text-pink-100/78">{auth.user?.role}</div>
+                  <div className="hidden text-right leading-tight sm:block">
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
+                      Signed in
+                    </div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">
+                      {auth.user?.name}
+                    </div>
+                    <div className="text-xs capitalize text-slate-500">
+                      {auth.user?.role}
+                    </div>
                   </div>
                   <button
                     onClick={logout}
-                    className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/18"
+                    className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
                   >
                     Logout
                   </button>
@@ -60,7 +74,7 @@ export default function Layout() {
               ) : (
                 <Link
                   to="/login"
-                  className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(90deg,#ffffff,#fef3c7,#f5d0fe)] px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_30px_rgba(255,255,255,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:brightness-105"
+                  className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                 >
                   Login
                 </Link>
@@ -68,7 +82,7 @@ export default function Layout() {
             </div>
           </div>
 
-          <nav className="flex flex-wrap gap-2 pb-4 md:hidden">
+          <nav className="flex flex-wrap gap-2 pt-4 md:hidden">
             {auth?.user?.role === 'theater_owner' ? (
               <>
                 <Link to="/owner/theaters" className="nav-chip">Theaters</Link>
@@ -93,8 +107,8 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
-        <div className="staff-panel fade-up">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+        <div className="staff-panel fade-up border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)]">
           <div className="p-4 sm:p-6 lg:p-8">
             <Outlet />
           </div>
