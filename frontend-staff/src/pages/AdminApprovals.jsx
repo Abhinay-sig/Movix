@@ -4,6 +4,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
 import SeatCapModal from '../components/SeatCapModal'
 import RejectModal from '../components/RejectModal'
+import { formatDateTimeTo12Hour } from '../lib/time'
 
 function timeAgo(value) {
   if (!value) return 'just now'
@@ -255,25 +256,43 @@ export default function AdminApprovals() {
           ) : null}
 
           {activeTab === 'shows' ? (
-            <div>
-              <h3 className="text-2xl font-bold text-black mb-6">Pending shows</h3>
+            <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm sm:p-6">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Showtime submissions
+                </h3>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                  {sortedShows.length} items
+                </span>
+              </div>
+
               <div className="space-y-4">
-                {sortedShows.map((s) => (
-                  <div key={s.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
-                    {priorityForShow(s) ? <div className="mb-2"><span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${priorityForShow(s).className}`}>{priorityForShow(s).label}</span></div> : null}
-                    <div className="font-extrabold text-xl text-gray-900 mb-2">#{s.id} {s.Hall?.Theater?.name} — {s.Hall?.name} — {s.Movie?.title}</div>
-                    <div className="text-sm text-gray-400 mb-2">Submitted {timeAgo(s.createdAt)}</div>
-                    <div className="text-gray-500 text-sm mb-4">{new Date(s.startsAt).toLocaleString()} ({s.language}) • {startsInText(s.startsAt)}</div>
+                {sortedShows.map((show) => (
+                  <div
+                    key={show.id}
+                    className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="mb-4 space-y-1">
+                      <div className="text-sm font-medium text-slate-400">
+                        Showtime submission
+                      </div>
+                      <div className="text-base font-semibold text-slate-900">
+                        {show.Hall?.Theater?.name} <span className="text-slate-400">•</span> {show.Hall?.name} <span className="text-slate-400">•</span> {show.Movie?.title}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        {formatDateTimeTo12Hour(show.startsAt)} • {show.language}
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-3">
-                      <button type="button" onClick={() => actShow(s.id, true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">Approve</button>
-                      <Link to={`/admin/shows/${s.id}`} className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300">View details</Link>
-                      <button type="button" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => openRejectModal(e, 'show', s)} className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200">Reject</button>
+                      <button type="button" onClick={() => actShow(show.id, true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">Approve</button>
+                      <Link to={`/admin/shows/${show.id}`} className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300">View details</Link>
+                      <button type="button" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => openRejectModal(e, 'show', show)} className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200">Reject</button>
                     </div>
                   </div>
                 ))}
                 {sortedShows.length === 0 ? <div className="text-gray-300 bg-white/10 p-6 rounded-lg text-center">No pending shows.</div> : null}
               </div>
-            </div>
+            </section>
           ) : null}
         </div>
       )}

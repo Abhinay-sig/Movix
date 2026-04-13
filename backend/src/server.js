@@ -24,6 +24,7 @@ app.get('/api/health', async (req, res, next) => {
   } catch (e) {
     next(e);
   }
+
 });
 
 app.use('/api/auth', authRoutes);
@@ -55,3 +56,4 @@ start().catch((e) => {
   process.exit(1);
 });
 
+//abhi

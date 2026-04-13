@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
+import Modal from '../components/Modal'
+import PaginationControls from '../components/PaginationControls'
+import { validatePositiveNumberField, withFieldError } from '../lib/formErrors'
+import { formatTo12Hour } from '../lib/time'
 import { useAuth } from '../useAuth'
 
 const TYPES = ['standard', 'premium', 'recliner', 'vip']
+const SHOWS_PAGE_LIMIT = 6
 
 function toDateInputValue(value) {
   if (!value) return ''
@@ -14,6 +19,13 @@ function toWallClockUtc(date, time) {
   return new Date(`${date}T${time}:00.000Z`)
 }
 
+function isPastDateTime(date, time) {
+  if (!date || !time) return false
+  const value = toWallClockUtc(date, time)
+  if (Number.isNaN(value.getTime())) return false
+  return value.getTime() < Date.now()
+}
+
 export default function OwnerNewShow() {
   const { auth } = useAuth()
   const [theaters, setTheaters] = useState([])
@@ -21,6 +33,8 @@ export default function OwnerNewShow() {
   const [movies, setMovies] = useState([])
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
+  const [showApprovalModal, setShowApprovalModal] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const [theaterId, setTheaterId] = useState('')
   const [hallId, setHallId] = useState('')
@@ -39,6 +53,8 @@ export default function OwnerNewShow() {
   const [viewHallId, setViewHallId] = useState('')
   const [viewMovieId, setViewMovieId] = useState('')
   const [ownerShows, setOwnerShows] = useState([])
+  const [showsPagination, setShowsPagination] = useState(null)
+  const [showsPage, setShowsPage] = useState(1)
   const [loadingOwnerShows, setLoadingOwnerShows] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -68,7 +84,12 @@ export default function OwnerNewShow() {
   const viewFilteredHalls = useMemo(
     () =>
       viewTheaterId
-        ? halls.filter((hall) => String(hall.theaterId) === String(viewTheaterId))
+        ? halls.filter(
+            (hall) =>
+              String(hall.theaterId) === String(viewTheaterId) &&
+              hall.isApproved &&
+              !hall.isBlocked
+          )
         : [],
     [halls, viewTheaterId]
   )
@@ -78,6 +99,16 @@ export default function OwnerNewShow() {
     [movieId, movies]
   )
 
+  const availableLanguages = useMemo(() => {
+    const movieLanguages = Array.isArray(selectedMovie?.languages)
+      ? selectedMovie.languages
+          .map((entry) => String(entry || '').trim())
+          .filter(Boolean)
+      : []
+
+    return movieLanguages.length ? movieLanguages : ['English']
+  }, [selectedMovie])
+
   useEffect(() => {
     if (!selectedMovie) {
       if (!movieId) setDurationMins('')
@@ -86,6 +117,28 @@ export default function OwnerNewShow() {
 
     setDurationMins(String(selectedMovie.durationMins || ''))
   }, [movieId, selectedMovie])
+
+  useEffect(() => {
+    if (!movieId) {
+      setLanguage('English')
+      return
+    }
+
+    if (!availableLanguages.includes(language)) {
+      setLanguage(availableLanguages[0] || 'English')
+    }
+  }, [availableLanguages, language, movieId])
+
+  useEffect(() => {
+    setShowsPage(1)
+  }, [viewDate, viewTheaterId, viewHallId, viewMovieId])
+
+  function clearShowFilters() {
+    setViewDate('')
+    setViewTheaterId('')
+    setViewHallId('')
+    setViewMovieId('')
+  }
 
   useEffect(() => {
     if (!hallId || !date) {
@@ -130,12 +183,13 @@ export default function OwnerNewShow() {
   }, [schedule, date, startTime, durationMins])
 
   useEffect(() => {
-    if (!viewDate) {
-      setOwnerShows([])
-      return
+    const params = new URLSearchParams()
+    if (viewDate) {
+      params.set('date', viewDate)
+    } else {
+      params.set('page', String(showsPage))
+      params.set('limit', String(SHOWS_PAGE_LIMIT))
     }
-
-    const params = new URLSearchParams({ date: viewDate })
     if (viewTheaterId) params.set('theaterId', viewTheaterId)
     if (viewHallId) params.set('hallId', viewHallId)
     if (viewMovieId) params.set('movieId', viewMovieId)
@@ -147,11 +201,13 @@ export default function OwnerNewShow() {
       .then((response) => {
         if (!alive) return
         setOwnerShows(response.shows || [])
+        setShowsPagination(response.pagination || null)
         setErr('')
       })
       .catch((e) => {
         if (!alive) return
         setErr(e.message)
+        setShowsPagination(null)
       })
       .finally(() => {
         if (alive) setLoadingOwnerShows(false)
@@ -160,7 +216,7 @@ export default function OwnerNewShow() {
     return () => {
       alive = false
     }
-  }, [auth.token, viewDate, viewTheaterId, viewHallId, viewMovieId])
+  }, [auth.token, viewDate, viewTheaterId, viewHallId, viewMovieId, showsPage])
 
   const groupedShows = useMemo(() => {
     const grouped = []
@@ -200,9 +256,29 @@ export default function OwnerNewShow() {
     e.preventDefault()
     setErr('')
     setNotice('')
+    setShowApprovalModal(false)
+    setFieldErrors({})
 
     if (!theaterId || !hallId || !movieId || !date || !startTime || !language || !durationMins) {
       setErr('Please fill all required fields before creating the show.')
+      return
+    }
+
+    const nextErrors = {}
+    if (isPastDateTime(date, startTime)) {
+      nextErrors.startTime = 'Start time cannot be in the past.'
+    }
+
+    TYPES.forEach((type) => {
+      if (!prices[type]) return
+      const priceError = validatePositiveNumberField(prices[type], `${type} price`)
+      if (priceError) {
+        nextErrors[`price_${type}`] = priceError
+      }
+    })
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors)
       return
     }
 
@@ -250,7 +326,9 @@ export default function OwnerNewShow() {
         },
       })
 
-      setNotice('Show submitted for admin approval.')
+      setNotice('Waiting for admin approval')
+      setShowApprovalModal(true)
+      setFieldErrors({})
       setTheaterId('')
       setHallId('')
       setMovieId('')
@@ -290,11 +368,11 @@ export default function OwnerNewShow() {
         </div>
       ) : null}
 
-      {notice ? (
+      {/* {notice ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-sm">
           {notice}
         </div>
-      ) : null}
+      ) : null} */}
 
       <div className={`max-w-5xl ${panelClass}`}>
         <form onSubmit={submit} className="space-y-6">
@@ -309,8 +387,9 @@ export default function OwnerNewShow() {
                   setTheaterId(e.target.value)
                   setHallId('')
                   setSchedule(null)
+                  setFieldErrors((prev) => ({ ...prev, theaterId: '' }))
                 }}
-                className={fieldClass}
+                className={withFieldError(fieldClass, Boolean(fieldErrors.theaterId))}
               >
                 <option value="">Choose a theater…</option>
                 {theaters.map((theater) => (
@@ -327,8 +406,11 @@ export default function OwnerNewShow() {
               </label>
               <select
                 value={hallId}
-                onChange={(e) => setHallId(e.target.value)}
-                className={fieldClass}
+                onChange={(e) => {
+                  setHallId(e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, hallId: '' }))
+                }}
+                className={withFieldError(fieldClass, Boolean(fieldErrors.hallId))}
                 disabled={!theaterId}
               >
                 <option value="">
@@ -345,18 +427,21 @@ export default function OwnerNewShow() {
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-700">
-              Choose title
+              Choose Movie
             </label>
             <select
               value={movieId}
-              onChange={(e) => setMovieId(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => {
+                setMovieId(e.target.value)
+                setFieldErrors((prev) => ({ ...prev, movieId: '' }))
+              }}
+              className={withFieldError(fieldClass, Boolean(fieldErrors.movieId))}
             >
               <option value="">Choose a title…</option>
               {movies.map((movie) => (
                 <option key={movie.id} value={movie.id}>
-                  #{movie.id} {movie.title} ({movie.durationMins} mins)
-                </option>
+  {movie.title}
+</option>
               ))}
             </select>
             {selectedMovie ? (
@@ -374,8 +459,11 @@ export default function OwnerNewShow() {
               <input
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className={fieldClass}
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, date: '', startTime: '' }))
+                }}
+                className={withFieldError(fieldClass, Boolean(fieldErrors.date))}
                 min={toDateInputValue(selectedMovie?.releaseDate) || undefined}
                 required
               />
@@ -388,10 +476,16 @@ export default function OwnerNewShow() {
               <input
                 type="time"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className={fieldClass}
+                onChange={(e) => {
+                  setStartTime(e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, startTime: '' }))
+                }}
+                className={withFieldError(fieldClass, Boolean(fieldErrors.startTime))}
                 required
               />
+              {fieldErrors.startTime ? (
+                <div className="text-sm text-red-600">{fieldErrors.startTime}</div>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -415,12 +509,18 @@ export default function OwnerNewShow() {
             <label className="block text-sm font-medium text-slate-700">
               Language
             </label>
-            <input
+            <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
               className={fieldClass}
               required
-            />
+            >
+              {availableLanguages.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-4">
@@ -443,17 +543,22 @@ export default function OwnerNewShow() {
                     min="0"
                     placeholder="Price"
                     value={prices[type]}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setPrices((prev) => ({ ...prev, [type]: e.target.value }))
-                    }
+                      setFieldErrors((prev) => ({ ...prev, [`price_${type}`]: '' }))
+                    }}
                     onWheel={(e) => e.currentTarget.blur()}
                     onKeyDown={(e) => {
                       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                         e.preventDefault()
                       }
                     }}
-                    className={fieldClass}
+                    className={withFieldError(fieldClass, Boolean(fieldErrors[`price_${type}`]))}
+                    required
                   />
+                  {fieldErrors[`price_${type}`] ? (
+                    <div className="text-sm text-red-600">{fieldErrors[`price_${type}`]}</div>
+                  ) : null}
                 </label>
               ))}
             </div>
@@ -480,10 +585,10 @@ export default function OwnerNewShow() {
                   >
                     <div className="font-medium text-slate-900">{show.movieTitle}</div>
                     <div>
-                      {formatWallClock(show.startsAt)} - {formatWallClock(show.endsAt)}
+                      {formatScheduledTime(show.startsAt)} - {formatScheduledTime(show.endsAt)}
                     </div>
                     <div className="text-xs text-slate-500">
-                      Buffer: {formatWallClock(show.bufferStart)} - {formatWallClock(show.bufferEnd)}
+                      Buffer: {formatScheduledTime(show.bufferStart)} - {formatScheduledTime(show.bufferEnd)}
                     </div>
                   </div>
                 ))}
@@ -516,123 +621,207 @@ export default function OwnerNewShow() {
       </div>
 
       <div className={panelClass}>
-        <div className="mb-6 flex flex-col gap-2">
-          <h3 className="text-xl font-semibold text-slate-900">Scheduled shows</h3>
-          <p className="text-sm text-slate-500">
-            Review the day plan by theater, hall, or movie.
-          </p>
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold text-slate-900">Scheduled shows</h3>
+            <p className="text-sm text-slate-500">
+              Review the day plan by theater, hall, or movie.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={clearShowFilters}
+            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-all duration-200 hover:bg-slate-100"
+          >
+            Clear All
+          </button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <input
-            type="date"
-            value={viewDate}
-            onChange={(e) => setViewDate(e.target.value)}
-            className={fieldClass}
-          />
+        <section className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Filters</div>
+              <div className="text-sm text-slate-500">
+                Narrow the schedule by date, theater, hall, or movie.
+              </div>
+            </div>
+          </div>
 
-          <select
-            value={viewTheaterId}
-            onChange={(e) => {
-              setViewTheaterId(e.target.value)
-              setViewHallId('')
-            }}
-            className={fieldClass}
-          >
-            <option value="">All theaters</option>
-            {theaters.map((theater) => (
-              <option key={theater.id} value={theater.id}>
-                #{theater.id} {theater.name}
-              </option>
-            ))}
-          </select>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">Date</label>
+              <input
+                type="date"
+                value={viewDate}
+                onChange={(e) => setViewDate(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
 
-          <select
-            value={viewHallId}
-            onChange={(e) => setViewHallId(e.target.value)}
-            disabled={!viewTheaterId}
-            className={fieldClass}
-          >
-            <option value="">
-              {!viewTheaterId ? 'Select theater first' : 'All halls'}
-            </option>
-            {viewFilteredHalls.map((hall) => (
-              <option key={hall.id} value={hall.id}>
-                #{hall.id} {hall.name}
-              </option>
-            ))}
-          </select>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">Theater</label>
+              <select
+                value={viewTheaterId}
+                onChange={(e) => {
+                  setViewTheaterId(e.target.value)
+                  setViewHallId('')
+                }}
+                className={fieldClass}
+              >
+                <option value="">All theaters</option>
+                {theaters.map((theater) => (
+                  <option key={theater.id} value={theater.id}>
+                    #{theater.id} {theater.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <select
-            value={viewMovieId}
-            onChange={(e) => setViewMovieId(e.target.value)}
-            className={fieldClass}
-          >
-            <option value="">All movies</option>
-            {movies.map((movie) => (
-              <option key={movie.id} value={movie.id}>
-                #{movie.id} {movie.title}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">Hall</label>
+              <select
+                value={viewHallId}
+                onChange={(e) => setViewHallId(e.target.value)}
+                disabled={!viewTheaterId}
+                className={fieldClass}
+              >
+                <option value="">
+                  {!viewTheaterId ? 'Select theater first' : 'All halls'}
+                </option>
+                {viewFilteredHalls.map((hall) => (
+                  <option key={hall.id} value={hall.id}>
+                    #{hall.id} {hall.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">Movie</label>
+              <select
+                value={viewMovieId}
+                onChange={(e) => setViewMovieId(e.target.value)}
+                className={fieldClass}
+              >
+                <option value="">All movies</option>
+                {movies.map((movie) => (
+                  <option key={movie.id} value={movie.id}>
+                    #{movie.id} {movie.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
 
         <div className="mt-6">
-          {!viewDate ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
-              Select a date to view scheduled shows.
-            </div>
-          ) : loadingOwnerShows ? (
+          {loadingOwnerShows ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
               Loading scheduled shows…
             </div>
           ) : groupedShows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
-              No scheduled shows found for the selected filters.
+              No shows scheduled. Try selecting another date.
             </div>
           ) : (
             <div className="space-y-6">
               {groupedShows.map((theaterGroup) => (
-                <div key={theaterGroup.theaterId} className="space-y-4">
-                  <div className="text-lg font-semibold text-slate-900">
-                    {theaterGroup.theaterName}
-                  </div>
-
-                  {theaterGroup.halls.map((hallGroup) => (
-                    <div
-                      key={hallGroup.hallId}
-                      className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5"
-                    >
-                      <div className="mb-3 font-medium text-slate-900">
-                        {hallGroup.hallName}
+                <article
+                  key={theaterGroup.theaterId}
+                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                          Theatre
+                        </div>
+                        <div className="mt-1 text-xl font-semibold text-slate-950">
+                          Theatre Name: {theaterGroup.theaterName}
+                        </div>
                       </div>
-
-                      <div className="space-y-3">
-                        {hallGroup.shows.map((show) => (
-                          <div
-                            key={show.id}
-                            className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between"
-                          >
-                            <div className="font-medium text-slate-900">
-                              {show.movieTitle}
-                            </div>
-                            <div>
-                              {formatWallClock(show.startsAt)} - {formatWallClock(show.endsAt)}
-                            </div>
-                            <div className="capitalize text-slate-500">
-                              {show.language}
-                            </div>
-                          </div>
-                        ))}
+                      <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                        {theaterGroup.halls.length} hall{theaterGroup.halls.length === 1 ? '' : 's'}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+
+                  <div className="space-y-4 px-5 py-5 sm:px-6">
+                    {theaterGroup.halls.map((hallGroup) => (
+                      <section
+                        key={hallGroup.hallId}
+                        className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"
+                      >
+                        <div className="mb-3 text-sm font-semibold text-slate-900">
+                          Hall Name: {hallGroup.hallName}
+                        </div>
+
+                        <div className="space-y-3">
+                          {hallGroup.shows.map((show) => (
+                            <div
+                              key={show.id}
+                              className="flex flex-col gap-3 rounded-2xl border-l-4 border-blue-500 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md md:flex-row md:items-center md:justify-between"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900/5 text-slate-700">
+                                  <FilmIcon />
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                    Movie Name
+                                  </div>
+                                  <div className="text-base font-semibold text-slate-950">
+                                    {show.movieTitle}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                                  <ClockIcon />
+                                  Show Time: {formatScheduledTime(show.startsAt)} - {formatScheduledTime(show.endsAt)}
+                                </span>
+                                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                  <GlobeIcon />
+                                  Language: {show.language}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </article>
               ))}
+
+              {!viewDate ? (
+                <PaginationControls
+                  pagination={showsPagination}
+                  onPageChange={(nextPage) => setShowsPage(nextPage)}
+                />
+              ) : null}
             </div>
           )}
         </div>
       </div>
+
+      <Modal
+        open={showApprovalModal}
+        title="Showtime submitted"
+        onClose={() => setShowApprovalModal(false)}
+        footer={
+          <button
+            type="button"
+            onClick={() => setShowApprovalModal(false)}
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            Close
+          </button>
+        }
+      >
+        <div className="text-sm text-slate-600">Waiting for admin approval</div>
+      </Modal>
     </div>
   )
 }
@@ -760,7 +949,7 @@ function Timeline({ schedule, proposedStart, proposedDuration, date }) {
               style={{ flex: duration / 60 }}
             >
               <div className="font-semibold">
-                {formatWallClock(segment.start)} - {formatWallClock(segment.end)}
+                {formatScheduledTime(segment.start)} - {formatScheduledTime(segment.end)}
               </div>
               {text ? <div className="mt-1 leading-tight">{text}</div> : null}
             </div>
@@ -771,11 +960,41 @@ function Timeline({ schedule, proposedStart, proposedDuration, date }) {
   )
 }
 
-function formatWallClock(value) {
-  return new Date(value).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'UTC',
-  })
+function FilmIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 6h16v12H4z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 6v12" strokeLinecap="round" />
+      <path d="M16 6v12" strokeLinecap="round" />
+      <path d="M4 10h16" strokeLinecap="round" />
+      <path d="M4 14h16" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v4l3 2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function GlobeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M4 12h16" strokeLinecap="round" />
+      <path d="M12 4c2.5 2.5 2.5 13.5 0 16" strokeLinecap="round" />
+      <path d="M12 4c-2.5 2.5-2.5 13.5 0 16" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function formatScheduledTime(value) {
+  if (!value) return 'TBA'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'TBA'
+  return formatTo12Hour(date.toISOString().slice(11, 16))
 }

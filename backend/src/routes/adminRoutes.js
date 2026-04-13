@@ -1,8 +1,8 @@
 const express = require('express');
-const { Op } = require('sequelize');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { db } = require('../models');
 const {
+  listMovies: listAdminMovies,
   pendingApprovals,
   pendingHallDetails,
   pendingShowDetails,
@@ -33,8 +33,7 @@ const {
   listTheatersWithContribution,
   revenueByTheater,
   createMovie,
-
-  // ✅ ADD THESE
+  uploadMoviePoster,
   getMovieById,
   updateMovie,
   deleteMovie,
@@ -56,49 +55,9 @@ router.get('/reports/theater-performance', theaterPerformanceReport);
 router.get('/reports/seat-type', seatTypeRevenueReport);
 router.get('/theaters/contribution', listTheatersWithContribution);
 
-// ✅ FIXED ROUTES
 router.post('/movies', createMovie);
-router.get('/movies', async (req, res, next) => {
-  try {
-    const where = {};
-    const and = [];
-
-    if (String(req.query.name ?? '').trim()) {
-      and.push(
-        db.sequelize.where(db.sequelize.fn('LOWER', db.sequelize.col('title')), {
-          [Op.like]: `%${String(req.query.name).trim().toLowerCase()}%`,
-        })
-      );
-    }
-
-    if (String(req.query.genre ?? '').trim()) {
-      and.push(
-        db.sequelize.where(db.sequelize.fn('LOWER', db.sequelize.col('genre')), {
-          [Op.like]: `%${String(req.query.genre).trim().toLowerCase()}%`,
-        })
-      );
-    }
-
-    if (String(req.query.releaseDate ?? '').trim()) {
-      and.push(
-        db.sequelize.where(
-          db.sequelize.fn('DATE_FORMAT', db.sequelize.col('release_date'), '%Y-%m-%d'),
-          { [Op.like]: `%${String(req.query.releaseDate).trim()}%` }
-        )
-      );
-    }
-
-    if (and.length) where[Op.and] = and;
-
-    const movies = await db.Movie.findAll({
-      where,
-      order: [['createdAt', 'DESC']],
-    });
-    res.json({ movies });
-  } catch (e) {
-    next(e);
-  }
-});
+router.post('/movies/upload-poster', uploadMoviePoster);
+router.get('/movies', listAdminMovies);
 router.get('/movies/:id', getMovieById);
 router.patch('/movies/:id', updateMovie);
 router.delete('/movies/:id', deleteMovie);

@@ -60,6 +60,13 @@ const env = {
       `${process.env.BACKEND_BASE_URL ?? `http://localhost:${Number(process.env.PORT ?? 3001)}`}/api/auth/google/callback`,
   },
 
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',
+    apiKey: process.env.CLOUDINARY_API_KEY ?? '',
+    apiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
+    folder: process.env.CLOUDINARY_FOLDER ?? 'movix/posters',
+  },
+
   seatHoldMs: Number(process.env.SEAT_HOLD_MS ?? 300000),
 };
 
