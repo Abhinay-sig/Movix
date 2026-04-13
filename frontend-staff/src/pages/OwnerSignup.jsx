@@ -143,10 +143,10 @@ export default function OwnerSignup() {
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 flex flex-col gap-2">
           <h2 className="text-3xl font-semibold tracking-tight text-slate-900">
-            Join Movix Partners
+            Create partner account
           </h2>
           <p className="text-sm text-slate-500">
-            Create your partner account to publish venues, experiences, and schedules.
+            Create your account to add theaters, halls, and show schedules.
           </p>
         </div>
 

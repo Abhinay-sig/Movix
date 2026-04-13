@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
-import { getSeatSessionToken } from '../lib/seatSession'
+import {
+  clearPendingSeatRelease,
+  getSeatSessionToken,
+  resetSeatSessionToken,
+  savePendingSeatRelease,
+} from '../lib/seatSession'
 import { downloadCalendarInvite } from '../lib/ticketCalendar'
 import { downloadTicketPdf, isUpcomingTicket } from '../lib/ticketPdf'
-import { useAuth } from '../useAuth'
 import { formatDateTimeTo12Hour } from '../lib/time'
+import { useAuth } from '../useAuth'
+import { useNotification } from '../NotificationProvider'
 
 const PAYMENT_METHODS = [
   {
@@ -240,6 +246,7 @@ function applyCoinDiscount(estimate, useMovixCoins, user) {
 
 export default function Payment() {
   const { auth, logout, setAuth } = useAuth()
+  const { showNotification } = useNotification()
   const { showId } = useParams()
   const location = useLocation()
   const nav = useNavigate()
@@ -260,7 +267,13 @@ export default function Payment() {
   const [otpBusy, setOtpBusy] = useState(false)
   const [otpVerified, setOtpVerified] = useState(false)
   const [otpCode, setOtpCode] = useState('')
-  const [holdRefreshBusy, setHoldRefreshBusy] = useState(false)
+  const [holdSecondsLeft, setHoldSecondsLeft] = useState(() =>
+    location.state?.expiresAt ? Math.max(0, Math.ceil(msLeft(location.state.expiresAt) / 1000)) : 0
+  )
+  const [showHoldExpiredModal, setShowHoldExpiredModal] = useState(false)
+  const [holdExpiredMessage, setHoldExpiredMessage] = useState(
+    'Your seat hold expired. Please choose your seats again.'
+  )
   const [form, setForm] = useState({
     cardholderName: '',
     cardNumber: '',
@@ -278,7 +291,6 @@ export default function Payment() {
     [location.state]
   )
   const useMovixCoins = Boolean(location.state?.useMovixCoins)
-  const left = holdExpiresAt ? msLeft(holdExpiresAt) : 0
   const bookingRef = useRef(booking)
   const seatCodesRef = useRef(seatCodes)
   const tokenRef = useRef(auth.token)
@@ -300,26 +312,80 @@ export default function Payment() {
     showIdRef.current = showId
   }, [showId])
 
-  useEffect(() => {
-    return () => {
-      if (bookingRef.current || !seatCodesRef.current.length || !tokenRef.current) return
+  const releaseHeldSeats = useCallback(
+    async ({ keepalive = false } = {}) => {
+      if (bookingRef.current || !seatCodesRef.current.length || !tokenRef.current) return false
 
-      api('/holds/release', {
-        method: 'POST',
-        token: tokenRef.current,
-        keepalive: true,
-        body: {
-          showId: Number(showIdRef.current),
-          seatCodes: seatCodesRef.current,
-          sessionToken: seatSessionToken,
-        },
-      }).catch(() => {})
+      try {
+        await api('/holds/release', {
+          method: 'POST',
+          token: tokenRef.current,
+          keepalive,
+          body: {
+            showId: Number(showIdRef.current),
+            seatCodes: seatCodesRef.current,
+            sessionToken: seatSessionToken,
+          },
+        })
+        clearPendingSeatRelease()
+        return true
+      } catch {
+        return false
+      }
+    },
+    [seatSessionToken]
+  )
+
+  useEffect(() => {
+    function persistPendingRelease() {
+      if (bookingRef.current || !seatCodesRef.current.length) return
+      savePendingSeatRelease({
+        showId: Number(showIdRef.current),
+        seatCodes: [...seatCodesRef.current],
+        sessionToken: seatSessionToken,
+      })
     }
-  }, [seatSessionToken])
+
+    function releaseHeldSeatsOnExit() {
+      persistPendingRelease()
+      void releaseHeldSeats({ keepalive: true })
+    }
+
+    window.addEventListener('pagehide', releaseHeldSeatsOnExit)
+    window.addEventListener('beforeunload', releaseHeldSeatsOnExit)
+    window.addEventListener('popstate', releaseHeldSeatsOnExit)
+
+    return () => {
+      window.removeEventListener('pagehide', releaseHeldSeatsOnExit)
+      window.removeEventListener('beforeunload', releaseHeldSeatsOnExit)
+      window.removeEventListener('popstate', releaseHeldSeatsOnExit)
+      persistPendingRelease()
+    }
+  }, [releaseHeldSeats, seatSessionToken])
+
+  const openHoldExpiredPopup = useCallback((message = 'Your seat hold expired. Please choose your seats again.') => {
+    setErr('')
+    setHoldSecondsLeft(0)
+    setHoldExpiredMessage(message)
+    setShowHoldExpiredModal(true)
+  }, [])
 
   useEffect(() => {
-    if (!holdExpiresAt || booking) return undefined
-    const id = window.setInterval(() => setTick((value) => value + 1), 1000)
+    if (!holdExpiresAt || booking) {
+      setHoldSecondsLeft(0)
+      return undefined
+    }
+
+    setShowHoldExpiredModal(false)
+
+    function syncCountdown() {
+      const nextSeconds = Math.max(0, Math.ceil(msLeft(holdExpiresAt) / 1000))
+      setHoldSecondsLeft(nextSeconds)
+      setTick((value) => value + 1)
+    }
+
+    syncCountdown()
+    const id = window.setInterval(syncCountdown, 1000)
     return () => window.clearInterval(id)
   }, [booking, holdExpiresAt])
 
@@ -330,6 +396,27 @@ export default function Payment() {
       state: { from: `/shows/${showId}/payment` },
     })
   }, [logout, nav, showId])
+
+  const goBackToSeatSelection = useCallback(async () => {
+    const abandonedSessionToken = seatSessionToken
+    const abandonedSeatCodes = [...seatCodesRef.current]
+    savePendingSeatRelease({
+      showId: Number(showId),
+      seatCodes: abandonedSeatCodes,
+      sessionToken: abandonedSessionToken,
+    })
+    await releaseHeldSeats()
+    resetSeatSessionToken()
+    nav(`/shows/${showId}/seats`, {
+      replace: true,
+      state: {
+        releaseHold: {
+          seatCodes: abandonedSeatCodes,
+          sessionToken: abandonedSessionToken,
+        },
+      },
+    })
+  }, [nav, releaseHeldSeats, seatSessionToken, showId])
 
   useEffect(() => {
     if (!seatCodes.length) return
@@ -346,67 +433,10 @@ export default function Payment() {
         }, [auth.user, seatCodes, showId, showSummary, useMovixCoins])
 
   useEffect(() => {
-    if (!seatCodes.length || booking) return undefined
-
-    let alive = true
-
-    async function refreshHold({ silent = false } = {}) {
-      if (!silent && alive) setHoldRefreshBusy(true)
-
-      try {
-        const response = await api('/holds', {
-          method: 'POST',
-          token: auth.token,
-          body: {
-            showId: Number(showId),
-            seatCodes,
-            sessionToken: seatSessionToken,
-          },
-        })
-
-        if (!alive) return
-        if (response?.expiresAt) setHoldExpiresAt(response.expiresAt)
-      } catch (e) {
-        if (!alive) return
-
-        if (e.status === 401) {
-          handleAuthFailure()
-          return
-        }
-
-        if (e.status === 409) {
-          window.alert(e.message || 'Your seat lock expired. Please choose seats again.')
-          nav(`/shows/${showId}/seats`, { replace: true })
-          return
-        }
-
-        if (!silent) {
-          setErr(e.message)
-        }
-      } finally {
-        if (!silent && alive) setHoldRefreshBusy(false)
-      }
-    }
-
-    refreshHold()
-    const id = window.setInterval(() => {
-      refreshHold({ silent: true })
-    }, 45000)
-
-    return () => {
-      alive = false
-      window.clearInterval(id)
-    }
-  }, [auth.token, booking, handleAuthFailure, nav, seatCodes, seatSessionToken, showId])
-
-  useEffect(() => {
-    if (!holdExpiresAt || booking) return
-    if (otpBusy || loading || holdRefreshBusy) return
-    if (left > 0) return
-
-    window.alert('Your seat lock expired. Please choose seats again.')
-    nav(`/shows/${showId}/seats`, { replace: true })
-  }, [booking, holdExpiresAt, holdRefreshBusy, left, loading, nav, otpBusy, showId])
+    if (!holdExpiresAt || booking || showHoldExpiredModal) return
+    if (holdSecondsLeft > 0) return
+    openHoldExpiredPopup()
+  }, [booking, holdExpiresAt, holdSecondsLeft, openHoldExpiredPopup, showHoldExpiredModal])
 
   useEffect(() => {
     if (!booking?.ticket) return
@@ -441,7 +471,7 @@ export default function Payment() {
   const movixCoinsUsed = estimate?.movixCoinsUsed ?? 0
   const breakdown = estimate?.breakdown || []
   const selectedMethod = PAYMENT_METHODS.find((item) => item.code === paymentMethod) || PAYMENT_METHODS[0]
-  const secs = Math.ceil(left / 1000)
+  const secs = holdSecondsLeft
   const accountEmail = auth.user?.email || ''
   const validationError = getPaymentValidationError(paymentMethod, form, accountEmail)
   const detailsReady = !validationError
@@ -512,13 +542,19 @@ export default function Payment() {
       })
       if (response?.expiresAt) setHoldExpiresAt(response.expiresAt)
       setOtpSent(true)
+      showNotification({
+        title: 'OTP sent',
+        message: 'Check your email for the verification code.',
+        type: 'success',
+      })
     } catch (e) {
       if (e.status === 401) {
         handleAuthFailure()
         return
       }
       if (e.status === 409) {
-        setHoldExpiresAt(location.state?.expiresAt || null)
+        openHoldExpiredPopup(e.message || 'Your seat hold expired. Please choose your seats again.')
+        return
       }
       setErr(e.message)
     } finally {
@@ -549,13 +585,19 @@ export default function Payment() {
       if (response?.expiresAt) setHoldExpiresAt(response.expiresAt)
       setOtpVerified(true)
       setCurrentStep(4)
+      showNotification({
+        title: 'OTP verified',
+        message: 'Your payment can now be confirmed.',
+        type: 'success',
+      })
     } catch (e) {
       if (e.status === 401) {
         handleAuthFailure()
         return
       }
       if (e.status === 409) {
-        setHoldExpiresAt(location.state?.expiresAt || null)
+        openHoldExpiredPopup(e.message || 'Your seat hold expired. Please choose your seats again.')
+        return
       }
       setErr(e.message)
     } finally {
@@ -606,6 +648,10 @@ export default function Payment() {
     } catch (e) {
       if (e.status === 401) {
         handleAuthFailure()
+        return
+      }
+      if (e.status === 409) {
+        openHoldExpiredPopup(e.message || 'Your seat hold expired. Please choose your seats again.')
         return
       }
       setErr(e.message)
@@ -931,7 +977,7 @@ export default function Payment() {
         <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="page-panel px-6 py-7 md:px-8">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Ticket details</div>
-            <div className="mt-3 text-3xl font-semibold text-slate-950">{showSummary?.movieTitle || 'Movie experience'}</div>
+            <div className="mt-3 text-3xl font-semibold text-slate-950">{showSummary?.movieTitle || 'Movie booking'}</div>
             <div className="mt-2 text-sm text-slate-500">
               {showSummary?.theaterName || 'Theatre'} • {showSummary?.hallName || 'Hall'}
             </div>
@@ -1019,6 +1065,30 @@ export default function Payment() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 md:px-6">
+      {showHoldExpiredModal ? (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/35 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[1.75rem] border border-white/20 bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.25)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-lg font-semibold text-amber-700">
+              !
+            </div>
+            <div className="mt-4">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-600">Seat hold expired</div>
+              <div className="mt-2 text-xl font-semibold text-slate-950">Please choose your seats again</div>
+              <p className="mt-2 text-sm leading-6 text-slate-500">{holdExpiredMessage}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                void goBackToSeatSelection()
+              }}
+              className="primary-button mt-5 w-full"
+            >
+              Back to seats
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <section className="overflow-hidden rounded-[2.25rem] border border-blue-100 bg-[linear-gradient(135deg,#061733_0%,#0a2f67_34%,#1457b8_64%,#3b82f6_100%)] px-6 py-8 text-white shadow-[0_35px_100px_rgba(15,23,42,0.2)] md:px-10">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
@@ -1026,16 +1096,16 @@ export default function Payment() {
               Movix Pay Secure
             </div>
             <h2 className="max-w-3xl text-3xl font-semibold tracking-tight md:text-5xl">
-              Finish your booking with a production-style OTP checkout
+              Complete your booking
             </h2>
             <p className="max-w-2xl text-sm leading-6 text-blue-50/82 md:text-base">
-              This payment gateway is styled from your Razorpay reference with a polished in-app flow: choose a method, enter your registered email, verify the OTP, and confirm your booking.
+              Choose a payment method, enter your registered email, verify the OTP, and confirm your booking.
             </p>
           </div>
 
           <div className="rounded-[1.75rem] border border-white/15 bg-white/10 px-5 py-4 shadow-sm backdrop-blur-sm">
             <div className="text-xs uppercase tracking-[0.18em] text-blue-100/75">Seat hold expires in</div>
-            <div className={`mt-2 text-3xl font-semibold ${secs <= 15 ? 'text-amber-200' : 'text-white'}`}>{secs}s</div>
+            <div className={`mt-2 text-3xl font-semibold ${secs <= 60 ? 'text-red-300' : 'text-white'}`}>{secs}s</div>
           </div>
         </div>
       </section>
@@ -1155,9 +1225,15 @@ export default function Payment() {
               </div>
             </div>
 
-            <Link to={`/shows/${showId}/seats`} className="secondary-button mt-6 w-full">
+            <button
+              type="button"
+              onClick={() => {
+                void goBackToSeatSelection()
+              }}
+              className="secondary-button mt-6 w-full"
+            >
               Back to seats
-            </Link>
+            </button>
           </section>
         </div>
       </section>

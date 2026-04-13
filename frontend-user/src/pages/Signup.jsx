@@ -124,7 +124,6 @@ export default function Signup() {
               >
                 {resending ? 'Sending…' : 'Resend verification link'}
               </button>
-
               <button
                 type="button"
                 onClick={() => setVerification(null)}

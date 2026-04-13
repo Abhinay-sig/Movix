@@ -87,7 +87,7 @@ export default function Login() {
       }
 
       if (mode === 'owner' && data.user?.role !== 'theater_owner') {
-        throw new Error('This account belongs in the guest booking experience.')
+        throw new Error('This account belongs in the customer app.')
       }
 
       setAuth(data)
@@ -119,7 +119,6 @@ export default function Login() {
             Sign in to manage your cinema business or the Movix platform experience.
           </p>
         </div>
-
         <div className="mb-6 flex rounded-xl border border-slate-200 bg-slate-100 p-1">
           <button
             onClick={() => setMode('owner')}
@@ -187,7 +186,6 @@ export default function Login() {
               </button>
             </div>
           </div>
-
           {mode === 'owner' ? (
             <div className="flex justify-end">
               <Link

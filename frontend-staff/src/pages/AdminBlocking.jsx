@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
+import { useNotification } from '../NotificationProvider'
 
 const ALL_THEATERS = '__all_theaters__'
 const ALL_HALLS = '__all_halls__'
 
 export default function AdminBlocking() {
   const { auth } = useAuth()
+  const { showNotification } = useNotification()
   const [entity, setEntity] = useState('theater')
   const [visible, setVisible] = useState(true)
   const [reason, setReason] = useState('policy')
@@ -131,7 +133,11 @@ export default function AdminBlocking() {
         )
       )
       const reasonText = reason === 'other' ? customReason.trim() : reason
-      alert(`Visibility updated (${visible ? 'visible' : 'hidden'}) for ${targetIds.length} item(s).${reasonText ? ` Reason: ${reasonText}` : ''}`)
+      showNotification({
+        title: 'Visibility updated',
+        message: `Set ${targetIds.length} item(s) to ${visible ? 'visible' : 'hidden'}${reasonText ? ` • ${reasonText}` : ''}.`,
+        type: 'success',
+      })
       await load()
     } catch (e2) {
       setErr(e2.message)

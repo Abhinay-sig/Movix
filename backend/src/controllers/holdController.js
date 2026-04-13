@@ -496,7 +496,7 @@ async function refreshSeatHoldsForCheckout({ t, showId, seatCodes, userId, sessi
   };
 }
 
-async function releaseSeatHolds({ t, showId, seatCodes, sessionToken }) {
+async function releaseSeatHolds({ t, showId, seatCodes, userId, sessionToken }) {
   const requestedSeatCodes = Array.from(
     new Set(seatCodes.map((seatCode) => String(seatCode).toUpperCase().trim()))
   );
@@ -529,6 +529,7 @@ async function releaseSeatHolds({ t, showId, seatCodes, sessionToken }) {
       where: {
         showId: show.id,
         seatCode: { [Op.in]: absoluteSeatCodes },
+        userId,
         sessionToken,
         status: HOLD_STATUS.HELD,
       },
@@ -1000,6 +1001,7 @@ async function releaseHold(req, res, next) {
       t,
       showId: body.showId,
       seatCodes: body.seatCodes,
+      userId: req.user.id,
       sessionToken: body.sessionToken,
     });
     await t.commit();

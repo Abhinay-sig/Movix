@@ -527,7 +527,7 @@ export default function OwnerNewShow() {
             <div className="text-sm font-medium text-slate-700">
               Seat prices
               <span className="ml-2 font-normal text-slate-500">
-                for each guest experience
+                for each show
               </span>
             </div>
 
@@ -596,7 +596,7 @@ export default function OwnerNewShow() {
 
               {hasConflict ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-                  This start time overlaps with another scheduled guest experience.
+                  This start time overlaps with another scheduled show.
                 </div>
               ) : (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
