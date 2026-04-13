@@ -18,10 +18,11 @@ import HallDetails from './pages/HallDetails'
 import ShowDetails from './pages/ShowDetails'
 import AdminCaps from './pages/AdminCaps'
 import AdminBlocking from './pages/AdminBlocking'
-import Reports from './pages/Reports'
-import { useAuth } from './useAuth'
 import VerifyEmail from './pages/VerifyEmail'
 import OAuthCallback from './pages/OAuthCallback'
+import ResetPassword from './pages/ResetPassword'
+import Reports from './pages/Reports'
+import { useAuth } from './useAuth'
 
 function DashboardRedirect() {
   const { auth } = useAuth()
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/owner/signup" element={<OwnerSignup />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/oauth/callback" element={<OAuthCallback />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route element={<ProtectedRoute><RequireRole role="theater_owner" /></ProtectedRoute>}>
           <Route path="/owner/theaters" element={<OwnerTheaters />} />

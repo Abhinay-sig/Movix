@@ -19,7 +19,8 @@ function defineUser(sequelize) {
       id: { type: DataTypes.BIGINT.UNSIGNED, autoIncrement: true, primaryKey: true },
       email: { type: DataTypes.STRING(320), allowNull: false, unique: true },
       name: { type: DataTypes.STRING(120), allowNull: false },
-      passwordHash: { type: DataTypes.STRING(255), allowNull: false },
+      passwordHash: { type: DataTypes.STRING(255), allowNull: true },
+      hasUsablePassword: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: null },
       role: {
         type: DataTypes.ENUM(USER_ROLES.USER, USER_ROLES.ADMIN, USER_ROLES.OWNER),
         allowNull: false,
@@ -35,6 +36,9 @@ function defineUser(sequelize) {
       verificationTokenHash: { type: DataTypes.STRING(128), allowNull: true },
       verificationTokenExpiresAt: { type: DataTypes.DATE, allowNull: true },
       verificationLastSentAt: { type: DataTypes.DATE, allowNull: true },
+      passwordResetTokenHash: { type: DataTypes.STRING(128), allowNull: true },
+      passwordResetTokenExpiresAt: { type: DataTypes.DATE, allowNull: true },
+      passwordResetLastSentAt: { type: DataTypes.DATE, allowNull: true },
       isBlocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     },
     {
@@ -44,15 +48,24 @@ function defineUser(sequelize) {
         { unique: true, fields: ['email'] },
         { fields: ['verification_token_hash'] },
         { fields: ['oauth_subject'] },
+        { fields: ['password_reset_token_hash'] },
       ],
       defaultScope: {
-        attributes: { exclude: ['passwordHash', 'verificationTokenHash', 'oauthSubject'] },
+        attributes: {
+          exclude: ['passwordHash', 'verificationTokenHash', 'passwordResetTokenHash', 'oauthSubject'],
+        },
       },
       scopes: {
         withPassword: { attributes: { include: ['passwordHash'] } },
         withAuth: {
           attributes: {
-            include: ['passwordHash', 'verificationTokenHash', 'oauthSubject'],
+            include: [
+              'passwordHash',
+              'hasUsablePassword',
+              'verificationTokenHash',
+              'passwordResetTokenHash',
+              'oauthSubject',
+            ],
           },
         },
       },
@@ -60,6 +73,7 @@ function defineUser(sequelize) {
   );
 
   User.prototype.verifyPassword = async function verifyPassword(password) {
+    if (!this.passwordHash || !this.hasUsablePassword) return false;
     return bcrypt.compare(password, this.passwordHash);
   };
 
