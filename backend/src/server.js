@@ -9,6 +9,7 @@ const { holdRoutes } = require('./routes/holdRoutes');
 const { ownerRoutes } = require('./routes/ownerRoutes');
 const { adminRoutes } = require('./routes/adminRoutes');
 const { publicRoutes } = require('./routes/publicRoutes');
+const { proRoutes } = require('./routes/proRoutes');
 const { errorHandler } = require('./middleware/errorHandler');
 const { cleanupExpiredHolds } = require('./controllers/holdController');
 
@@ -32,6 +33,7 @@ app.use('/api', holdRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api', proRoutes);
 
 app.use(errorHandler);
 

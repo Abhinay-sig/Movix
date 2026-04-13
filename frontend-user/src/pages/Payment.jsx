@@ -215,8 +215,31 @@ function buildPaymentSummary(method, values) {
   return values.bankName || 'Selected bank'
 }
 
+function applyCoinDiscount(estimate, useMovixCoins, user) {
+  if (!estimate) return estimate
+
+  const baseTotal = Number(estimate.total || 0)
+  if (!useMovixCoins || !user?.isProActive) {
+    return {
+      ...estimate,
+      subTotal: baseTotal,
+      movixCoinsUsed: 0,
+      total: baseTotal,
+    }
+  }
+
+  const balance = Number(user.movixCoinsBalance || 0)
+  const used = Math.min(Math.floor(baseTotal), balance)
+  return {
+    ...estimate,
+    subTotal: baseTotal,
+    movixCoinsUsed: used,
+    total: Math.max(0, baseTotal - used),
+  }
+}
+
 export default function Payment() {
-  const { auth, logout } = useAuth()
+  const { auth, logout, setAuth } = useAuth()
   const { showId } = useParams()
   const location = useLocation()
   const nav = useNavigate()
@@ -254,6 +277,7 @@ export default function Payment() {
     () => location.state?.displaySeatCodes || [],
     [location.state]
   )
+  const useMovixCoins = Boolean(location.state?.useMovixCoins)
   const left = holdExpiresAt ? msLeft(holdExpiresAt) : 0
   const bookingRef = useRef(booking)
   const seatCodesRef = useRef(seatCodes)
@@ -315,11 +339,11 @@ export default function Payment() {
       body: { seatCodes },
     })
       .then((response) => {
-        setEstimate(response)
+          setEstimate(applyCoinDiscount(response, useMovixCoins, auth.user))
         if (!showSummary && response.showSummary) setShowSummary(response.showSummary)
       })
       .catch(() => {})
-  }, [seatCodes, showId, showSummary])
+        }, [auth.user, seatCodes, showId, showSummary, useMovixCoins])
 
   useEffect(() => {
     if (!seatCodes.length || booking) return undefined
@@ -413,6 +437,8 @@ export default function Payment() {
   }
 
   const totalAmount = booking?.totalAmount ?? estimate?.total ?? 0
+  const subTotalAmount = estimate?.subTotal ?? estimate?.total ?? 0
+  const movixCoinsUsed = estimate?.movixCoinsUsed ?? 0
   const breakdown = estimate?.breakdown || []
   const selectedMethod = PAYMENT_METHODS.find((item) => item.code === paymentMethod) || PAYMENT_METHODS[0]
   const secs = Math.ceil(left / 1000)
@@ -555,6 +581,7 @@ export default function Payment() {
           seatCodes,
           email: form.paymentEmail,
           sessionToken: seatSessionToken,
+          useMovixCoins,
         },
       })
 
@@ -564,6 +591,18 @@ export default function Payment() {
         seatCodes,
         ticket: response.ticket || null,
       })
+
+      if (response?.wallet) {
+        setAuth({
+          token: auth.token,
+          user: {
+            ...auth.user,
+            movixCoinsBalance: response.wallet.currentBalance,
+            movixCoinsEarnedTotal: response.wallet.totalEarned,
+            movixCoinsRedeemedTotal: response.wallet.totalRedeemed,
+          },
+        })
+      }
     } catch (e) {
       if (e.status === 401) {
         handleAuthFailure()
@@ -584,7 +623,7 @@ export default function Payment() {
               key={method.code}
               type="button"
               onClick={() => handleMethodChange(method.code)}
-              className={`rounded-[1.5rem] border px-4 py-4 text-left transition-all ${
+              className={`rounded-3xl border px-4 py-4 text-left transition-all ${
                 paymentMethod === method.code
                   ? 'border-blue-300 bg-blue-50 shadow-[0_12px_30px_rgba(59,130,246,0.12)]'
                   : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300'
@@ -592,7 +631,7 @@ export default function Payment() {
             >
               <div className="mb-3 flex items-center justify-between">
                 <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${method.accent} shadow-[0_10px_24px_rgba(15,23,42,0.16)]`}
+                  className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-br ${method.accent} shadow-[0_10px_24px_rgba(15,23,42,0.16)]`}
                 >
                   <PaymentMethodIcon code={method.code} active />
                 </div>
@@ -625,6 +664,11 @@ export default function Payment() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
               <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Checkout amount</div>
               <div className="mt-2 text-sm font-semibold text-slate-900">{formatCurrency(totalAmount)}</div>
+              {movixCoinsUsed > 0 ? (
+                <div className="mt-1 text-xs text-slate-500">
+                  Subtotal {formatCurrency(subTotalAmount)} - Coins {formatCurrency(movixCoinsUsed)}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -851,7 +895,7 @@ export default function Payment() {
       <div className="mx-auto max-w-5xl space-y-8 px-4 py-10 md:px-6">
         {showSuccessModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-[2rem] border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
+            <div className="w-full max-w-md rounded-4xl border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-xl font-bold text-emerald-700">
                 M
               </div>
@@ -917,7 +961,7 @@ export default function Payment() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+          <div className="rounded-4xl border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
             <div className="text-xs uppercase tracking-[0.22em] text-blue-100/75">Movix Pay receipt</div>
             <div className="mt-3 text-3xl font-semibold">{formatCurrency(totalAmount)}</div>
             <div className="mt-1 text-sm text-blue-100/80">Authenticated with OTP and confirmed in-app</div>
@@ -997,7 +1041,7 @@ export default function Payment() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.16fr_0.84fr]">
-        <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.1)]">
+        <div className="overflow-hidden rounded-4xl border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.1)]">
           <div className="border-b border-slate-200 bg-[linear-gradient(120deg,#08162f_0%,#0f3f8f_38%,#2563eb_74%,#7dd3fc_100%)] px-6 py-6 text-white md:px-8">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
@@ -1006,7 +1050,7 @@ export default function Payment() {
                 <div className="mt-2 text-sm text-blue-100/85">{showSummary?.movieTitle || 'Your show booking'}</div>
               </div>
 
-              <div className="rounded-[1.5rem] border border-white/15 bg-white/10 px-4 py-3 text-right backdrop-blur-sm">
+              <div className="rounded-3xl border border-white/15 bg-white/10 px-4 py-3 text-right backdrop-blur-sm">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-blue-100/70">Seats</div>
                 <div className="mt-2 text-sm font-semibold text-white">
                   {(displaySeatCodes.length ? displaySeatCodes : breakdown.map((seat) => seat.seatCode)).join(', ')}
@@ -1076,7 +1120,7 @@ export default function Payment() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(239,246,255,0.88),rgba(255,247,237,0.88))] px-6 py-7 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+          <section className="rounded-4xl border border-slate-200 bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(239,246,255,0.88),rgba(255,247,237,0.88))] px-6 py-7 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Live review</div>
             <div className="mt-5 space-y-4 text-sm">
               <div className="flex items-center justify-between">

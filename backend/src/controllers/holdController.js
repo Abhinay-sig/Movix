@@ -267,6 +267,7 @@ const confirmSchema = z.object({
   seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
   email: z.string().email().max(320),
   sessionToken: z.string().min(8).max(96),
+  useMovixCoins: z.boolean().optional(),
 });
 
 const sendOtpSchema = z.object({
@@ -551,8 +552,6 @@ function clearOtpRecordsForShow({ userId, showId }) {
 async function createHold(req, res, next) {
   const t = await db.sequelize.transaction();
   try {
-    // Debug log to verify auth middleware decoded the user correctly for hold requests.
-    console.log('USER:', req.user);
     const body = createHoldSchema.parse(req.body);
     const show = await db.Show.findByPk(body.showId, { transaction: t, lock: t.LOCK.UPDATE });
 
@@ -634,17 +633,6 @@ async function confirmBooking(req, res, next) {
     );
     const normalizedEmail = String(body.email).trim().toLowerCase();
 
-    const otpRecord = otpStore.get(
-      otpKey({
-        userId: req.user.id,
-        showId: body.showId,
-        email: normalizedEmail,
-      })
-    );
-    if (!otpRecord?.verifiedAt || otpRecord.expiresAt <= Date.now()) {
-      throw new HttpError(400, 'Payment OTP verification is required');
-    }
-
     await refreshSeatHoldsForCheckout({
       t,
       showId: body.showId,
@@ -725,12 +713,36 @@ async function confirmBooking(req, res, next) {
       });
     }
 
+    const user = await db.User.findByPk(req.user.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!user) throw new HttpError(404, 'User not found');
+
+    const proExpiresMs = user.proExpiresAt ? new Date(user.proExpiresAt).getTime() : 0;
+    const isProActive = Number.isFinite(proExpiresMs) && proExpiresMs > Date.now();
+    const requestedCoinUse = Boolean(body.useMovixCoins);
+    const coinBalance = Number(user.movixCoinsBalance || 0);
+    const redeemableCoins = requestedCoinUse && isProActive ? Math.min(Math.floor(totalAmount), coinBalance) : 0;
+    const payableAmount = Math.max(0, Number(totalAmount) - redeemableCoins);
+    const cashbackCoins = isProActive ? Math.floor(payableAmount * 0.1) : 0;
+
+    if (payableAmount > 0) {
+      const otpRecord = otpStore.get(
+        otpKey({
+          userId: req.user.id,
+          showId: body.showId,
+          email: normalizedEmail,
+        })
+      );
+      if (!otpRecord?.verifiedAt || otpRecord.expiresAt <= Date.now()) {
+        throw new HttpError(400, 'Payment OTP verification is required');
+      }
+    }
+
     const booking = await db.Booking.create(
       {
         showId: show.id,
         userId: req.user.id,
         status: BOOKING_STATUS.CONFIRMED,
-        totalAmount,
+        totalAmount: payableAmount,
       },
       { transaction: t }
     );
@@ -764,6 +776,42 @@ async function confirmBooking(req, res, next) {
       }
     );
 
+    if (isProActive && redeemableCoins > 0) {
+      user.movixCoinsBalance = Math.max(0, Number(user.movixCoinsBalance || 0) - redeemableCoins);
+      user.movixCoinsRedeemedTotal = Number(user.movixCoinsRedeemedTotal || 0) + redeemableCoins;
+
+      await db.MovixCoinTransaction.create(
+        {
+          userId: user.id,
+          bookingId: booking.id,
+          type: db.MOVIX_COIN_TX_TYPES.BOOKING_DEBIT,
+          coins: -redeemableCoins,
+          note: `MovixCoins redeemed on booking #${booking.id}`,
+        },
+        { transaction: t }
+      );
+    }
+
+    if (isProActive && cashbackCoins > 0) {
+      user.movixCoinsBalance = Number(user.movixCoinsBalance || 0) + cashbackCoins;
+      user.movixCoinsEarnedTotal = Number(user.movixCoinsEarnedTotal || 0) + cashbackCoins;
+
+      await db.MovixCoinTransaction.create(
+        {
+          userId: user.id,
+          bookingId: booking.id,
+          type: db.MOVIX_COIN_TX_TYPES.CASHBACK_CREDIT,
+          coins: cashbackCoins,
+          note: `10% cashback for booking #${booking.id}`,
+        },
+        { transaction: t }
+      );
+    }
+
+    if (isProActive) {
+      await user.save({ transaction: t });
+    }
+
     await t.commit();
     otpStore.delete(
       otpKey({
@@ -776,7 +824,15 @@ async function confirmBooking(req, res, next) {
       bookingId: booking.id,
       showId: show.id,
       seatCodes: publicSeatCodes,
-      totalAmount,
+      totalAmount: payableAmount,
+      subTotalAmount: totalAmount,
+      movixCoinsUsed: redeemableCoins,
+      movixCoinsCashback: cashbackCoins,
+      wallet: {
+        currentBalance: Number(user.movixCoinsBalance || 0),
+        totalEarned: Number(user.movixCoinsEarnedTotal || 0),
+        totalRedeemed: Number(user.movixCoinsRedeemedTotal || 0),
+      },
       ticket: buildBookingTicket({ booking, seatMeta, show }),
     });
   } catch (e) {
