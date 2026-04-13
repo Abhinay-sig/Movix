@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
+import Modal from '../components/Modal'
 import {
   extractFieldErrors,
   validateNameField,
   validatePositiveNumberField,
+  validateTextField,
   withFieldError,
 } from '../lib/formErrors'
+import Toast from '../components/Toast'
 
 const LANGUAGE_OPTIONS = ['English', 'Hindi', 'Tamil', 'Telugu']
 
@@ -30,8 +33,11 @@ export default function AdminAddMovie() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [fieldErrors, setFieldErrors] = useState({})
   const [savingMovie, setSavingMovie] = useState(false)
+  const [uploadingPoster, setUploadingPoster] = useState(false)
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
+  const [toastMessage, setToastMessage] = useState('')
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
 
   function updateField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -84,9 +90,8 @@ export default function AdminAddMovie() {
     const titleError = validateNameField(title, 'Movie title')
     if (titleError) nextErrors.title = titleError
 
-    if (!genre || !/[a-zA-Z0-9]/.test(genre)) {
-      nextErrors.genre = 'Enter a valid genre.'
-    }
+    const genreError = validateTextField(genre, 'Genre')
+    if (genreError) nextErrors.genre = genreError
 
     if (!form.releaseDate) {
       nextErrors.releaseDate = 'Release date is required.'
@@ -112,6 +117,38 @@ export default function AdminAddMovie() {
     }
 
     return nextErrors
+  }
+
+  async function uploadPoster(file) {
+    if (!file) return
+
+    setUploadingPoster(true)
+    setErr('')
+    setFieldErrors((prev) => ({ ...prev, posterUrl: '' }))
+
+    try {
+      const formData = new FormData()
+      formData.append('poster', file)
+
+      const res = await fetch('/api/admin/movies/upload-poster', {
+        method: 'POST',
+        headers: auth.token ? { authorization: `Bearer ${auth.token}` } : {},
+        body: formData,
+      })
+
+      const text = await res.text()
+      const data = text ? JSON.parse(text) : null
+      if (!res.ok) {
+        const message = data?.error?.message || `Upload failed (${res.status})`
+        throw new Error(message)
+      }
+
+      updateField('posterUrl', data?.posterUrl || '')
+    } catch (e) {
+      setErr(e.message || 'Poster upload failed.')
+    } finally {
+      setUploadingPoster(false)
+    }
   }
 
   async function submitMovie(e) {
@@ -150,7 +187,8 @@ export default function AdminAddMovie() {
       }
 
       setForm(EMPTY_FORM)
-      navigate('/admin/movies', { replace: true })
+    setShowSuccessModal(true)
+      
     } catch (e2) {
       const nextServerErrors = extractFieldErrors(e2)
       if (Object.keys(nextServerErrors).length) {
@@ -168,7 +206,8 @@ export default function AdminAddMovie() {
 
   return (
     <div>
-      <h2 className="text-4xl font-bold text-white mb-8">
+      <Toast open={Boolean(toastMessage)} message={toastMessage} />
+      <h2 className="text-4xl font-bold text-black mb-8">
         {isEdit ? 'Edit movie' : 'Add movie'}
       </h2>
 
@@ -281,6 +320,24 @@ export default function AdminAddMovie() {
               {fieldErrors.posterUrl ? (
                 <div className="mt-2 text-sm text-red-600">{fieldErrors.posterUrl}</div>
               ) : null}
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => uploadPoster(e.target.files?.[0])}
+                  className="block text-sm text-gray-600"
+                />
+                {uploadingPoster ? (
+                  <span className="text-sm text-blue-600">Uploading poster…</span>
+                ) : null}
+              </div>
+              {form.posterUrl ? (
+                <img
+                  src={form.posterUrl}
+                  alt="Movie poster preview"
+                  className="mt-4 h-40 w-28 rounded-lg object-cover border border-gray-200"
+                />
+              ) : null}
             </div>
 
             <div>
@@ -321,6 +378,31 @@ export default function AdminAddMovie() {
           </form>
         </div>
       )}
+      <Modal
+  open={showSuccessModal}
+  title={isEdit ? 'Movie Updated' : 'Movie Created'}
+  onClose={() => {
+    setShowSuccessModal(false)
+    navigate('/admin/movies', { replace: true })
+  }}
+  footer={
+    <button
+      onClick={() => {
+        setShowSuccessModal(false)
+        navigate('/admin/movies', { replace: true })
+      }}
+      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+    >
+      OK
+    </button>
+  }
+>
+  <div className="text-gray-600">
+    {isEdit
+      ? 'Movie updated successfully.'
+      : 'Movie created successfully.'}
+  </div>
+</Modal>
     </div>
   )
 }

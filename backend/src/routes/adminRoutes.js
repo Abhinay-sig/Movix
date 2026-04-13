@@ -13,6 +13,7 @@ const {
   cancelShow,
   listTheatersWithContribution,
   createMovie,
+  uploadMoviePoster,
   getMovieById,
   updateMovie,
   deleteMovie,
@@ -26,6 +27,7 @@ router.get('/dashboard/revenue', revenueDashboard);
 router.get('/theaters/contribution', listTheatersWithContribution);
 
 router.post('/movies', createMovie);
+router.post('/movies/upload-poster', uploadMoviePoster);
 router.get('/movies', listAdminMovies);
 router.get('/movies/:id', getMovieById);
 router.patch('/movies/:id', updateMovie);

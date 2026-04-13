@@ -28,6 +28,7 @@ export function isLettersAndSpaces(value) {
 export function validateNameField(value, label = 'Name') {
   const normalized = normalizeTextInput(value)
   if (!normalized) return `${label} is required.`
+  if (normalized.length < 3) return `${label} must be at least 3 characters.`
   if (!isLettersAndSpaces(normalized)) {
     return `${label} can contain only alphabets and spaces.`
   }
@@ -37,6 +38,7 @@ export function validateNameField(value, label = 'Name') {
 export function validateCityField(value, label = 'City') {
   const normalized = normalizeTextInput(value)
   if (!normalized) return `${label} is required.`
+  if (normalized.length < 3) return `${label} must be at least 3 characters.`
   if (!isLettersAndSpaces(normalized)) {
     return `${label} can contain only alphabets and spaces.`
   }
@@ -65,5 +67,12 @@ export function validatePositiveNumberField(value, label = 'Value') {
   const parsed = Number(normalized)
   if (!Number.isFinite(parsed)) return `${label} must be numeric.`
   if (parsed <= 0) return `${label} must be greater than 0.`
+  return ''
+}
+
+export function validateTextField(value, label = 'Value', minLength = 3) {
+  const normalized = normalizeTextInput(value)
+  if (!normalized) return `${label} is required.`
+  if (normalized.length < minLength) return `${label} must be at least ${minLength} characters.`
   return ''
 }

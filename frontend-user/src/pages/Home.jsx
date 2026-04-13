@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { formatDateTimeTo12Hour } from '../lib/time'
 
 export default function Home() {
   const [movies, setMovies] = useState([])
@@ -249,7 +250,7 @@ export default function Home() {
                   </div>
                   <div>
                     <span className="font-medium text-slate-700">Next show:</span>{' '}
-                    {movie.nextShowAt ? new Date(movie.nextShowAt).toLocaleString() : 'Coming soon'}
+                    {movie.nextShowAt ? formatDateTimeTo12Hour(movie.nextShowAt) : 'Coming soon'}
                   </div>
                 </div>
 

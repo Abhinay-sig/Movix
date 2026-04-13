@@ -84,6 +84,7 @@ export default function OwnerTheaters() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
+  const [showApprovalModal, setShowApprovalModal] = useState(false)
 
   useEffect(() => {
     setPage(1)
@@ -133,6 +134,13 @@ export default function OwnerTheaters() {
     setForm(EMPTY_FORM)
     setFieldErrors({})
     setShowForm(false)
+  }
+
+  function clearFilters() {
+    setNameFilter('')
+    setCityFilter('')
+    setStateFilter('')
+    setPincodeFilter('')
   }
 
   function startCreate() {
@@ -203,7 +211,7 @@ export default function OwnerTheaters() {
         },
       })
 
-      setNotice('Theater submitted for admin approval.')
+    setShowApprovalModal(true)
       resetForm()
       await load(page)
     } catch (e2) {
@@ -330,11 +338,20 @@ export default function OwnerTheaters() {
       ) : null}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold text-slate-900">Search and filter</h3>
-          <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
-            Live results
-          </span>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Search and filter</h3>
+            <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+              Live results
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-all duration-200 hover:bg-slate-100"
+          >
+            Clear All
+          </button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -379,6 +396,9 @@ export default function OwnerTheaters() {
           <form onSubmit={submit} className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Theatre Name
+                </label>
                 <input
                   placeholder="Theater name"
                   value={form.name}
@@ -392,6 +412,9 @@ export default function OwnerTheaters() {
               </div>
 
               <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  City
+                </label>
                 <input
                   placeholder="City"
                   value={form.city}
@@ -406,6 +429,9 @@ export default function OwnerTheaters() {
             </div>
 
             <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Address
+              </label>
               <input
                 placeholder="Street address"
                 value={form.address}
@@ -420,6 +446,9 @@ export default function OwnerTheaters() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  State
+                </label>
                 <input
                   placeholder="State"
                   value={form.state}
@@ -433,6 +462,9 @@ export default function OwnerTheaters() {
               </div>
 
               <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Pincode
+                </label>
                 <input
                   placeholder="Pincode"
                   value={form.pincode}
@@ -447,13 +479,16 @@ export default function OwnerTheaters() {
             </div>
 
             <div>
-              <textarea
-                placeholder="Amenities"
-                value={form.amenities}
-                onChange={(e) => updateField('amenities', e.target.value)}
-                rows={4}
-                className={withFieldError(inputClass, Boolean(fieldErrors.amenities))}
-              />
+  <label className="mb-2 block text-sm font-medium text-slate-700">
+    Amenities (Optional)
+  </label>
+  <textarea
+    placeholder="Amenities"
+    value={form.amenities}
+    onChange={(e) => updateField('amenities', e.target.value)}
+    rows={4}
+    className={withFieldError(inputClass, Boolean(fieldErrors.amenities))}
+  />
               {fieldErrors.amenities ? (
                 <div className="mt-2 text-sm text-red-600">{fieldErrors.amenities}</div>
               ) : null}
@@ -668,6 +703,23 @@ export default function OwnerTheaters() {
           <p>Use this only if you are sure this theater should no longer be available in your workspace.</p>
         </div>
       </Modal>
+      <Modal
+  open={showApprovalModal}
+  title="Request Submitted"
+  onClose={() => setShowApprovalModal(false)}
+  footer={
+    <button
+      onClick={() => setShowApprovalModal(false)}
+      className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-blue-600"
+    >
+      OK
+    </button>
+  }
+>
+  <div className="text-sm text-slate-600">
+    Waiting for admin approval.
+  </div>
+</Modal>
     </div>
   )
 }
