@@ -50,11 +50,10 @@ export default function Home() {
             <div className="hero-chip">Now Showing</div>
             <div className="space-y-3">
               <h2 className="section-title max-w-2xl">
-                Discover movies in a cleaner, calmer booking flow.
+                Find movies and book your seats.
               </h2>
               <p className="section-copy max-w-xl">
-                Browse what is playing, compare showtimes, and lock in your seats
-                with a light, polished interface designed to feel effortless.
+                Browse current movies, compare showtimes, and reserve your seats in a few steps.
               </p>
             </div>
 
@@ -79,17 +78,17 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                      Featured experience
+                      Featured
                     </div>
                     <div className="mt-2 text-xl font-semibold text-slate-950">
-                      Cinema, simplified
+                      Book your show
                     </div>
                   </div>
                   <div className="h-12 w-12 rounded-2xl bg-slate-950 shadow-lg shadow-slate-300/70" />
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {['Browse', 'Choose', 'Enjoy'].map((label, index) => (
+                  {['Browse', 'Select', 'Book'].map((label, index) => (
                     <div
                       key={label}
                       className="rounded-2xl border border-white/70 bg-gradient-to-br from-white to-blue-50 p-4 shadow-sm"
@@ -236,7 +235,7 @@ export default function Home() {
                 </div>
 
                 <p className="text-sm leading-6 text-slate-500">
-                  {movie.description || 'Pick a showtime, select seats, and confirm in just a few taps.'}
+                  {movie.description || 'Pick a showtime, choose your seats, and complete your booking.'}
                 </p>
 
                 <div className="space-y-2 text-sm text-slate-500">

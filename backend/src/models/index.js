@@ -165,6 +165,32 @@ async function ensureMovieSchema() {
   }
 }
 
+async function ensureHallSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+  const table = await queryInterface.describeTable('halls');
+
+  if (!table.screen_type) {
+    await queryInterface.addColumn('halls', 'screen_type', {
+      type: DataTypes.STRING(40),
+      allowNull: true,
+    });
+  }
+
+  if (!table.facilities) {
+    await queryInterface.addColumn('halls', 'facilities', {
+      type: DataTypes.JSON,
+      allowNull: true,
+    });
+  }
+
+  if (!table.images) {
+    await queryInterface.addColumn('halls', 'images', {
+      type: DataTypes.JSON,
+      allowNull: true,
+    });
+  }
+}
+
 async function ensureUserSchema() {
   const queryInterface = sequelize.getQueryInterface();
 
@@ -332,6 +358,7 @@ async function syncDb() {
   await sequelize.sync();
 
   await ensureMovieSchema();
+  await ensureHallSchema();
   await ensureSeatHoldSchema();
   await ensureApprovalStatusSchema();
 

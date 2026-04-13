@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
-import { getSeatSessionToken } from '../lib/seatSession'
+import {
+  clearPendingSeatRelease,
+  getPendingSeatRelease,
+  getSeatSessionToken,
+} from '../lib/seatSession'
+import { formatDateTimeTo12Hour } from '../lib/time'
 import { useAuth } from '../useAuth'
 import { buildVisibleSeatRows } from '../lib/seatLayout'
-import { formatDateTimeTo12Hour } from '../lib/time'
+import { useNotification } from '../NotificationProvider'
 
 const MAX_SELECTABLE_SEATS = 10
 
@@ -67,7 +72,9 @@ function displaySeatCodeForAbsolute(rows, absoluteSeatCode) {
 
 export default function SeatSelect() {
   const { auth, logout } = useAuth()
+  const { showNotification } = useNotification()
   const { showId } = useParams()
+  const location = useLocation()
   const nav = useNavigate()
   const viewport = useViewport()
   const seatSessionToken = useMemo(() => getSeatSessionToken(), [])
@@ -79,53 +86,92 @@ export default function SeatSelect() {
   const [conflictNote, setConflictNote] = useState('')
   const [loadingHold, setLoadingHold] = useState(false)
 
+  const refreshSeatMap = useCallback(
+    async (keepError = false) => {
+      const response = await api(`/public/shows/${showId}/seatmap`, {
+        headers: { 'x-seat-session': seatSessionToken },
+      })
+      setData(response)
+      if (!keepError) setErr('')
+      return response
+    },
+    [seatSessionToken, showId]
+  )
+
   useEffect(() => {
     let alive = true
 
-    async function loadSeatMap(keepError = false) {
-      try {
-        const response = await api(`/public/shows/${showId}/seatmap`, {
-          headers: { 'x-seat-session': seatSessionToken },
-        })
-        if (!alive) return
-        setData(response)
-        if (!keepError) setErr('')
-      } catch (e) {
-        if (alive) setErr(e.message)
-      }
-    }
-
-    loadSeatMap()
+    refreshSeatMap().catch((e) => {
+      if (alive) setErr(e.message)
+    })
     return () => {
       alive = false
     }
-  }, [seatSessionToken, showId])
+  }, [refreshSeatMap])
+
+  useEffect(() => {
+    const releaseHold = location.state?.releaseHold || getPendingSeatRelease()
+    if (!releaseHold?.sessionToken || !Array.isArray(releaseHold.seatCodes) || !releaseHold.seatCodes.length) {
+      return
+    }
+
+    let alive = true
+
+    async function releaseAbandonedPaymentHold() {
+      try {
+        await api('/holds/release', {
+          method: 'POST',
+          token: auth.token,
+          body: {
+            showId: Number(releaseHold.showId || showId),
+            seatCodes: releaseHold.seatCodes,
+            sessionToken: releaseHold.sessionToken,
+          },
+        })
+      } catch {
+        // Seat map refresh below will still reflect the latest server state.
+      } finally {
+        if (!alive) return
+        clearPendingSeatRelease()
+        await refreshSeatMap(true).catch(() => {})
+        nav(location.pathname, { replace: true, state: null })
+      }
+    }
+
+    releaseAbandonedPaymentHold().catch(() => {})
+
+    return () => {
+      alive = false
+    }
+  }, [auth.token, location.pathname, location.state, nav, refreshSeatMap, showId])
 
   useEffect(() => {
     let alive = true
 
-    async function refreshSeatMap(keepError = false) {
-      try {
-        const response = await api(`/public/shows/${showId}/seatmap`, {
-          headers: { 'x-seat-session': seatSessionToken },
-        })
-        if (!alive) return
-        setData(response)
-        if (!keepError) setErr('')
-      } catch (e) {
+    const id = window.setInterval(() => {
+      if (!alive) return
+      refreshSeatMap(true).catch((e) => {
         if (alive) setErr(e.message)
-      }
+      })
+    }, 2000)
+
+    function syncVisibleSeatMap() {
+      if (!alive || document.visibilityState !== 'visible') return
+      refreshSeatMap(true).catch((e) => {
+        if (alive) setErr(e.message)
+      })
     }
 
-    const id = window.setInterval(() => {
-      refreshSeatMap(true)
-    }, 5000)
+    window.addEventListener('focus', syncVisibleSeatMap)
+    document.addEventListener('visibilitychange', syncVisibleSeatMap)
 
     return () => {
       alive = false
       window.clearInterval(id)
+      window.removeEventListener('focus', syncVisibleSeatMap)
+      document.removeEventListener('visibilitychange', syncVisibleSeatMap)
     }
-  }, [seatSessionToken, showId])
+  }, [refreshSeatMap])
 
   const booked = useMemo(() => new Set(data?.bookedSeats || []), [data])
   const held = useMemo(() => new Set(data?.heldSeats || []), [data])
@@ -240,7 +286,11 @@ export default function SeatSelect() {
 
   async function proceed() {
     if (selectedArr.length < 1) {
-      alert('Select at least 1 seat.')
+      showNotification({
+        title: 'Choose seats',
+        message: 'Select at least 1 seat before continuing.',
+        type: 'warning',
+      })
       return
     }
 
@@ -287,12 +337,13 @@ export default function SeatSelect() {
         return
       }
 
-      alert(e.message)
+      showNotification({
+        title: 'Unable to continue',
+        message: e.message,
+        type: 'error',
+      })
       try {
-        const response = await api(`/public/shows/${showId}/seatmap`, {
-          headers: { 'x-seat-session': seatSessionToken },
-        })
-        setData(response)
+        await refreshSeatMap(true)
       } catch {
         // ignore refresh error after failed hold attempt
       }
@@ -370,9 +421,6 @@ export default function SeatSelect() {
         <div className="mb-5 flex flex-wrap items-center justify-center gap-3 text-xs font-medium text-slate-500">
           <div className="rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm">
             Tap once or drag across seats to select multiple seats together
-          </div>
-          <div className="rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm">
-            Locked seats refresh automatically every 5 seconds
           </div>
         </div>
 

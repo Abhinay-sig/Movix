@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
+import { useNotification } from '../NotificationProvider'
 import { segmentsFromSelected, typedSegmentsFromMaps } from '../lib/layoutEncode'
 
 const ROWS = 50
@@ -25,6 +26,7 @@ const FACILITY_OPTIONS = ['AC', 'Dolby Atmos', 'Recliner', 'Food Court', 'Wheelc
 
 export default function OwnerNewHall() {
   const { auth } = useAuth()
+  const { showNotification } = useNotification()
   const [theaters, setTheaters] = useState([])
   const [theaterId, setTheaterId] = useState('')
   const [hallName, setHallName] = useState('')
@@ -148,7 +150,11 @@ export default function OwnerNewHall() {
         },
       })
 
-      alert('Hall created successfully and is now available for showtime creation.')
+      showNotification({
+        title: 'Hall created',
+        message: 'The hall is ready and can now be used while creating shows.',
+        type: 'success',
+      })
       setTheaterId('')
       setHallName('')
       setScreenType('')

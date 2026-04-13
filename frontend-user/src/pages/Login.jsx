@@ -80,7 +80,7 @@ export default function Login() {
     setLoading(true)
     try {
       const data = await api('/auth/login', { method: 'POST', body: { email, password } })
-      if (data.user?.role !== 'user') throw new Error('This account is managed through our partner workspace.')
+      if (data.user?.role !== 'user') throw new Error('This account is managed in the staff app.')
       setAuth(data)
       nav(loc.state?.from || '/', { replace: true })
     } catch (e2) {
@@ -103,7 +103,6 @@ export default function Login() {
             Sign in to continue browsing shows and managing your bookings.
           </p>
         </div>
-
         {err && (
           <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {err}

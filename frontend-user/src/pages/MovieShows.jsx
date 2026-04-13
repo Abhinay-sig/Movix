@@ -61,10 +61,10 @@ export default function MovieShows() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-sky-100 bg-sky-50/90 px-4 py-4 shadow-sm">
               <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                Experience
+                Booking
               </div>
               <div className="mt-2 text-sm font-semibold text-slate-900">
-                Light, focused booking flow
+                Check time and theater
               </div>
             </div>
             <div className="rounded-2xl border border-violet-100 bg-violet-50/90 px-4 py-4 shadow-sm">
@@ -138,7 +138,7 @@ export default function MovieShows() {
 
                 <div className="flex flex-col items-start gap-3 md:items-end">
                   <div className="rounded-2xl border border-pink-100 bg-gradient-to-r from-pink-50 to-orange-50 px-4 py-3 text-sm text-slate-600 shadow-sm">
-                    Continue to seat selection for this experience.
+                    Continue to seat selection for this show.
                   </div>
                   <Link
                     to={`/shows/${s.id}/seats`}

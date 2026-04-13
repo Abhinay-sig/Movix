@@ -35,7 +35,7 @@ export default function AdminCaps() {
 
       if (!theaters.length) {
         const all = await api('/admin/halls', { token: auth.token })
-        setTheaters(uniqueTheatersFromHalls(all.halls || []))
+      setTheaters(uniqueTheatersFromHalls(all.halls || []))
       }
     } catch (e) {
       setErr(e.message)

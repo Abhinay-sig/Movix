@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
+import { useNotification } from '../NotificationProvider'
 import Modal from '../components/Modal'
 import PaginationControls from '../components/PaginationControls'
 
@@ -9,6 +10,7 @@ const PAGE_LIMIT = 5
 
 export default function AdminMovies() {
   const { auth } = useAuth()
+  const { showNotification } = useNotification()
   const navigate = useNavigate()
 
   const [movies, setMovies] = useState([])
@@ -84,9 +86,18 @@ export default function AdminMovies() {
       if (movies.length === 1 && page > 1) {
         setPage((prev) => prev - 1)
       }
+      showNotification({
+        title: 'Movie deleted',
+        message: `${deleteTarget.title} was removed successfully.`,
+        type: 'success',
+      })
       setDeleteTarget(null)
     } catch (e) {
-      setErr(e.message)
+      showNotification({
+        title: 'Delete failed',
+        message: e.message,
+        type: 'error',
+      })
     }
   }
 
