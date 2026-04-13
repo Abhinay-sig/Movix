@@ -97,6 +97,24 @@ async function seedSeatTypes() {
 async function syncDb() {
   await sequelize.sync();
   await db.User.sync({ alter: true });
+  await db.User.update(
+    { hasUsablePassword: true },
+    {
+      where: {
+        authProvider: db.AUTH_PROVIDERS.LOCAL,
+        hasUsablePassword: null,
+      },
+    }
+  );
+  await db.User.update(
+    { hasUsablePassword: false },
+    {
+      where: {
+        authProvider: db.AUTH_PROVIDERS.GOOGLE,
+        hasUsablePassword: null,
+      },
+    }
+  );
   await seedSeatTypes();
 }
 

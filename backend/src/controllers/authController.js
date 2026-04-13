@@ -21,6 +21,17 @@ const resendVerificationSchema = z.object({
   role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).optional(),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email().max(320),
+  role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).optional(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8).max(200),
+  role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).optional(),
+});
+
 const verifyQuerySchema = z.object({
   token: z.string().min(1),
   role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).optional(),
@@ -79,6 +90,28 @@ async function resendVerification(req, res, next) {
   }
 }
 
+async function forgotPassword(req, res, next) {
+  try {
+    const body = forgotPasswordSchema.parse(req.body);
+    const result = await authService.requestPasswordReset(body);
+    res.status(202).json(result);
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+async function resetPassword(req, res, next) {
+  try {
+    const body = resetPasswordSchema.parse(req.body);
+    const result = await authService.resetPassword(body);
+    res.json(result);
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
 async function verifyEmail(req, res, next) {
   try {
     const query = verifyQuerySchema.parse(req.query);
@@ -126,6 +159,8 @@ module.exports = {
   login,
   adminLogin,
   resendVerification,
+  forgotPassword,
+  resetPassword,
   verifyEmail,
   googleStart,
   googleCallback,

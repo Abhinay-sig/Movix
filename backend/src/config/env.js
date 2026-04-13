@@ -39,6 +39,7 @@ const env = {
 
   auth: {
     verificationExpiresMs: Number(process.env.EMAIL_VERIFICATION_EXPIRES_MS ?? 120000),
+    passwordResetExpiresMs: Number(process.env.PASSWORD_RESET_EXPIRES_MS ?? 300000),
   },
 
   email: {

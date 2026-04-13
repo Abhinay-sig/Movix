@@ -84,6 +84,19 @@ function createPasswordPlaceholder() {
   return db.User.hashPassword(randomToken(24));
 }
 
+async function persistPasswordResetToken(user) {
+  const rawToken = randomToken(24);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + env.auth.passwordResetExpiresMs);
+
+  user.passwordResetTokenHash = hashValue(rawToken);
+  user.passwordResetTokenExpiresAt = expiresAt;
+  user.passwordResetLastSentAt = now;
+  await user.save();
+
+  return { rawToken, expiresAt, sentAt: now };
+}
+
 async function persistVerificationToken(user) {
   const rawToken = randomToken(24);
   const now = new Date();
@@ -139,6 +152,47 @@ async function sendVerificationEmail(user, rawToken, expiresAt) {
         </p>
         <p>This custom link expires at <strong>${expiresAt.toLocaleString()}</strong> and can only be used once.</p>
         <p>If it expires, head back to Movix and request a new verification link.</p>
+      </div>
+    `,
+  });
+}
+
+async function sendPasswordResetEmail(user, rawToken, expiresAt) {
+  const resetUrl = new URL('/reset-password', getAppUrlForRole(user.role));
+  resetUrl.searchParams.set('token', rawToken);
+  resetUrl.searchParams.set('role', user.role);
+
+  const roleLabel = getRoleLabel(user.role);
+  const expiresInMinutes = Math.max(1, Math.round(env.auth.passwordResetExpiresMs / 60000));
+
+  await sendMail({
+    to: user.email,
+    subject: 'Reset your Movix password',
+    text: [
+      `Hi ${user.name},`,
+      '',
+      `We received a request to reset the password for your ${roleLabel} account.`,
+      'Use the link below to choose a new password:',
+      resetUrl.toString(),
+      '',
+      `This link expires in ${expiresInMinutes} minute(s) and can only be used once.`,
+      'If you did not request this change, you can ignore this email.',
+    ].join('\n'),
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
+        <h2 style="margin-bottom: 12px;">Reset your Movix password</h2>
+        <p>Hi ${escapeHtml(user.name)},</p>
+        <p>We received a request to reset the password for your ${escapeHtml(roleLabel)} account.</p>
+        <p style="margin: 24px 0;">
+          <a
+            href="${resetUrl.toString()}"
+            style="background:#0f172a;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;display:inline-block;"
+          >
+            Reset password
+          </a>
+        </p>
+        <p>This link expires at <strong>${expiresAt.toLocaleString()}</strong> and can only be used once.</p>
+        <p>If you did not request this change, you can safely ignore this email.</p>
       </div>
     `,
   });
@@ -257,8 +311,8 @@ async function login({ email, password }) {
     });
   }
 
-  if (user.authProvider === db.AUTH_PROVIDERS.GOOGLE) {
-    throw new HttpError(401, 'Use Google sign-in for this account');
+  if (!user.hasUsablePassword || !user.passwordHash) {
+    throw new HttpError(401, 'Invalid credentials');
   }
 
   const ok = await user.verifyPassword(password);
@@ -284,12 +338,20 @@ async function adminLogin({ email, password }) {
       name: 'Admin',
       role: db.USER_ROLES.ADMIN,
       passwordHash: await db.User.hashPassword(env.admin.password),
+      hasUsablePassword: true,
       emailVerifiedAt: new Date(),
     },
   });
 
   if (!admin.emailVerifiedAt) {
     admin.emailVerifiedAt = new Date();
+  }
+
+  if (!admin.hasUsablePassword) {
+    admin.hasUsablePassword = true;
+  }
+
+  if (admin.changed()) {
     await admin.save();
   }
 
@@ -328,6 +390,82 @@ async function verifyEmailToken(rawToken, fallbackRole = db.USER_ROLES.USER) {
   await user.save();
 
   return { ok: true, role: user.role };
+}
+
+async function requestPasswordReset({ email, role }) {
+  const normalizedEmail = normalizeEmail(email);
+  const user = await db.User.scope('withAuth').findOne({ where: { email: normalizedEmail } });
+  const message = 'A password reset link has been sent to this email.';
+
+  if (!user) {
+    return { message };
+  }
+
+  if (role && user.role !== role) {
+    return { message };
+  }
+
+  if (user.role === db.USER_ROLES.ADMIN || user.isBlocked || !user.emailVerifiedAt) {
+    return { message };
+  }
+
+  const { rawToken, expiresAt } = await persistPasswordResetToken(user);
+
+  try {
+    await sendPasswordResetEmail(user, rawToken, expiresAt);
+  } catch (error) {
+    user.passwordResetTokenHash = null;
+    user.passwordResetTokenExpiresAt = null;
+    user.passwordResetLastSentAt = null;
+    await user.save();
+    throw error;
+  }
+
+  return { message };
+}
+
+async function resetPassword({ token, password, role }) {
+  const tokenHash = hashValue(token);
+  const user = await db.User.scope('withAuth').findOne({
+    where: { passwordResetTokenHash: tokenHash },
+  });
+
+  if (!user) {
+    throw new HttpError(400, 'Password reset link is invalid or expired');
+  }
+
+  if (role && user.role !== role) {
+    throw new HttpError(400, 'Password reset link is invalid or expired');
+  }
+
+  if (user.role === db.USER_ROLES.ADMIN) {
+    throw new HttpError(400, 'Password reset link is invalid or expired');
+  }
+
+  if (user.isBlocked) {
+    throw new HttpError(403, 'User is blocked');
+  }
+
+  const expiresAtMs = getTimestampMs(user.passwordResetTokenExpiresAt);
+  if (!expiresAtMs || expiresAtMs <= Date.now()) {
+    user.passwordResetTokenHash = null;
+    user.passwordResetTokenExpiresAt = null;
+    user.passwordResetLastSentAt = null;
+    await user.save();
+    throw new HttpError(400, 'Password reset link is invalid or expired');
+  }
+
+  user.passwordHash = await db.User.hashPassword(password);
+  user.hasUsablePassword = true;
+  user.passwordResetTokenHash = null;
+  user.passwordResetTokenExpiresAt = null;
+  user.passwordResetLastSentAt = null;
+  await user.save();
+
+  return {
+    message: 'Password updated successfully. You can now sign in with your password.',
+    user: userToJson(user),
+  };
 }
 
 function buildVerificationRedirectUrl(result) {
@@ -417,6 +555,7 @@ async function upsertGoogleUser({ role, profile }) {
       email,
       name: profile.name || email.split('@')[0],
       passwordHash: await createPasswordPlaceholder(),
+      hasUsablePassword: false,
       role,
       authProvider: db.AUTH_PROVIDERS.GOOGLE,
       oauthSubject: profile.sub,
@@ -502,6 +641,8 @@ module.exports = {
   resendVerification,
   login,
   adminLogin,
+  requestPasswordReset,
+  resetPassword,
   verifyEmailToken,
   buildVerificationRedirectUrl,
   buildGoogleStartUrl,

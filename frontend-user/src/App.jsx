@@ -10,6 +10,7 @@ import Payment from './pages/Payment'
 import MyTickets from './pages/MyTickets'
 import VerifyEmail from './pages/VerifyEmail'
 import OAuthCallback from './pages/OAuthCallback'
+import ResetPassword from './pages/ResetPassword'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/oauth/callback" element={<OAuthCallback />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/movies/:movieId" element={<MovieShows />} />
 
         <Route element={<RequireAuth />}>
