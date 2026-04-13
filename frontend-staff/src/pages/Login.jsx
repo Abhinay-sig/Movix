@@ -85,7 +85,7 @@ export default function Login() {
       }
 
       if (mode === 'owner' && data.user?.role !== 'theater_owner') {
-        throw new Error('This account belongs in the guest booking experience.')
+        throw new Error('This account belongs in the customer app.')
       }
 
       setAuth(data)
@@ -125,8 +125,7 @@ export default function Login() {
                   Staff tools built for theater owners and admins.
                 </h2>
                 <p className="max-w-md text-sm leading-7 text-blue-50/82">
-                  Switch between owner and admin access, then manage operations in
-                  a lighter, more organized workspace.
+                  Switch between owner and admin access to manage theaters, shows, and approvals.
                 </p>
               </div>
 
@@ -151,7 +150,7 @@ export default function Login() {
                   Staff login
                 </h2>
                 <p className="text-sm text-slate-500">
-                  Sign in to manage your cinema business or the Movix platform experience.
+                  Sign in to manage your cinema business or platform operations.
                 </p>
               </div>
 

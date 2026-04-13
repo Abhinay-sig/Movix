@@ -57,9 +57,11 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
+import { useNotification } from '../NotificationProvider'
 
 export default function AdminBlocking() {
   const { auth } = useAuth()
+  const { showNotification } = useNotification()
   const [entity, setEntity] = useState('theater')
   const [id, setId] = useState('')
   const [blocked, setBlocked] = useState(true)
@@ -74,7 +76,11 @@ export default function AdminBlocking() {
         token: auth.token,
         body: { entity, id: Number(id), blocked },
       })
-      alert('Updated.')
+      showNotification({
+        title: 'Visibility updated',
+        message: 'The listing visibility was updated successfully.',
+        type: 'success',
+      })
       setId('')
     } catch (e2) {
       setErr(e2.message)
@@ -91,7 +97,7 @@ export default function AdminBlocking() {
           Visibility controls
         </h2>
         <p className="text-sm text-slate-500">
-          Manage what appears in the guest-facing experience across the platform.
+          Manage what appears in the customer app across the platform.
         </p>
       </div>
 

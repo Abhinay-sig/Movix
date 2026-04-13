@@ -90,7 +90,7 @@ export default function Signup() {
                   Create account
                 </h2>
                 <p className="section-copy">
-                  Get started with a smoother movie booking experience.
+                  Create an account to book movies and manage your tickets.
                 </p>
               </div>
 
@@ -224,8 +224,7 @@ export default function Signup() {
               </div>
 
               <div className="rounded-3xl border border-blue-100 bg-blue-50/90 p-6 text-sm leading-7 text-slate-600 shadow-sm">
-                Light colors, cleaner spacing, and calmer motion make the booking
-                flow easier to navigate from the first screen onward.
+                Sign up once, then choose a movie, pick your seats, and complete your booking.
               </div>
             </div>
           </div>

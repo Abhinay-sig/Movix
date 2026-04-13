@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
+import { useNotification } from '../NotificationProvider'
 
 export default function AdminMovies() {
   const { auth } = useAuth()
+  const { showNotification } = useNotification()
   const navigate = useNavigate()
 
   const [movies, setMovies] = useState([])
@@ -52,7 +54,11 @@ export default function AdminMovies() {
       // refresh list
       setMovies((prev) => prev.filter((m) => m.id !== id))
     } catch (e) {
-      alert(e.message)
+      showNotification({
+        title: 'Delete failed',
+        message: e.message,
+        type: 'error',
+      })
     }
   }
 

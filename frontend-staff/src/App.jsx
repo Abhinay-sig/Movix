@@ -28,11 +28,11 @@ function Home() {
           <div className="staff-chip">Workspace</div>
           <div className="space-y-3">
             <h1 className="staff-title max-w-2xl">
-              Manage theaters, halls, shows, and approvals in one polished hub.
+              Manage theaters, halls, shows, and approvals in one place.
             </h1>
             <p className="staff-copy max-w-2xl">
-              Use the partner workspace to launch venues, shape show schedules,
-              track performance, and deliver a polished guest experience.
+              Use this dashboard to add venues, manage show schedules,
+              and track business activity.
             </p>
           </div>
 
@@ -57,11 +57,10 @@ function Home() {
           </div>
           <div className="space-y-3">
             <div className="text-2xl font-semibold tracking-tight">
-              Welcome to the partner workspace
+              Welcome to the staff dashboard
             </div>
             <p className="text-sm leading-7 text-blue-50/82">
-              Sign in to access the tools designed for cinema partners and the
-              Movix experience team.
+              Sign in to access tools for cinema partners and platform admins.
             </p>
           </div>
 

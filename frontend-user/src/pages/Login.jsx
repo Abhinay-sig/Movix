@@ -78,7 +78,7 @@ export default function Login() {
     setLoading(true)
     try {
       const data = await api('/auth/login', { method: 'POST', body: { email, password } })
-      if (data.user?.role !== 'user') throw new Error('This account is managed through our partner workspace.')
+      if (data.user?.role !== 'user') throw new Error('This account is managed in the staff app.')
       setAuth(data)
       nav(loc.state?.from || '/', { replace: true })
     } catch (e2) {
@@ -109,13 +109,12 @@ export default function Login() {
                   Welcome back to your next movie night.
                 </h2>
                 <p className="max-w-md text-sm leading-7 text-blue-50/82">
-                  Sign in to continue your booking, revisit seat selection, and
-                  enjoy a calmer cinema checkout experience.
+                  Sign in to continue your booking, check your seats, and finish payment.
                 </p>
               </div>
 
               <div className="grid gap-3">
-                {['Clean browsing', 'Seat hold protection', 'Fast confirmation'].map((item) => (
+                {['Browse shows', 'Hold your seats', 'Confirm your ticket'].map((item) => (
                   <div
                     key={item}
                     className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3 backdrop-blur-sm"

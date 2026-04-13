@@ -50,9 +50,11 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
+import { useNotification } from '../NotificationProvider'
 
 export default function AdminCaps() {
   const { auth } = useAuth()
+  const { showNotification } = useNotification()
   const [seatTypeCode, setSeatTypeCode] = useState('standard')
   const [cap, setCap] = useState('')
   const [err, setErr] = useState('')
@@ -66,7 +68,11 @@ export default function AdminCaps() {
         token: auth.token,
         body: { seatTypeCode, adminPriceCap: Number(cap) },
       })
-      alert('Updated cap.')
+      showNotification({
+        title: 'Pricing updated',
+        message: 'The seat price cap was updated successfully.',
+        type: 'success',
+      })
       setCap('')
     } catch (e2) {
       setErr(e2.message)
