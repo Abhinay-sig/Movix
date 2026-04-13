@@ -855,6 +855,9 @@ async function listMyShows(req, res, next) {
 const createHallSchema = z.object({
   theaterId: z.coerce.number().int().positive(),
   name: z.string().min(1).max(120),
+  screenType: z.string().min(1).max(40).optional(),
+  facilities: z.array(z.string().min(1).max(80)).max(30).optional(),
+  images: z.array(z.string().url().max(500)).max(20).optional(),
   segmentsByRow: z.array(z.array(z.number().int().min(0).max(79))).length(50),
   typedSegmentsByRow: z
     .array(
@@ -909,6 +912,9 @@ async function createHallWithLayout(req, res, next) {
       {
         theaterId: theater.id,
         name: body.name,
+        screenType: body.screenType ?? null,
+        facilities: body.facilities?.length ? body.facilities : null,
+        images: body.images?.length ? body.images : null,
         isApproved: false,
         approvedAt: null,
       },
@@ -1017,6 +1023,82 @@ async function getHallSchedule(req, res, next) {
   }
 }
 
+// async function createShow(req, res, next) {
+//   const t = await db.sequelize.transaction();
+//   try {
+//     const body = createShowSchema.parse(req.body);
+
+//     const hall = await db.Hall.findByPk(body.hallId, {
+//       transaction: t,
+//       lock: t.LOCK.UPDATE,
+//       include: [{ model: db.Theater }],
+//     });
+//     if (!hall || String(hall.Theater.ownerUserId) !== String(req.user.id)) {
+//       throw new HttpError(404, 'Hall not found');
+//     }
+
+//     // Calculate startsAt and endsAt from date, startTime, and durationMins
+//     const startsAt = dayjs(`${body.date} ${body.startTime}`, 'YYYY-MM-DD HH:mm');
+//     const endsAt = startsAt.add(body.durationMins, 'minute');
+
+//     if (!startsAt.isValid() || !endsAt.isValid() || !endsAt.isAfter(startsAt)) {
+//       throw new HttpError(400, 'Invalid show time');
+//     }
+
+//     const bufferMins = 30;
+//     const bufferedStart = startsAt.subtract(bufferMins, 'minute').toDate();
+//     const bufferedEnd = endsAt.add(bufferMins, 'minute').toDate();
+
+//     const conflicts = await db.Show.count({
+//       where: {
+//         hallId: hall.id,
+//         isCancelled: false,
+//         startsAt: { [Op.lt]: bufferedEnd },
+//         endsAt: { [Op.gt]: bufferedStart },
+//       },
+//       transaction: t,
+//       lock: t.LOCK.UPDATE,
+//     });
+//     if (conflicts > 0) throw new HttpError(409, 'Show conflicts with existing timeline (30 min buffer)');
+
+//     const show = await db.Show.create(
+//       {
+//         hallId: hall.id,
+//         movieId: body.movieId,
+//         startsAt: startsAt.toDate(),
+//         endsAt: endsAt.toDate(),
+//         language: body.language,
+//         isApproved: false,
+//       },
+//       { transaction: t }
+//     );
+
+//     if (body.seatPrices?.length) {
+//       const seatTypes = await db.SeatType.findAll({ transaction: t });
+//       const byCode = new Map(seatTypes.map((s) => [s.code, s]));
+//       for (const sp of body.seatPrices) {
+//         const st = byCode.get(sp.seatTypeCode);
+//         if (!st) throw new HttpError(400, `Unknown seat type: ${sp.seatTypeCode}`);
+//         // if (Number(sp.price) > Number(st.adminPriceCap)) {
+//         //   throw new HttpError(400, `Price exceeds admin cap for ${st.code}`);
+//         // }
+        
+    
+//         await db.ShowSeatPrice.create(
+//           { showId: show.id, seatTypeId: st.id, price: sp.price },
+//           { transaction: t }
+//         );
+//       }
+//     }
+
+//     await t.commit();
+//     res.status(201).json({ show });
+//   } catch (e) {
+//     await t.rollback();
+//     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+//     return next(e);
+//   }
+// }
 async function createShow(req, res, next) {
   const t = await db.sequelize.transaction();
   try {
@@ -1111,6 +1193,16 @@ async function createShow(req, res, next) {
     if (seatPrices.length) {
       const seatTypes = await db.SeatType.findAll({ transaction: t });
       const byCode = new Map(seatTypes.map((seatType) => [String(seatType.code).toLowerCase(), seatType]));
+      const hallCaps = await db.HallSeatCap.findAll({
+        where: { hallId: hall.id },
+        include: [{ model: db.SeatType }],
+        transaction: t,
+      });
+      const capByType = new Map(
+        hallCaps
+          .filter((cap) => cap?.SeatType?.code)
+          .map((cap) => [String(cap.SeatType.code).toLowerCase(), Number(cap.priceCap)])
+      );
 
       const seenCodes = new Set();
       for (const seatPrice of seatPrices) {
@@ -1123,16 +1215,25 @@ async function createShow(req, res, next) {
         const seatType = byCode.get(seatTypeCode);
         if (!seatType) throw new HttpError(400, `Unknown seat type: ${seatPrice.seatTypeCode}`);
 
+        const cap = capByType.get(seatTypeCode);
+        if (cap === undefined || cap === null) {
+          throw new HttpError(400, `Hall is not approved with seat caps for ${seatType.code}`);
+        }
+
         const price = Number(seatPrice.price);
         if (!Number.isFinite(price) || price <= 0) {
           throw new HttpError(400, `Invalid price for ${seatType.code}`);
         }
-        if (price > Number(seatType.adminPriceCap)) {
-          throw new HttpError(400, `Price exceeds admin cap for ${seatType.code}`);
+        if (price > cap) {
+          throw new HttpError(400, 'Price exceeds admin cap for this seat type');
         }
 
         await db.ShowSeatPrice.create(
-          { showId: show.id, seatTypeId: seatType.id, price },
+          {
+            showId: show.id,
+            seatTypeId: seatType.id,
+            price,
+          },
           { transaction: t }
         );
       }

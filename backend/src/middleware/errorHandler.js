@@ -5,7 +5,7 @@ function errorHandler(err, req, res, next) {
   const message = err instanceof HttpError ? err.message : 'Internal Server Error';
   const details = err instanceof HttpError ? err.details : undefined;
 
-  if (status >= 500) {
+  if (status >= 500 && err?.log !== false) {
     // eslint-disable-next-line no-console
     console.error(err);
   }
@@ -14,4 +14,3 @@ function errorHandler(err, req, res, next) {
 }
 
 module.exports = { errorHandler };
-

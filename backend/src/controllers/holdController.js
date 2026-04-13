@@ -551,6 +551,8 @@ function clearOtpRecordsForShow({ userId, showId }) {
 async function createHold(req, res, next) {
   const t = await db.sequelize.transaction();
   try {
+    // Debug log to verify auth middleware decoded the user correctly for hold requests.
+    console.log('USER:', req.user);
     const body = createHoldSchema.parse(req.body);
     const show = await db.Show.findByPk(body.showId, { transaction: t, lock: t.LOCK.UPDATE });
 

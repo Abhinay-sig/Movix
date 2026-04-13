@@ -15,5 +15,5 @@ export function saveAuth(auth) {
 
 export function clearAuth() {
   localStorage.removeItem(KEY)
+  localStorage.removeItem('token')
 }
-
