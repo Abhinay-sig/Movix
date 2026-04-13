@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const { Op } = require('sequelize');
+const multer = require('multer');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
 const { buildPaginationMeta, parsePagination } = require('../utils/pagination');
@@ -7,8 +8,13 @@ const {
   serializeMovieWithLanguages,
   replaceMovieLanguages,
 } = require('../utils/movieLanguages');
+const { uploadImageBuffer } = require('../services/cloudinaryService');
 
 const NAME_REGEX = /^[A-Za-z ]+$/;
+const posterUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
 const createMovieSchema = z.object({
   title: z
@@ -84,8 +90,33 @@ function buildMovieWhere(query) {
     );
   }
 
+  if (String(query.duration ?? '').trim()) {
+    const duration = Number(String(query.duration).trim());
+    if (Number.isFinite(duration) && duration > 0) {
+      and.push(
+        db.sequelize.where(db.sequelize.col('duration_mins'), duration)
+      );
+    }
+  }
+
   if (and.length) where[Op.and] = and;
   return where;
+}
+
+async function findMovieIdsByLanguage(language) {
+  const normalized = String(language ?? '').trim().toLowerCase();
+  if (!normalized) return null;
+
+  const rows = await db.MovieLanguage.findAll({
+    attributes: ['movieId'],
+    where: db.sequelize.where(db.sequelize.fn('LOWER', db.sequelize.col('language')), {
+      [Op.like]: `%${normalized}%`,
+    }),
+    group: ['movieId'],
+    raw: true,
+  });
+
+  return rows.map((row) => row.movieId);
 }
 
 async function listMovies(req, res, next) {
@@ -95,6 +126,19 @@ async function listMovies(req, res, next) {
       defaultLimit: 5,
       maxLimit: 20,
     });
+
+    const movieIds = await findMovieIdsByLanguage(req.query.language);
+    if (movieIds && movieIds.length === 0) {
+      res.json({
+        movies: [],
+        pagination: buildPaginationMeta(0, { page, limit, hasPagination }),
+      });
+      return;
+    }
+
+    if (movieIds && movieIds.length) {
+      where.id = { [Op.in]: movieIds };
+    }
 
     const total = await db.Movie.count({ where });
     const options = {
@@ -500,6 +544,42 @@ async function deleteMovie(req, res, next) {
   }
 }
 
+async function uploadMoviePoster(req, res, next) {
+  try {
+    const runUpload = posterUpload.single('poster');
+
+    await new Promise((resolve, reject) => {
+      runUpload(req, res, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+
+    if (!req.file) {
+      throw new HttpError(400, 'Poster file is required');
+    }
+
+    if (!String(req.file.mimetype || '').startsWith('image/')) {
+      throw new HttpError(400, 'Only image uploads are allowed');
+    }
+
+    const publicId = `movie-${Date.now()}`;
+    const upload = await uploadImageBuffer(req.file.buffer, { publicId });
+
+    res.status(201).json({
+      posterUrl: upload.secure_url,
+    });
+  } catch (e) {
+    if (e instanceof multer.MulterError) {
+      return next(new HttpError(400, e.message));
+    }
+    return next(e);
+  }
+}
+
 module.exports = {
   listMovies,
   pendingApprovals,
@@ -512,6 +592,7 @@ module.exports = {
   cancelShow,
   listTheatersWithContribution,
   createMovie,
+  uploadMoviePoster,
   getMovieById,
   updateMovie,
   deleteMovie,

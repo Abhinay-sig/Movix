@@ -5,6 +5,7 @@ import { getSeatSessionToken } from '../lib/seatSession'
 import { downloadCalendarInvite } from '../lib/ticketCalendar'
 import { downloadTicketPdf, isUpcomingTicket } from '../lib/ticketPdf'
 import { useAuth } from '../useAuth'
+import { formatDateTimeTo12Hour } from '../lib/time'
 
 const PAYMENT_METHODS = [
   {
@@ -94,14 +95,7 @@ function msLeft(expiresAt) {
 }
 
 function formatShowDate(value) {
-  if (!value) return 'TBA'
-  return new Date(value).toLocaleString([], {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+  return formatDateTimeTo12Hour(value, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 function formatCurrency(value) {

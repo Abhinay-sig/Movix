@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
+import { formatDateTimeTo12Hour } from '../lib/time'
 
 export default function AdminApprovals() {
   const { auth } = useAuth()
@@ -207,7 +208,7 @@ export default function AdminApprovals() {
                       {show.Hall?.Theater?.name} <span className="text-slate-400">•</span> {show.Hall?.name} <span className="text-slate-400">•</span> {show.Movie?.title}
                     </div>
                     <div className="text-sm text-slate-500">
-                      {new Date(show.startsAt).toLocaleString()} • {show.language}
+                      {formatDateTimeTo12Hour(show.startsAt)} • {show.language}
                     </div>
                   </div>
 

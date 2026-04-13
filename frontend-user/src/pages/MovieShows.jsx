@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import { formatDateTimeTo12Hour, formatTo12Hour } from '../lib/time'
 
 export default function MovieShows() {
   const { movieId } = useParams()
@@ -114,14 +115,14 @@ export default function MovieShows() {
 
                 <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
                   <div>
-                    <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                  <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
                       Showtime
                     </div>
                     <div className="mt-2 text-sm font-semibold text-slate-900">
-                      {new Date(s.startsAt).toLocaleString()}
+                      {formatDateTimeTo12Hour(s.startsAt)}
                     </div>
                     <div className="mt-1 text-sm text-slate-500">
-                      Ends at {new Date(s.endsAt).toLocaleTimeString()}
+                      Ends at {formatTo12Hour(new Date(s.endsAt).toISOString().slice(11, 16))}
                     </div>
                   </div>
 

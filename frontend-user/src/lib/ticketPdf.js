@@ -1,3 +1,5 @@
+import { formatDateTimeTo12Hour } from './time'
+
 function escapePdfText(value) {
   return String(value ?? '')
     .replace(/\\/g, '\\\\')
@@ -48,10 +50,10 @@ export function downloadTicketPdf(ticket) {
   if (!ticket || !isUpcomingTicket(ticket)) return
 
   const bookedAt = isFiniteTime(ticket.bookedAt)
-    ? new Date(ticket.bookedAt).toLocaleString()
-    : new Date().toLocaleString()
+    ? formatDateTimeTo12Hour(ticket.bookedAt)
+    : formatDateTimeTo12Hour(new Date())
   const showtime = isFiniteTime(ticket.show?.startsAt)
-    ? new Date(ticket.show.startsAt).toLocaleString()
+    ? formatDateTimeTo12Hour(ticket.show.startsAt)
     : 'TBA'
   const seatList = (ticket.seats || []).map((seat) => seat.seatCode).join(', ') || 'N/A'
   const seatTypes = (ticket.seats || [])
