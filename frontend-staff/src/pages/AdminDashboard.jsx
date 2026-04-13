@@ -18,17 +18,11 @@ import { useAuth } from '../useAuth'
 
 const PIE_COLORS = ['#2563eb', '#0ea5e9', '#14b8a6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6']
 
-function MetricCard({ label, value, colorClass = 'text-blue-600', deltaPct = null }) {
-  const isPositive = Number(deltaPct) >= 0
+function MetricCard({ label, value, colorClass = 'text-blue-600' }) {
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       <div className="text-gray-600 text-sm font-medium mb-2">{label}</div>
       <div className={`text-3xl font-bold ${colorClass}`}>{value}</div>
-      {deltaPct !== null ? (
-        <div className={`mt-2 text-sm font-medium ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-          {isPositive ? '▲' : '▼'} {Math.abs(Number(deltaPct)).toFixed(2)}% vs previous period
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -339,8 +333,8 @@ export default function AdminDashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <MetricCard label="Gross Revenue" value={formatMoney(revenue?.grossRevenue)} colorClass="text-blue-600" deltaPct={revenue?.revenueChangePct} />
-            <MetricCard label="Total Bookings" value={stats?.totalBookings ?? 0} colorClass="text-indigo-600" deltaPct={stats?.bookingsChangePct} />
+            <MetricCard label="Gross Revenue" value={formatMoney(revenue?.grossRevenue)} colorClass="text-blue-600" />
+            <MetricCard label="Admin Revenue (5%)" value={formatMoney(revenue?.adminRevenue)} colorClass="text-green-600" />
           </div>
 
           <div className="bg-white rounded-xl shadow-lg p-6">
@@ -369,9 +363,9 @@ export default function AdminDashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <MetricCard label="Total Bookings" value={stats?.totalBookings ?? 0} colorClass="text-indigo-600" />
             <MetricCard label="Tickets Sold Today" value={stats?.todayTickets ?? 0} colorClass="text-amber-600" />
             <MetricCard label="Active Shows" value={stats?.activeShows ?? 0} colorClass="text-fuchsia-600" />
-            <MetricCard label="Admin Revenue (5%)" value={formatMoney(revenue?.adminRevenue)} colorClass="text-green-600" />
           </div>
 
           <div className="bg-white rounded-xl shadow-lg p-6">
@@ -392,7 +386,7 @@ export default function AdminDashboard() {
             </div>
             {!Number(systemHealth?.activeShows) ? (
               <div className="mt-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                No active shows currently. Consider reviewing approvals or schedules.
+                No active shows right now. Review pending approvals or schedule new shows.
               </div>
             ) : null}
           </div>

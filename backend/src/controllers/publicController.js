@@ -61,7 +61,7 @@ async function listMovies(req, res, next) {
     const durationFilter = String(req.query.duration ?? '').trim().toLowerCase();
 
     const shows = await db.Show.findAll({
-      where: { isApproved: true, isBlocked: false, isCancelled: false },
+      where: { status: 'approved', isApproved: true, isBlocked: false, isCancelled: false },
       include: [
         {
           model: db.Movie,
@@ -173,6 +173,7 @@ async function listShowsForMovie(req, res, next) {
     const shows = await db.Show.findAll({
       where: {
         movieId,
+        status: 'approved',
         isApproved: true,
         isBlocked: false,
         isCancelled: false,
@@ -197,7 +198,7 @@ async function listTheaterTimeline(req, res, next) {
     if (!halls.length) throw new HttpError(404, 'Theater not found');
     const hallIds = halls.map((h) => h.id);
     const shows = await db.Show.findAll({
-      where: { hallId: { [Op.in]: hallIds }, isApproved: true, isBlocked: false, isCancelled: false },
+      where: { hallId: { [Op.in]: hallIds }, status: 'approved', isApproved: true, isBlocked: false, isCancelled: false },
       include: [{ model: db.Movie }],
       order: [['startsAt', 'ASC']],
     });
@@ -219,6 +220,7 @@ async function showSeatMap(req, res, next) {
     });
     if (
       !show ||
+      show.status !== 'approved' ||
       !show.isApproved ||
       show.isBlocked ||
       show.isCancelled ||

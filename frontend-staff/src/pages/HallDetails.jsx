@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../AuthContext'
 import SeatCapModal from '../components/SeatCapModal'
+import RejectModal from '../components/RejectModal'
 
 function hasSeat(segmentsByRow, r, c) {
   const row = Array.isArray(segmentsByRow?.[r]) ? segmentsByRow[r] : []
@@ -23,6 +24,9 @@ export default function HallDetails() {
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
   const [capModalOpen, setCapModalOpen] = useState(false)
+  const [rejectOpen, setRejectOpen] = useState(false)
+  const [rejectSubmitting, setRejectSubmitting] = useState(false)
+  const [rejectError, setRejectError] = useState('')
 
   useEffect(() => {
     if (!auth?.token || !id) return
@@ -34,21 +38,22 @@ export default function HallDetails() {
       .finally(() => setLoading(false))
   }, [auth?.token, id])
 
-  async function rejectHall() {
+  async function handleReject(reason) {
     if (!data?.hallId) return
-    setActing(true)
-    setErr('')
+    setRejectSubmitting(true)
+    setRejectError('')
     try {
-      await api('/admin/approvals/hall', {
+      await api(`/admin/halls/${data.hallId}/reject`, {
         method: 'POST',
         token: auth.token,
-        body: { hallId: data.hallId, approve: false },
+        body: { reason },
       })
+      setRejectOpen(false)
       nav('/admin/approvals', { replace: true })
     } catch (e) {
-      setErr(e.message)
+      setRejectError(e.message)
     } finally {
-      setActing(false)
+      setRejectSubmitting(false)
     }
   }
 
@@ -200,7 +205,12 @@ export default function HallDetails() {
               <button disabled={acting} onClick={() => setCapModalOpen(true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50">
                 Approve Hall
               </button>
-              <button disabled={acting} onClick={rejectHall} className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50">
+              <button
+                type="button"
+                onClick={() => setRejectOpen(true)}
+                disabled={acting}
+                className="bg-red-500 text-white px-4 py-2 rounded disabled:opacity-50"
+              >
                 Reject Hall
               </button>
             </div>
@@ -214,6 +224,19 @@ export default function HallDetails() {
         token={auth?.token}
         onClose={() => setCapModalOpen(false)}
         onApproved={() => nav('/admin/approvals', { replace: true })}
+      />
+
+      <RejectModal
+        open={rejectOpen}
+        onClose={() => {
+          if (rejectSubmitting) return
+          setRejectOpen(false)
+          setRejectError('')
+        }}
+        onSubmit={handleReject}
+        entityType="hall"
+        submitting={rejectSubmitting}
+        error={rejectError}
       />
     </div>
   )

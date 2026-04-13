@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 function resolveStoredToken() {
   try {
     const userRaw = localStorage.getItem('mvp_user_auth')
@@ -23,15 +22,10 @@ function resolveStoredToken() {
   return null
 }
 
-export async function api(path, { method = 'GET', body, token } = {}) {
-  const headers = { 'content-type': 'application/json' }
-  const bearer = token || resolveStoredToken()
-  if (bearer) headers.authorization = `Bearer ${bearer}`
-=======
 export async function api(path, { method = 'GET', body, token, keepalive, headers: extraHeaders } = {}) {
   const headers = { 'content-type': 'application/json', ...(extraHeaders || {}) }
-  if (token) headers.authorization = `Bearer ${token}`
->>>>>>> origin/main
+  const bearer = token || resolveStoredToken()
+  if (bearer && !headers.authorization) headers.authorization = `Bearer ${bearer}`
   const res = await fetch(`/api${path}`, {
     method,
     headers,

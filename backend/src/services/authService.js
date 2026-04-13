@@ -339,7 +339,7 @@ function buildVerificationRedirectUrl(result) {
 
 function assertGoogleConfigured() {
   if (!env.oauth.googleClientId || !env.oauth.googleClientSecret || !env.oauth.googleRedirectUri) {
-    throw new HttpError(500, 'Google OAuth is not configured');
+    throw new HttpError(503, 'Google OAuth is not configured', undefined, { log: false });
   }
 }
 

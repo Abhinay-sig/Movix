@@ -125,8 +125,8 @@ async function ensureMovieSchema() {
   if (!table.release_date) {
     await queryInterface.addColumn('movies', 'release_date', {
       type: DataTypes.DATEONLY,
-      allowNull: false,
-      defaultValue: '2000-01-01',
+      allowNull: true,
+      defaultValue: null,
     });
   }
 
@@ -250,15 +250,50 @@ async function ensureSeatHoldSchema() {
   }
 }
 
+async function ensureApprovalStatusSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+
+  const halls = await queryInterface.describeTable('halls');
+  if (!halls.status) {
+    await queryInterface.addColumn('halls', 'status', {
+      type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+      allowNull: false,
+      defaultValue: 'pending',
+    });
+  }
+  if (!halls.rejection_reason) {
+    await queryInterface.addColumn('halls', 'rejection_reason', {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    });
+  }
+  await sequelize.query("UPDATE halls SET status = CASE WHEN is_approved = 1 THEN 'approved' ELSE COALESCE(status, 'pending') END");
+
+  const shows = await queryInterface.describeTable('shows');
+  if (!shows.status) {
+    await queryInterface.addColumn('shows', 'status', {
+      type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+      allowNull: false,
+      defaultValue: 'pending',
+    });
+  }
+  if (!shows.rejection_reason) {
+    await queryInterface.addColumn('shows', 'rejection_reason', {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    });
+  }
+  await sequelize.query("UPDATE shows SET status = CASE WHEN is_approved = 1 THEN 'approved' ELSE COALESCE(status, 'pending') END");
+}
+
 async function syncDb() {
-<<<<<<< HEAD
-  await sequelize.sync({ alter: true });
-=======
   await ensureUserSchema();
+  // Avoid repeated ALTER-based index churn (can hit MySQL max-keys limit on long-lived DBs).
+  // Schema evolution is handled by explicit ensure* functions below.
   await sequelize.sync();
   await ensureMovieSchema();
   await ensureSeatHoldSchema();
->>>>>>> origin/main
+  await ensureApprovalStatusSchema();
   await seedSeatTypes();
 }
 

@@ -18,13 +18,10 @@ import HallDetails from './pages/HallDetails'
 import ShowDetails from './pages/ShowDetails'
 import AdminCaps from './pages/AdminCaps'
 import AdminBlocking from './pages/AdminBlocking'
-<<<<<<< HEAD
 import Reports from './pages/Reports'
 import { useAuth } from './useAuth'
-=======
 import VerifyEmail from './pages/VerifyEmail'
 import OAuthCallback from './pages/OAuthCallback'
->>>>>>> origin/main
 
 function DashboardRedirect() {
   const { auth } = useAuth()

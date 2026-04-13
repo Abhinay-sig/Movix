@@ -10,6 +10,12 @@ function defineHall(sequelize) {
       screenType: { type: DataTypes.STRING(40), allowNull: true },
       facilities: { type: DataTypes.JSON, allowNull: true },
       images: { type: DataTypes.JSON, allowNull: true },
+      status: {
+        type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+        allowNull: false,
+        defaultValue: 'pending',
+      },
+      rejectionReason: { type: DataTypes.TEXT, allowNull: true },
 
       isApproved: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
       approvedAt: { type: DataTypes.DATE, allowNull: true },

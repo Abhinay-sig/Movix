@@ -71,7 +71,11 @@ export default function AdminApprovals() {
   const [capModalHallId, setCapModalHallId] = useState(null)
   const [activeTab, setActiveTab] = useState('halls')
   const [sortOrder, setSortOrder] = useState('newest')
-  const [rejectModal, setRejectModal] = useState({ open: false, type: '', id: null, title: '' })
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [selectedItem, setSelectedItem] = useState(null)
+  const [entityType, setEntityType] = useState(null)
+  const [rejectSubmitting, setRejectSubmitting] = useState(false)
+  const [rejectError, setRejectError] = useState('')
   const [toast, setToast] = useState('')
 
   async function load() {
@@ -115,14 +119,41 @@ export default function AdminApprovals() {
   function openRejectModal(e, entity, item) {
     e.preventDefault()
     e.stopPropagation()
-    setRejectModal({
-      open: true,
-      type: entity,
-      id: item.id,
-      title: entity === 'hall'
-        ? `Hall #${item.id} • ${item.Theater?.name || ''} • ${item.name || ''}`
-        : `Show #${item.id} • ${item.Movie?.title || 'Movie'}`,
-    })
+    setSelectedItem(item)
+    setEntityType(entity)
+    setRejectError('')
+    setRejectModalOpen(true)
+  }
+
+  async function handleRejectSubmit(reason) {
+    if (!selectedItem?.id || !entityType) return
+    setRejectSubmitting(true)
+    setRejectError('')
+    try {
+      if (entityType === 'show') {
+        await api(`/admin/shows/${selectedItem.id}/reject`, {
+          method: 'POST',
+          token: auth.token,
+          body: { reason },
+        })
+      }
+      if (entityType === 'hall') {
+        await api(`/admin/halls/${selectedItem.id}/reject`, {
+          method: 'POST',
+          token: auth.token,
+          body: { reason },
+        })
+      }
+      setRejectModalOpen(false)
+      setSelectedItem(null)
+      setEntityType(null)
+      setToast(`${entityType === 'hall' ? 'Hall' : 'Show'} rejected successfully`)
+      await load()
+    } catch (e) {
+      setRejectError(e.message || 'Failed to reject')
+    } finally {
+      setRejectSubmitting(false)
+    }
   }
 
   useEffect(() => {
@@ -256,16 +287,18 @@ export default function AdminApprovals() {
       />
 
       <RejectModal
-        open={rejectModal.open}
-        entityType={rejectModal.type}
-        entityId={rejectModal.id}
-        token={auth?.token}
-        itemTitle={rejectModal.title}
-        onClose={() => setRejectModal({ open: false, type: '', id: null, title: '' })}
-        onRejected={async ({ entityType }) => {
-          setToast(`${entityType === 'hall' ? 'Hall' : 'Show'} rejected successfully`)
-          await load()
+        open={rejectModalOpen}
+        entityType={entityType}
+        submitting={rejectSubmitting}
+        error={rejectError}
+        onClose={() => {
+          if (rejectSubmitting) return
+          setRejectModalOpen(false)
+          setSelectedItem(null)
+          setEntityType(null)
+          setRejectError('')
         }}
+        onSubmit={handleRejectSubmit}
       />
     </div>
   )

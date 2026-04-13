@@ -56,17 +56,19 @@ const createMovieSchema = z.object({
 
 async function pendingApprovals(req, res, next) {
   try {
+    // eslint-disable-next-line no-console
+    console.log('Fetching pending halls only');
     const theaters = await db.Theater.findAll({
       where: { isBlocked: true },
       include: [{ model: db.User, as: 'owner', attributes: ['id', 'name', 'email'] }],
       order: [['createdAt', 'DESC']],
     });
     const halls = await db.Hall.findAll({
-      where: { isApproved: false },
+      where: { status: 'pending' },
       include: [{ model: db.Theater }],
     });
     const shows = await db.Show.findAll({
-      where: { isApproved: false },
+      where: { status: 'pending' },
       include: [{ model: db.Hall, include: [{ model: db.Theater }] }, { model: db.Movie }],
     });
     res.json({ theaters, halls, shows });
@@ -357,7 +359,7 @@ async function pendingShowDetails(req, res, next) {
     if (!Number.isInteger(showId) || showId <= 0) throw new HttpError(400, 'Invalid show id');
 
     const show = await db.Show.findOne({
-      where: { id: showId, isApproved: false },
+      where: { id: showId, status: 'pending' },
       include: [
         { model: db.Movie },
         {
@@ -450,7 +452,10 @@ async function approveHall(req, res, next) {
     if (body.approve) {
       throw new HttpError(400, 'Use /api/admin/halls/:id/approve with seat caps');
     } else {
-      await hall.destroy({ transaction: t });
+      await hall.update(
+        { isApproved: false, approvedAt: null, status: 'rejected', rejectionReason: 'Rejected by admin' },
+        { transaction: t }
+      );
     }
     await t.commit();
     res.json({ ok: true });
@@ -462,22 +467,48 @@ async function approveHall(req, res, next) {
 }
 
 const rejectEntitySchema = z.object({
-  reasonType: z.string().trim().min(1).max(80),
+  reason: z.string().trim().min(1).max(1000).optional(),
+  reasonType: z.string().trim().min(1).max(80).optional(),
   message: z.string().trim().max(1000).optional(),
   suggestion: z.string().trim().max(1000).optional(),
+}).superRefine((val, ctx) => {
+  if (!val.reason && !val.reasonType && !val.message) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Rejection reason is required',
+      path: ['reason'],
+    });
+  }
 });
 
 async function rejectHall(req, res, next) {
   const t = await db.sequelize.transaction();
   try {
     const hallId = Number(req.params.id);
+    // eslint-disable-next-line no-console
+    console.log('Rejected hall:', req.params.id);
     if (!Number.isInteger(hallId) || hallId <= 0) throw new HttpError(400, 'Invalid hall id');
     const body = rejectEntitySchema.parse(req.body);
-    const hall = await db.Hall.findOne({ where: { id: hallId, isApproved: false }, transaction: t, lock: t.LOCK.UPDATE });
+    const hall = await db.Hall.findOne({
+      where: { id: hallId, status: 'pending' },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
     if (!hall) throw new HttpError(404, 'Pending hall not found');
-    await hall.destroy({ transaction: t });
+    const finalReason = [
+      body.reason,
+      body.reasonType,
+      body.message,
+      body.suggestion,
+    ]
+      .filter(Boolean)
+      .join(' | ');
+    await hall.update(
+      { isApproved: false, approvedAt: null, status: 'rejected', rejectionReason: finalReason || 'Rejected by admin' },
+      { transaction: t }
+    );
     await t.commit();
-    res.json({ ok: true, entity: 'hall', id: hallId, reasonType: body.reasonType });
+    res.json({ ok: true, entity: 'hall', id: hallId, reason: finalReason || body.reasonType || body.reason });
   } catch (e) {
     await t.rollback();
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
@@ -578,7 +609,10 @@ async function approvePendingHallWithCaps(req, res, next) {
       transaction: t,
     });
 
-    await hall.update({ isApproved: true, approvedAt: new Date() }, { transaction: t });
+    await hall.update(
+      { isApproved: true, approvedAt: new Date(), status: 'approved', rejectionReason: null },
+      { transaction: t }
+    );
     await t.commit();
     res.json({ ok: true });
   } catch (e) {
@@ -797,9 +831,16 @@ async function approveShow(req, res, next) {
     const show = await db.Show.findByPk(body.showId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!show) throw new HttpError(404, 'Show not found');
     if (body.approve) {
-      await show.update({ isApproved: true, approvedAt: new Date() }, { transaction: t });
+      await show.update(
+        { isApproved: true, approvedAt: new Date(), status: 'approved', rejectionReason: null },
+        { transaction: t }
+      );
     } else {
-      await show.destroy({ transaction: t });
+      const rejectReason = [body.rejectReason, body.rejectComment].filter(Boolean).join(' | ');
+      await show.update(
+        { isApproved: false, approvedAt: null, status: 'rejected', rejectionReason: rejectReason || 'Rejected by admin' },
+        { transaction: t }
+      );
     }
     await t.commit();
     res.json({ ok: true });
@@ -816,11 +857,26 @@ async function rejectShow(req, res, next) {
     const showId = Number(req.params.id);
     if (!Number.isInteger(showId) || showId <= 0) throw new HttpError(400, 'Invalid show id');
     const body = rejectEntitySchema.parse(req.body);
-    const show = await db.Show.findOne({ where: { id: showId, isApproved: false }, transaction: t, lock: t.LOCK.UPDATE });
+    const show = await db.Show.findOne({
+      where: { id: showId, status: 'pending' },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
     if (!show) throw new HttpError(404, 'Pending show not found');
-    await show.destroy({ transaction: t });
+    const finalReason = [
+      body.reason,
+      body.reasonType,
+      body.message,
+      body.suggestion,
+    ]
+      .filter(Boolean)
+      .join(' | ');
+    await show.update(
+      { isApproved: false, approvedAt: null, status: 'rejected', rejectionReason: finalReason || 'Rejected by admin' },
+      { transaction: t }
+    );
     await t.commit();
-    res.json({ ok: true, entity: 'show', id: showId, reasonType: body.reasonType });
+    res.json({ ok: true, entity: 'show', id: showId, reason: finalReason || body.reasonType || body.reason });
   } catch (e) {
     await t.rollback();
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
@@ -997,7 +1053,7 @@ async function dashboardStats(req, res, next) {
     const previous7Start = new Date(now);
     previous7Start.setDate(now.getDate() - 14);
 
-    const [totalBookings, todayTickets, activeShows, current7Bookings, previous7Bookings] = await Promise.all([
+    const [totalBookings, todayTickets, activeShows, upcomingShows, current7Bookings, previous7Bookings] = await Promise.all([
       db.Booking.count({ where: { status: db.BOOKING_STATUS.CONFIRMED } }),
       db.BookingSeat.count({
         include: [
@@ -1012,11 +1068,21 @@ async function dashboardStats(req, res, next) {
       }),
       db.Show.count({
         where: {
-          isApproved: true,
+          // Active = approved + not blocked/cancelled + current time within window
+          status: 'approved',
           isCancelled: false,
           isBlocked: false,
           startsAt: { [Op.lte]: now },
           endsAt: { [Op.gte]: now },
+        },
+      }),
+      db.Show.count({
+        where: {
+          // Upcoming = approved + not blocked/cancelled + starts in the future
+          status: 'approved',
+          isCancelled: false,
+          isBlocked: false,
+          startsAt: { [Op.gt]: now },
         },
       }),
       db.Booking.count({
@@ -1036,6 +1102,7 @@ async function dashboardStats(req, res, next) {
       totalBookings,
       todayTickets,
       activeShows,
+      upcomingShows,
       bookingsChangePct: calcPctChange(current7Bookings, previous7Bookings),
     });
   } catch (e) {
@@ -1049,7 +1116,7 @@ async function systemHealth(req, res, next) {
     const [activeShows, pendingTheaters, pendingHalls, pendingShows, blockedTheaters] = await Promise.all([
       db.Show.count({
         where: {
-          isApproved: true,
+          status: 'approved',
           isCancelled: false,
           isBlocked: false,
           startsAt: { [Op.lte]: now },
