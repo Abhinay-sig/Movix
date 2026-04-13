@@ -7,7 +7,7 @@ function defineMovie(sequelize) {
       id: { type: DataTypes.BIGINT.UNSIGNED, autoIncrement: true, primaryKey: true },
       title: { type: DataTypes.STRING(200), allowNull: false },
       genre: { type: DataTypes.STRING(120), allowNull: false },
-      releaseDate: { type: DataTypes.DATEONLY, allowNull: false },
+      releaseDate: { type: DataTypes.DATEONLY, allowNull: true, defaultValue: null },
       description: { type: DataTypes.TEXT, allowNull: true },
       durationMins: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 120 },
       posterUrl: { type: DataTypes.STRING(500), allowNull: true },

@@ -232,11 +232,13 @@
 
 // module.exports = { createHold, confirmBooking, cleanupExpiredHolds };
 
+const crypto = require('crypto');
 const { z } = require('zod');
 const { Op, UniqueConstraintError } = require('sequelize');
 const { env } = require('../config/env');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
+const { sendOtpEmail } = require('../utils/emailService');
 const {
   parseSeatCodeForLayout,
   seatTypeForSeat,
@@ -257,12 +259,43 @@ const DEFAULT_SEAT_TYPE = db.SEAT_TYPES?.STANDARD || 'standard';
 const createHoldSchema = z.object({
   showId: z.coerce.number().int().positive(),
   seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
+  sessionToken: z.string().min(8).max(96),
 });
 
 const confirmSchema = z.object({
   showId: z.coerce.number().int().positive(),
   seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
+  email: z.string().email().max(320),
+  sessionToken: z.string().min(8).max(96),
 });
+
+const sendOtpSchema = z.object({
+  showId: z.coerce.number().int().positive(),
+  email: z.string().email().max(320),
+  seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
+  sessionToken: z.string().min(8).max(96),
+});
+
+const verifyOtpSchema = z.object({
+  showId: z.coerce.number().int().positive(),
+  email: z.string().email().max(320),
+  seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
+  otp: z.string().length(6),
+  sessionToken: z.string().min(8).max(96),
+});
+
+const releaseHoldSchema = z.object({
+  showId: z.coerce.number().int().positive(),
+  seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
+  sessionToken: z.string().min(8).max(96),
+});
+
+const otpStore = new Map();
+
+function isShowBookingOpen(show) {
+  const startsAtMs = new Date(show?.startsAt).getTime();
+  return Number.isFinite(startsAtMs) && startsAtMs > Date.now();
+}
 
 function buildBookingTicket({ booking, seatMeta, show }) {
   return {
@@ -285,6 +318,14 @@ function buildBookingTicket({ booking, seatMeta, show }) {
     },
     bookedAt: booking.createdAt,
   };
+}
+
+function otpKey({ userId, showId, email }) {
+  return `${userId}:${showId}:${String(email).trim().toLowerCase()}`;
+}
+
+function generateOtp() {
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 function isUniqueConstraintError(err) {
@@ -312,7 +353,7 @@ async function cleanupExpiredHolds(transaction = null) {
   );
 }
 
-async function claimSeatHold({ t, showId, seatCode, userId, expiresAt }) {
+async function claimSeatHold({ t, showId, seatCode, userId, sessionToken, expiresAt }) {
   const nowMs = Date.now();
 
   const existing = await db.SeatHold.findOne({
@@ -325,7 +366,10 @@ async function claimSeatHold({ t, showId, seatCode, userId, expiresAt }) {
     const expiresAtMs = new Date(existing.expiresAt).getTime();
     const isExpired = Number.isFinite(expiresAtMs) ? expiresAtMs <= nowMs : true;
     const isActiveHeld = existing.status === HOLD_STATUS.HELD && !isExpired;
-    const heldByOther = isActiveHeld && String(existing.userId) !== String(userId);
+    const heldByOther =
+      isActiveHeld &&
+      String(existing.userId) !== String(userId) &&
+      String(existing.sessionToken || '') !== String(sessionToken);
 
     if (heldByOther) {
       throw new HttpError(409, 'Some seats are temporarily locked by another user');
@@ -334,6 +378,7 @@ async function claimSeatHold({ t, showId, seatCode, userId, expiresAt }) {
     await existing.update(
       {
         userId,
+        sessionToken,
         status: HOLD_STATUS.HELD,
         expiresAt,
       },
@@ -348,6 +393,7 @@ async function claimSeatHold({ t, showId, seatCode, userId, expiresAt }) {
         showId,
         seatCode,
         userId,
+        sessionToken,
         status: HOLD_STATUS.HELD,
         expiresAt,
       },
@@ -367,7 +413,10 @@ async function claimSeatHold({ t, showId, seatCode, userId, expiresAt }) {
     const expiresAtMs = new Date(row.expiresAt).getTime();
     const isExpired = Number.isFinite(expiresAtMs) ? expiresAtMs <= nowMs : true;
     const isActiveHeld = row.status === HOLD_STATUS.HELD && !isExpired;
-    const heldByOther = isActiveHeld && String(row.userId) !== String(userId);
+    const heldByOther =
+      isActiveHeld &&
+      String(row.userId) !== String(userId) &&
+      String(row.sessionToken || '') !== String(sessionToken);
 
     if (heldByOther) {
       throw new HttpError(409, 'Some seats are temporarily locked by another user');
@@ -376,6 +425,7 @@ async function claimSeatHold({ t, showId, seatCode, userId, expiresAt }) {
     await row.update(
       {
         userId,
+        sessionToken,
         status: HOLD_STATUS.HELD,
         expiresAt,
       },
@@ -384,15 +434,132 @@ async function claimSeatHold({ t, showId, seatCode, userId, expiresAt }) {
   }
 }
 
+async function refreshSeatHoldsForCheckout({ t, showId, seatCodes, userId, sessionToken }) {
+  const requestedSeatCodes = Array.from(
+    new Set(seatCodes.map((seatCode) => String(seatCode).toUpperCase().trim()))
+  );
+
+  if (requestedSeatCodes.length < 1) throw new HttpError(400, 'Select at least 1 seat');
+  if (requestedSeatCodes.length > 10) throw new HttpError(400, 'Select at most 10 seats');
+
+  const show = await db.Show.findByPk(showId, { transaction: t, lock: t.LOCK.UPDATE });
+  if (!show || show.isCancelled || show.isBlocked || !show.isApproved) {
+    throw new HttpError(404, 'Show not available');
+  }
+  if (!isShowBookingOpen(show)) throw new HttpError(409, 'Show booking closed');
+
+  await cleanupExpiredHolds(t);
+
+  const hall = await db.Hall.findByPk(show.hallId, { transaction: t, lock: t.LOCK.UPDATE });
+  if (!hall) throw new HttpError(404, 'Hall not found');
+
+  const layout = await db.HallLayout.findOne({
+    where: { hallId: hall.id },
+    transaction: t,
+    lock: t.LOCK.UPDATE,
+  });
+  if (!layout) throw new HttpError(409, 'Seat layout not configured');
+
+  const parsedSeats = requestedSeatCodes.map((seatCode) => {
+    const parsed = parseSeatCodeForLayout(layout, seatCode);
+    if (!parsed) throw new HttpError(400, `Seat does not exist in layout: ${seatCode}`);
+    return parsed;
+  });
+
+  const absoluteSeatCodes = parsedSeats.map((seat) => seat.absoluteSeatCode);
+  const alreadyBooked = await db.BookingSeat.findAll({
+    where: { showId: show.id, seatCode: { [Op.in]: absoluteSeatCodes } },
+    transaction: t,
+    lock: t.LOCK.UPDATE,
+  });
+  if (alreadyBooked.length) throw new HttpError(409, 'Some seats are already booked');
+
+  const holdDurationMs = Number(env.seatHoldMs ?? 120000);
+  const expiresAt = new Date(Date.now() + holdDurationMs);
+
+  for (const seatCode of absoluteSeatCodes) {
+    // eslint-disable-next-line no-await-in-loop
+    await claimSeatHold({
+      t,
+      showId: show.id,
+      seatCode,
+      userId,
+      sessionToken,
+      expiresAt,
+    });
+  }
+
+  return {
+    expiresAt,
+    holdMs: holdDurationMs,
+  };
+}
+
+async function releaseSeatHolds({ t, showId, seatCodes, sessionToken }) {
+  const requestedSeatCodes = Array.from(
+    new Set(seatCodes.map((seatCode) => String(seatCode).toUpperCase().trim()))
+  );
+
+  if (requestedSeatCodes.length < 1) throw new HttpError(400, 'Select at least 1 seat');
+  if (requestedSeatCodes.length > 10) throw new HttpError(400, 'Select at most 10 seats');
+
+  const show = await db.Show.findByPk(showId, { transaction: t, lock: t.LOCK.UPDATE });
+  if (!show) throw new HttpError(404, 'Show not available');
+
+  const hall = await db.Hall.findByPk(show.hallId, { transaction: t, lock: t.LOCK.UPDATE });
+  if (!hall) throw new HttpError(404, 'Hall not found');
+
+  const layout = await db.HallLayout.findOne({
+    where: { hallId: hall.id },
+    transaction: t,
+    lock: t.LOCK.UPDATE,
+  });
+  if (!layout) throw new HttpError(409, 'Seat layout not configured');
+
+  const absoluteSeatCodes = requestedSeatCodes.map((seatCode) => {
+    const parsed = parseSeatCodeForLayout(layout, seatCode);
+    if (!parsed) throw new HttpError(400, `Seat does not exist in layout: ${seatCode}`);
+    return parsed.absoluteSeatCode;
+  });
+
+  await db.SeatHold.update(
+    { status: HOLD_STATUS.RELEASED },
+    {
+      where: {
+        showId: show.id,
+        seatCode: { [Op.in]: absoluteSeatCodes },
+        sessionToken,
+        status: HOLD_STATUS.HELD,
+      },
+      transaction: t,
+    }
+  );
+
+  return {
+    showId: show.id,
+    seatCodes: requestedSeatCodes,
+  };
+}
+
+function clearOtpRecordsForShow({ userId, showId }) {
+  const prefix = `${userId}:${showId}:`;
+  for (const key of otpStore.keys()) {
+    if (key.startsWith(prefix)) otpStore.delete(key);
+  }
+}
+
 async function createHold(req, res, next) {
   const t = await db.sequelize.transaction();
   try {
+    // Debug log to verify auth middleware decoded the user correctly for hold requests.
+    console.log('USER:', req.user);
     const body = createHoldSchema.parse(req.body);
     const show = await db.Show.findByPk(body.showId, { transaction: t, lock: t.LOCK.UPDATE });
 
     if (!show || show.isCancelled || show.isBlocked || !show.isApproved) {
       throw new HttpError(404, 'Show not available');
     }
+    if (!isShowBookingOpen(show)) throw new HttpError(409, 'Show booking closed');
 
     await cleanupExpiredHolds(t);
 
@@ -434,13 +601,14 @@ async function createHold(req, res, next) {
     for (const seatCode of absoluteSeatCodes) {
       // eslint-disable-next-line no-await-in-loop
       await claimSeatHold({
-        t,
-        showId: show.id,
-        seatCode,
-        userId: req.user.id,
-        expiresAt,
-      });
-    }
+      t,
+      showId: show.id,
+      seatCode,
+      userId: req.user.id,
+      sessionToken: body.sessionToken,
+      expiresAt,
+    });
+  }
 
     await t.commit();
 
@@ -451,7 +619,7 @@ async function createHold(req, res, next) {
       holdMs: holdDurationMs,
     });
   } catch (e) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
     return next(e);
   }
@@ -464,6 +632,26 @@ async function confirmBooking(req, res, next) {
     const requestedSeatCodes = Array.from(
       new Set(body.seatCodes.map((s) => String(s).toUpperCase().trim()))
     );
+    const normalizedEmail = String(body.email).trim().toLowerCase();
+
+    const otpRecord = otpStore.get(
+      otpKey({
+        userId: req.user.id,
+        showId: body.showId,
+        email: normalizedEmail,
+      })
+    );
+    if (!otpRecord?.verifiedAt || otpRecord.expiresAt <= Date.now()) {
+      throw new HttpError(400, 'Payment OTP verification is required');
+    }
+
+    await refreshSeatHoldsForCheckout({
+      t,
+      showId: body.showId,
+      seatCodes: requestedSeatCodes,
+      userId: req.user.id,
+      sessionToken: body.sessionToken,
+    });
 
     const show = await db.Show.findByPk(body.showId, {
       transaction: t,
@@ -476,6 +664,7 @@ async function confirmBooking(req, res, next) {
     if (!show || show.isCancelled || show.isBlocked || !show.isApproved) {
       throw new HttpError(404, 'Show not available');
     }
+    if (!isShowBookingOpen(show)) throw new HttpError(409, 'Show booking closed');
 
     const hall = await db.Hall.findByPk(show.hallId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!hall) throw new HttpError(404, 'Hall not found');
@@ -494,29 +683,6 @@ async function confirmBooking(req, res, next) {
     });
     const absoluteSeatCodes = parsedSeats.map((seat) => seat.absoluteSeatCode);
     const publicSeatCodes = parsedSeats.map((seat) => seat.publicSeatCode);
-
-    const now = new Date();
-
-    const holds = await db.SeatHold.findAll({
-      where: { showId: show.id, seatCode: { [Op.in]: absoluteSeatCodes } },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-    const holdBySeat = new Map(holds.map((hold) => [String(hold.seatCode), hold]));
-
-    for (const seatCode of absoluteSeatCodes) {
-      const hold = holdBySeat.get(String(seatCode));
-      if (!hold) continue;
-
-      const expiresAtMs = new Date(hold.expiresAt).getTime();
-      const isExpired = !Number.isFinite(expiresAtMs) || expiresAtMs <= now.getTime();
-      const isActiveHeld = hold.status === HOLD_STATUS.HELD && !isExpired;
-      const heldByOther = isActiveHeld && String(hold.userId) !== String(req.user.id);
-
-      if (heldByOther) {
-        throw new HttpError(409, 'Some seats are temporarily locked by another user');
-      }
-    }
 
     const alreadyBooked = await db.BookingSeat.findAll({
       where: { showId: show.id, seatCode: { [Op.in]: absoluteSeatCodes } },
@@ -591,7 +757,7 @@ async function confirmBooking(req, res, next) {
         where: {
           showId: show.id,
           seatCode: { [Op.in]: absoluteSeatCodes },
-          userId: req.user.id,
+          sessionToken: body.sessionToken,
           status: HOLD_STATUS.HELD,
         },
         transaction: t,
@@ -599,6 +765,13 @@ async function confirmBooking(req, res, next) {
     );
 
     await t.commit();
+    otpStore.delete(
+      otpKey({
+        userId: req.user.id,
+        showId: body.showId,
+        email: normalizedEmail,
+      })
+    );
     res.status(201).json({
       bookingId: booking.id,
       showId: show.id,
@@ -607,7 +780,7 @@ async function confirmBooking(req, res, next) {
       ticket: buildBookingTicket({ booking, seatMeta, show }),
     });
   } catch (e) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
     return next(e);
   }
@@ -668,4 +841,133 @@ async function listMyBookings(req, res, next) {
   }
 }
 
-module.exports = { createHold, confirmBooking, cleanupExpiredHolds, listMyBookings };
+async function sendPaymentOtp(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const body = sendOtpSchema.parse(req.body);
+    const normalizedEmail = String(body.email).trim().toLowerCase();
+
+    if (normalizedEmail !== String(req.user.email).trim().toLowerCase()) {
+      throw new HttpError(400, 'Use your registered account email for OTP verification');
+    }
+
+    const holdState = await refreshSeatHoldsForCheckout({
+      t,
+      showId: body.showId,
+      seatCodes: body.seatCodes,
+      userId: req.user.id,
+      sessionToken: body.sessionToken,
+    });
+    await t.commit();
+
+    const otp = generateOtp();
+    const key = otpKey({
+      userId: req.user.id,
+      showId: body.showId,
+      email: normalizedEmail,
+    });
+
+    otpStore.set(key, {
+      otp,
+      expiresAt: Date.now() + env.auth.paymentOtpExpiresMs,
+    });
+
+    await sendOtpEmail(normalizedEmail, req.user.name, otp);
+
+    res.json({
+      ok: true,
+      expiresInMs: env.auth.paymentOtpExpiresMs,
+      expiresAt: holdState.expiresAt,
+      holdMs: holdState.holdMs,
+      message: 'OTP sent to your registered email address',
+    });
+  } catch (e) {
+    if (!t.finished) await t.rollback();
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+async function verifyPaymentOtp(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const body = verifyOtpSchema.parse(req.body);
+    const normalizedEmail = String(body.email).trim().toLowerCase();
+
+    const key = otpKey({
+      userId: req.user.id,
+      showId: body.showId,
+      email: normalizedEmail,
+    });
+
+    const record = otpStore.get(key);
+    if (!record) throw new HttpError(400, 'OTP not requested for this payment');
+    if (record.expiresAt <= Date.now()) {
+      otpStore.delete(key);
+      throw new HttpError(400, 'OTP expired. Request a new one');
+    }
+    if (record.otp !== body.otp) throw new HttpError(400, 'Invalid OTP');
+
+    const holdState = await refreshSeatHoldsForCheckout({
+      t,
+      showId: body.showId,
+      seatCodes: body.seatCodes,
+      userId: req.user.id,
+      sessionToken: body.sessionToken,
+    });
+    await t.commit();
+
+    otpStore.set(key, {
+      ...record,
+      verifiedAt: Date.now(),
+    });
+
+    res.json({
+      ok: true,
+      expiresAt: holdState.expiresAt,
+      holdMs: holdState.holdMs,
+      message: 'OTP verified successfully',
+    });
+  } catch (e) {
+    if (!t.finished) await t.rollback();
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+async function releaseHold(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const body = releaseHoldSchema.parse(req.body);
+
+    const releaseState = await releaseSeatHolds({
+      t,
+      showId: body.showId,
+      seatCodes: body.seatCodes,
+      sessionToken: body.sessionToken,
+    });
+    await t.commit();
+
+    clearOtpRecordsForShow({ userId: req.user.id, showId: body.showId });
+
+    res.json({
+      ok: true,
+      showId: releaseState.showId,
+      seatCodes: releaseState.seatCodes,
+    });
+  } catch (e) {
+    if (!t.finished) await t.rollback();
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
+module.exports = {
+  createHold,
+  confirmBooking,
+  cleanupExpiredHolds,
+  listMyBookings,
+  sendPaymentOtp,
+  verifyPaymentOtp,
+  releaseHold,
+};

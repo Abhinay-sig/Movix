@@ -105,7 +105,8 @@ export function buildVisibleSeatRows(layout) {
         colIdx,
         displayRowIdx: rowIdx - bounds.minRow,
         displayColIdx: colIdx - bounds.minCol,
-        seatCode: seatCode(rowIdx - bounds.minRow, colIdx - bounds.minCol),
+        seatCode: seatCode(rowIdx, colIdx),
+        displaySeatCode: seatCode(rowIdx - bounds.minRow, colIdx - bounds.minCol),
         seatNumber: colIdx - bounds.minCol + 1,
         seatTypeCode: seatTypeAt(layout?.typedSegmentsByRow, rowIdx, colIdx) || 'standard',
       })

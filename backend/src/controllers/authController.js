@@ -31,7 +31,6 @@ const resetPasswordSchema = z.object({
   password: z.string().min(8).max(200),
   role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).optional(),
 });
-
 const verifyQuerySchema = z.object({
   token: z.string().min(1),
   role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).optional(),
@@ -111,7 +110,6 @@ async function resetPassword(req, res, next) {
     return next(e);
   }
 }
-
 async function verifyEmail(req, res, next) {
   try {
     const query = verifyQuerySchema.parse(req.query);

@@ -40,9 +40,10 @@ const env = {
   auth: {
     verificationExpiresMs: Number(process.env.EMAIL_VERIFICATION_EXPIRES_MS ?? 120000),
     passwordResetExpiresMs: Number(process.env.PASSWORD_RESET_EXPIRES_MS ?? 300000),
+    paymentOtpExpiresMs: Number(process.env.PAYMENT_OTP_EXPIRES_MS ?? 300000),
   },
 
-  email: {
+  smtp: {
     from: process.env.SMTP_FROM ?? process.env.SMTP_EMAIL ?? '',
     host: process.env.SMTP_HOST ?? '',
     port: Number(process.env.SMTP_PORT ?? 465),
@@ -58,6 +59,13 @@ const env = {
     googleRedirectUri:
       process.env.GOOGLE_REDIRECT_URI ??
       `${process.env.BACKEND_BASE_URL ?? `http://localhost:${Number(process.env.PORT ?? 3001)}`}/api/auth/google/callback`,
+  },
+
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',
+    apiKey: process.env.CLOUDINARY_API_KEY ?? '',
+    apiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
+    folder: process.env.CLOUDINARY_FOLDER ?? 'movix/posters',
   },
 
   seatHoldMs: Number(process.env.SEAT_HOLD_MS ?? 300000),

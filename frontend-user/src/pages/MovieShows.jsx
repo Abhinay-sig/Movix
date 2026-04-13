@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import { formatDateTimeTo12Hour, formatTo12Hour } from '../lib/time'
 
 export default function MovieShows() {
   const { movieId } = useParams()
   const [shows, setShows] = useState([])
+  const [movie, setMovie] = useState(null)
   const [err, setErr] = useState('')
 
   useEffect(() => {
     let alive = true
     api(`/public/movies/${movieId}/shows`)
-      .then((d) => alive && setShows(d.shows || []))
+      .then((d) => {
+        if (!alive) return
+        const upcomingShows = (d.shows || []).filter((show) => new Date(show.startsAt).getTime() > Date.now())
+        setShows(upcomingShows)
+        setMovie(d.movie || null)
+      })
       .catch((e) => alive && setErr(e.message))
 
     return () => {
@@ -37,6 +44,18 @@ export default function MovieShows() {
               Compare theater, timing, and language details before choosing your
               seats.
             </p>
+            {movie?.languages?.length ? (
+              <div className="flex flex-wrap gap-2">
+                {movie.languages.map((language) => (
+                  <span
+                    key={language}
+                    className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-slate-600"
+                  >
+                    {language}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -75,7 +94,7 @@ export default function MovieShows() {
 
       {shows.length === 0 ? (
         <div className="soft-card border-dashed p-10 text-center text-slate-500">
-          No shows available
+          No upcoming shows available
         </div>
       ) : (
         <div className="space-y-4">
@@ -96,14 +115,14 @@ export default function MovieShows() {
 
                 <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
                   <div>
-                    <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                  <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
                       Showtime
                     </div>
                     <div className="mt-2 text-sm font-semibold text-slate-900">
-                      {new Date(s.startsAt).toLocaleString()}
+                      {formatDateTimeTo12Hour(s.startsAt)}
                     </div>
                     <div className="mt-1 text-sm text-slate-500">
-                      Ends at {new Date(s.endsAt).toLocaleTimeString()}
+                      Ends at {formatTo12Hour(new Date(s.endsAt).toISOString().slice(11, 16))}
                     </div>
                   </div>
 

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import { getSeatSessionToken } from '../lib/seatSession'
 import { useAuth } from '../useAuth'
 import { buildVisibleSeatRows } from '../lib/seatLayout'
+import { formatDateTimeTo12Hour } from '../lib/time'
 
 const MAX_SELECTABLE_SEATS = 10
 
@@ -30,14 +32,7 @@ const SEAT_THEME = {
 }
 
 function formatShowDate(value) {
-  if (!value) return 'TBA'
-  return new Date(value).toLocaleString([], {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+  return formatDateTimeTo12Hour(value, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 function useViewport() {
@@ -62,11 +57,20 @@ function sortSeatCodes(seatCodes) {
   return [...seatCodes].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 }
 
+function displaySeatCodeForAbsolute(rows, absoluteSeatCode) {
+  for (const row of rows) {
+    const seat = row.cells.find((cell) => cell?.seatCode === absoluteSeatCode)
+    if (seat) return seat.displaySeatCode || seat.seatCode
+  }
+  return absoluteSeatCode
+}
+
 export default function SeatSelect() {
-  const { auth } = useAuth()
+  const { auth, logout } = useAuth()
   const { showId } = useParams()
   const nav = useNavigate()
   const viewport = useViewport()
+  const seatSessionToken = useMemo(() => getSeatSessionToken(), [])
 
   const [data, setData] = useState(null)
   const [err, setErr] = useState('')
@@ -80,7 +84,9 @@ export default function SeatSelect() {
 
     async function loadSeatMap(keepError = false) {
       try {
-        const response = await api(`/public/shows/${showId}/seatmap`)
+        const response = await api(`/public/shows/${showId}/seatmap`, {
+          headers: { 'x-seat-session': seatSessionToken },
+        })
         if (!alive) return
         setData(response)
         if (!keepError) setErr('')
@@ -93,14 +99,16 @@ export default function SeatSelect() {
     return () => {
       alive = false
     }
-  }, [showId])
+  }, [seatSessionToken, showId])
 
   useEffect(() => {
     let alive = true
 
     async function refreshSeatMap(keepError = false) {
       try {
-        const response = await api(`/public/shows/${showId}/seatmap`)
+        const response = await api(`/public/shows/${showId}/seatmap`, {
+          headers: { 'x-seat-session': seatSessionToken },
+        })
         if (!alive) return
         setData(response)
         if (!keepError) setErr('')
@@ -117,10 +125,11 @@ export default function SeatSelect() {
       alive = false
       window.clearInterval(id)
     }
-  }, [showId])
+  }, [seatSessionToken, showId])
 
   const booked = useMemo(() => new Set(data?.bookedSeats || []), [data])
   const held = useMemo(() => new Set(data?.heldSeats || []), [data])
+  const heldByMe = useMemo(() => new Set(data?.heldByMeSeats || []), [data])
   const selectedArr = useMemo(() => sortSeatCodes(Array.from(selected)), [selected])
 
   const seatTypeMap = useMemo(() => {
@@ -137,6 +146,11 @@ export default function SeatSelect() {
   const { rows, bounds } = useMemo(
     () => buildVisibleSeatRows(data?.layout),
     [data?.layout]
+  )
+
+  const selectedDisplayArr = useMemo(
+    () => selectedArr.map((seatCode) => displaySeatCodeForAbsolute(rows, seatCode)),
+    [rows, selectedArr]
   )
 
   const seatStats = useMemo(() => {
@@ -170,7 +184,9 @@ export default function SeatSelect() {
   useEffect(() => {
     if (!selected.size) return
 
-    const unavailable = selectedArr.filter((seatCode) => booked.has(seatCode) || held.has(seatCode))
+    const unavailable = selectedArr.filter(
+      (seatCode) => booked.has(seatCode) || (held.has(seatCode) && !heldByMe.has(seatCode))
+    )
     if (!unavailable.length) return
 
     setSelected((prev) => {
@@ -178,8 +194,10 @@ export default function SeatSelect() {
       unavailable.forEach((seatCode) => next.delete(seatCode))
       return next
     })
-    setConflictNote(`${unavailable.join(', ')} just became unavailable, so they were removed from your selection.`)
-  }, [booked, held, selected, selectedArr])
+    setConflictNote(
+      `${unavailable.map((seatCode) => displaySeatCodeForAbsolute(rows, seatCode)).join(', ')} just became unavailable, so they were removed from your selection.`
+    )
+  }, [booked, held, heldByMe, rows, selected, selectedArr])
 
   useEffect(() => {
     if (!dragMode) return undefined
@@ -197,7 +215,7 @@ export default function SeatSelect() {
   }, [dragMode])
 
   function applySeatChoice(seatCode, shouldSelect) {
-    if (booked.has(seatCode) || held.has(seatCode)) return
+    if (booked.has(seatCode) || (held.has(seatCode) && !heldByMe.has(seatCode))) return
 
     setSelected((prev) => {
       const next = new Set(prev)
@@ -213,7 +231,7 @@ export default function SeatSelect() {
   }
 
   function startDrag(seatCode) {
-    if (booked.has(seatCode) || held.has(seatCode)) return
+    if (booked.has(seatCode) || (held.has(seatCode) && !heldByMe.has(seatCode))) return
     const shouldSelect = !selected.has(seatCode)
     applySeatChoice(seatCode, shouldSelect)
     setConflictNote('')
@@ -231,20 +249,21 @@ export default function SeatSelect() {
       const hold = await api('/holds', {
         method: 'POST',
         token: auth.token,
-        body: { showId: Number(showId), seatCodes: selectedArr },
+        body: { showId: Number(showId), seatCodes: selectedArr, sessionToken: seatSessionToken },
       })
 
       nav(`/shows/${showId}/payment`, {
         state: {
-          seatCodes: hold.seatCodes || selectedArr,
+          seatCodes: selectedArr,
+          displaySeatCodes: selectedDisplayArr,
           expiresAt: hold.expiresAt,
           estimate: {
             total: totalAmount,
-            breakdown: (hold.seatCodes || selectedArr).map((seatCode) => {
+            breakdown: selectedArr.map((seatCode) => {
               const seat = rows.flatMap((row) => row.cells).find((cell) => cell?.seatCode === seatCode)
               const seatType = seatTypeMap.get(seat?.seatTypeCode || 'standard')
               return {
-                seatCode,
+                seatCode: seat?.displaySeatCode || seatCode,
                 seatTypeCode: seat?.seatTypeCode || 'standard',
                 seatTypeLabel:
                   seatType?.displayName ||
@@ -259,9 +278,20 @@ export default function SeatSelect() {
         },
       })
     } catch (e) {
+      if (e.status === 401) {
+        logout()
+        nav('/login', {
+          replace: true,
+          state: { from: `/shows/${showId}/seats` },
+        })
+        return
+      }
+
       alert(e.message)
       try {
-        const response = await api(`/public/shows/${showId}/seatmap`)
+        const response = await api(`/public/shows/${showId}/seatmap`, {
+          headers: { 'x-seat-session': seatSessionToken },
+        })
         setData(response)
       } catch {
         // ignore refresh error after failed hold attempt
@@ -389,13 +419,16 @@ export default function SeatSelect() {
                   }
 
                   const isBooked = booked.has(seat.seatCode)
-                  const isHeld = held.has(seat.seatCode)
+                  const isHeldByOther = held.has(seat.seatCode) && !heldByMe.has(seat.seatCode)
+                  const isHeldByMe = heldByMe.has(seat.seatCode)
                   const isSelected = selected.has(seat.seatCode)
                   const theme = SEAT_THEME[seat.seatTypeCode] || SEAT_THEME.standard
 
                   let stateClass = `${theme.base} hover:-translate-y-0.5`
-                  if (isBooked || isHeld) {
+                  if (isBooked || isHeldByOther) {
                     stateClass = 'border-slate-300 bg-slate-300 text-slate-50 opacity-80'
+                  } else if (isHeldByMe) {
+                    stateClass = 'border-blue-300 bg-blue-50 text-blue-700'
                   } else if (isSelected) {
                     stateClass = 'border-slate-950 bg-slate-950 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]'
                   } else {
@@ -406,8 +439,8 @@ export default function SeatSelect() {
                     <button
                       key={seat.seatCode}
                       type="button"
-                      title={`${seat.seatCode} • ${(seatTypeMap.get(seat.seatTypeCode)?.displayName || theme.label)}`}
-                      disabled={isBooked || isHeld}
+                      title={`${seat.displaySeatCode || seat.seatCode} • ${(seatTypeMap.get(seat.seatTypeCode)?.displayName || theme.label)}`}
+                      disabled={isBooked || isHeldByOther}
                       onPointerDown={(event) => {
                         event.preventDefault()
                         startDrag(seat.seatCode)
@@ -448,6 +481,10 @@ export default function SeatSelect() {
             Selected
           </div>
           <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 shadow-sm">
+            <span className="mr-2 inline-block h-3 w-3 rounded-full border border-blue-300 bg-blue-50 align-middle" />
+            Held by you
+          </div>
+          <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 shadow-sm">
             <span className="mr-2 inline-block h-3 w-3 rounded-full bg-slate-300 align-middle" />
             Booked or temporarily locked
           </div>
@@ -460,7 +497,7 @@ export default function SeatSelect() {
             <div>
               <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Selected seats</div>
               <div className="mt-2 rounded-2xl border border-slate-200 bg-white/90 px-4 py-4 font-mono text-sm text-slate-900 shadow-sm">
-                {selectedArr.join(', ') || 'No seats selected'}
+                {selectedDisplayArr.join(', ') || 'No seats selected'}
               </div>
             </div>
 

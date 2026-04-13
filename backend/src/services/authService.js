@@ -96,7 +96,6 @@ async function persistPasswordResetToken(user) {
 
   return { rawToken, expiresAt, sentAt: now };
 }
-
 async function persistVerificationToken(user) {
   const rawToken = randomToken(24);
   const now = new Date();
@@ -197,7 +196,6 @@ async function sendPasswordResetEmail(user, rawToken, expiresAt) {
     `,
   });
 }
-
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -467,7 +465,6 @@ async function resetPassword({ token, password, role }) {
     user: userToJson(user),
   };
 }
-
 function buildVerificationRedirectUrl(result) {
   const appUrl = getAppUrlForRole(result.role);
   const target = new URL('/verify-email', appUrl);

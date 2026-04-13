@@ -30,41 +30,22 @@ export default function Layout() {
             <nav className="hidden flex-1 items-center justify-center gap-2 md:flex">
               {auth?.user?.role === 'theater_owner' ? (
                 <>
-                  <Link to="/owner/theaters" className="nav-link">
-                    Theaters
-                  </Link>
-                  <Link to="/owner/movies" className="nav-link">
-                    Movies
-                  </Link>
-                  <Link to="/owner/halls/new" className="nav-link">
-                    Add hall
-                  </Link>
-                  <Link to="/owner/shows/new" className="nav-link">
-                    Schedule show
-                  </Link>
-                  <Link to="/owner/revenue" className="nav-link">
-                    Revenue
-                  </Link>
+                  <Link to="/owner/theaters" className="nav-link">Theaters</Link>
+                  <Link to="/owner/movies" className="nav-link">Movies</Link>
+                  <Link to="/owner/halls/new" className="nav-link">Add hall</Link>
+                  <Link to="/owner/shows/new" className="nav-link">Schedule show</Link>
+                  <Link to="/owner/revenue" className="nav-link">Revenue</Link>
                 </>
               ) : null}
 
               {auth?.user?.role === 'admin' ? (
                 <>
-                  <Link to="/admin/dashboard" className="nav-link">
-                    Dashboard
-                  </Link>
-                  <Link to="/admin/movies" className="nav-link">
-                    Movies
-                  </Link>
-                  <Link to="/admin/approvals" className="nav-link">
-                    Approvals
-                  </Link>
-                  <Link to="/admin/caps" className="nav-link">
-                    Seat caps
-                  </Link>
-                  <Link to="/admin/blocking" className="nav-link">
-                    Blocking
-                  </Link>
+                  <Link to="/admin/dashboard" className="nav-link">Dashboard</Link>
+                  <Link to="/admin/approvals" className="nav-link">Approvals</Link>
+                  <Link to="/admin/movies" className="nav-link">Movies</Link>
+                  <Link to="/admin/caps" className="nav-link">Pricing</Link>
+                  <Link to="/admin/blocking" className="nav-link">Visibility</Link>
+                  <Link to="/admin/reports" className="nav-link">Reports</Link>
                 </>
               ) : null}
             </nav>
@@ -83,7 +64,6 @@ export default function Layout() {
                       {auth.user?.role}
                     </div>
                   </div>
-
                   <button
                     onClick={logout}
                     className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
@@ -105,41 +85,22 @@ export default function Layout() {
           <nav className="flex flex-wrap gap-2 pt-4 md:hidden">
             {auth?.user?.role === 'theater_owner' ? (
               <>
-                <Link to="/owner/theaters" className="nav-chip">
-                  Theaters
-                </Link>
-                <Link to="/owner/movies" className="nav-chip">
-                  Movies
-                </Link>
-                <Link to="/owner/halls/new" className="nav-chip">
-                  Add hall
-                </Link>
-                <Link to="/owner/shows/new" className="nav-chip">
-                  Schedule show
-                </Link>
-                <Link to="/owner/revenue" className="nav-chip">
-                  Revenue
-                </Link>
+                <Link to="/owner/theaters" className="nav-chip">Theaters</Link>
+                <Link to="/owner/movies" className="nav-chip">Movies</Link>
+                <Link to="/owner/halls/new" className="nav-chip">Add hall</Link>
+                <Link to="/owner/shows/new" className="nav-chip">Schedule show</Link>
+                <Link to="/owner/revenue" className="nav-chip">Revenue</Link>
               </>
             ) : null}
 
             {auth?.user?.role === 'admin' ? (
               <>
-                <Link to="/admin/dashboard" className="nav-chip">
-                  Dashboard
-                </Link>
-                <Link to="/admin/movies" className="nav-chip">
-                  Movies
-                </Link>
-                <Link to="/admin/approvals" className="nav-chip">
-                  Approvals
-                </Link>
-                <Link to="/admin/caps" className="nav-chip">
-                  Seat caps
-                </Link>
-                <Link to="/admin/blocking" className="nav-chip">
-                  Blocking
-                </Link>
+                <Link to="/admin/dashboard" className="nav-chip">Dashboard</Link>
+                <Link to="/admin/approvals" className="nav-chip">Approvals</Link>
+                <Link to="/admin/movies" className="nav-chip">Movies</Link>
+                <Link to="/admin/caps" className="nav-chip">Pricing</Link>
+                <Link to="/admin/blocking" className="nav-chip">Visibility</Link>
+                <Link to="/admin/reports" className="nav-chip">Reports</Link>
               </>
             ) : null}
           </nav>

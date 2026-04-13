@@ -23,18 +23,20 @@ export default function OwnerTheaterHalls() {
     }
   }, [auth.token, theatreId])
 
+  const halls = (data?.halls || []).filter((hall) => hall?.isApproved)
+
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4">
-        <Link to="/owner/theaters" className="text-blue-300 hover:text-white font-medium transition-colors">
+        <Link to="/owner/theaters" className="text-green-600 hover:text-black font-medium transition-colors">
           Back to theaters
         </Link>
       </div>
 
       <div>
-        <h2 className="text-4xl font-bold text-white mb-2">Theater halls</h2>
+        <h2 className="text-4xl font-bold text-black mb-2">Theater halls</h2>
         {data?.theater ? (
-          <div className="text-slate-300">
+          <div className="text-slate-800">
             {data.theater.name} • {data.theater.city}
           </div>
         ) : null}
@@ -44,18 +46,27 @@ export default function OwnerTheaterHalls() {
 
       {!data ? (
         <div className="text-gray-300 bg-white/10 p-6 rounded-lg text-center">Loading halls…</div>
-      ) : data.halls.length === 0 ? (
+      ) : halls.length === 0 ? (
         <div className="text-gray-300 bg-white/10 p-6 rounded-lg text-center">No halls found for this theater.</div>
       ) : (
         <div className="grid gap-4">
-          {data.halls.map((hall) => (
+          {halls.map((hall) => (
             <div key={hall.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
               <div className="text-xl font-bold text-gray-900">{hall.name}</div>
-              <div className="text-sm text-gray-600 mt-2">
-                {hall.screenNumber ? `Screen: ${hall.screenNumber}` : 'Screen number not available'}
+              <div className="text-sm text-gray-600 mt-1">
+                Total Capacity: {hall.seatingCapacity ?? 0}
               </div>
               <div className="text-sm text-gray-600 mt-1">
-                {hall.seatingCapacity !== null ? `Seating capacity: ${hall.seatingCapacity}` : 'Seating capacity not available'}
+                Seat Types:
+              </div>
+              <div className="text-sm text-gray-600 mt-1">
+                Gold: {hall.seatTypeCounts?.gold ?? 0}
+              </div>
+              <div className="text-sm text-gray-600 mt-1">
+                Silver: {hall.seatTypeCounts?.silver ?? 0}
+              </div>
+              <div className="text-sm text-gray-600 mt-1">
+                Platinum: {hall.seatTypeCounts?.platinum ?? 0}
               </div>
               <div className="text-xs text-gray-400 mt-3">Hall ID: {hall.id}</div>
             </div>
