@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const { db } = require('../models');
 const { HttpError } = require('../utils/httpError');
+const { serializeMovieWithLanguages } = require('../utils/movieLanguages');
 const {
   parseSeatCodeForLayout,
   seatTypeForSeat,
@@ -61,12 +62,13 @@ async function listMovies(req, res, next) {
     const durationFilter = String(req.query.duration ?? '').trim().toLowerCase();
 
     const shows = await db.Show.findAll({
-      where: { isApproved: true, isBlocked: false, isCancelled: false },
+      where: { status: 'approved', isApproved: true, isBlocked: false, isCancelled: false },
       include: [
         {
           model: db.Movie,
           required: true,
           where: { isActive: true },
+          include: [{ model: db.MovieLanguage, required: false }],
         },
         {
           model: db.Hall,
@@ -91,9 +93,10 @@ async function listMovies(req, res, next) {
       if (!movie || !theater) continue;
 
       if (!movieMap.has(String(movie.id))) {
+        const baseMovie = serializeMovieWithLanguages(movie);
         movieMap.set(String(movie.id), {
-          ...movie.toJSON(),
-          languages: [],
+          ...baseMovie,
+          languages: [...baseMovie.languages],
           cities: [],
           theaterCount: 0,
           nextShowAt: null,
@@ -173,15 +176,34 @@ async function listShowsForMovie(req, res, next) {
     const shows = await db.Show.findAll({
       where: {
         movieId,
+        status: 'approved',
         isApproved: true,
         isBlocked: false,
         isCancelled: false,
         startsAt: { [Op.gt]: now },
       },
-      include: [{ model: db.Hall, where: { isApproved: true, isBlocked: false }, include: [{ model: db.Theater, where: { isBlocked: false } }] }],
+      include: [
+        {
+          model: db.Movie,
+          required: true,
+          include: [{ model: db.MovieLanguage, required: false }],
+        },
+        {
+          model: db.Hall,
+          where: { isApproved: true, isBlocked: false },
+          include: [{ model: db.Theater, where: { isBlocked: false } }],
+        },
+      ],
       order: [['startsAt', 'ASC']],
     });
-    res.json({ shows });
+    const movie =
+      shows[0]?.Movie ||
+      (await db.Movie.findByPk(movieId, {
+        include: [{ model: db.MovieLanguage, required: false }],
+      }));
+    if (!movie) throw new HttpError(404, 'Movie not found');
+
+    res.json({ shows, movie: serializeMovieWithLanguages(movie) });
   } catch (e) {
     next(e);
   }
@@ -197,7 +219,7 @@ async function listTheaterTimeline(req, res, next) {
     if (!halls.length) throw new HttpError(404, 'Theater not found');
     const hallIds = halls.map((h) => h.id);
     const shows = await db.Show.findAll({
-      where: { hallId: { [Op.in]: hallIds }, isApproved: true, isBlocked: false, isCancelled: false },
+      where: { hallId: { [Op.in]: hallIds }, status: 'approved', isApproved: true, isBlocked: false, isCancelled: false },
       include: [{ model: db.Movie }],
       order: [['startsAt', 'ASC']],
     });
@@ -219,6 +241,7 @@ async function showSeatMap(req, res, next) {
     });
     if (
       !show ||
+      show.status !== 'approved' ||
       !show.isApproved ||
       show.isBlocked ||
       show.isCancelled ||

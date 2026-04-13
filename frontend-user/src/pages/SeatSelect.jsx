@@ -6,6 +6,7 @@ import {
   getPendingSeatRelease,
   getSeatSessionToken,
 } from '../lib/seatSession'
+import { formatDateTimeTo12Hour } from '../lib/time'
 import { useAuth } from '../useAuth'
 import { buildVisibleSeatRows } from '../lib/seatLayout'
 import { useNotification } from '../NotificationProvider'
@@ -36,14 +37,7 @@ const SEAT_THEME = {
 }
 
 function formatShowDate(value) {
-  if (!value) return 'TBA'
-  return new Date(value).toLocaleString([], {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+  return formatDateTimeTo12Hour(value, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 function useViewport() {

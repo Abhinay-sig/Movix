@@ -182,6 +182,7 @@ function createTypedSegments(rows = 10, cols = 10) {
 // ============================================================================
 // SEED FUNCTIONS
 // ============================================================================
+// ============================================================================
 
 async function seedUsers() {
   const users = {};
@@ -211,7 +212,10 @@ async function seedMovies() {
   for (const m of SEED_MOVIES) {
     const [movie] = await db.Movie.findOrCreate({
       where: { title: m.title },
-      defaults: m,
+      defaults: {
+        ...m,
+        releaseDate: m.releaseDate ?? null,
+      },
     });
 
     movies.push(movie);

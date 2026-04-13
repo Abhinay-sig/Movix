@@ -8,7 +8,7 @@ function getTransporter() {
   if (transporter) return transporter;
 
   if (!env.smtp.user || !env.smtp.password) {
-    throw new HttpError(500, 'Email delivery is not configured');
+    throw new HttpError(503, 'Email delivery is not configured', undefined, { log: false });
   }
 
   transporter = nodemailer.createTransport(

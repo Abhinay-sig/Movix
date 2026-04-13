@@ -3,6 +3,7 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import OwnerSignup from './pages/OwnerSignup'
 import RequireRole from './components/RequireRole'
+import ProtectedRoute from './components/ProtectedRoute'
 import OwnerTheaters from './pages/OwnerTheaters'
 import OwnerTheaterHalls from './pages/OwnerTheaterHalls'
 import OwnerMovies from './pages/OwnerMovies'
@@ -11,86 +12,43 @@ import OwnerNewShow from './pages/OwnerNewShow'
 import OwnerRevenue from './pages/OwnerRevenue'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminAddMovie from './pages/AdminAddMovie'
+import AdminMovies from './pages/AdminMovies'
 import AdminApprovals from './pages/AdminApprovals'
+import HallDetails from './pages/HallDetails'
+import ShowDetails from './pages/ShowDetails'
 import AdminCaps from './pages/AdminCaps'
 import AdminBlocking from './pages/AdminBlocking'
+import Reports from './pages/Reports'
+import { useAuth } from './useAuth'
 import VerifyEmail from './pages/VerifyEmail'
 import OAuthCallback from './pages/OAuthCallback'
 
-/* ✅ NEW IMPORT */
-import AdminMovies from './pages/AdminMovies'
+function DashboardRedirect() {
+  const { auth } = useAuth()
+  if (!auth?.token) return <Navigate to="/login" replace />
+  if (auth.user?.role === 'admin') return <Navigate to="/admin/dashboard" replace />
+  if (auth.user?.role === 'theater_owner') return <Navigate to="/owner/theaters" replace />
+  return <Navigate to="/login" replace />
+}
 
-function Home() {
-  return (
-    <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-      <section className="staff-card overflow-hidden px-6 py-8 md:px-8 md:py-10">
-        <div className="space-y-5">
-          <div className="staff-chip">Workspace</div>
-          <div className="space-y-3">
-            <h1 className="staff-title max-w-2xl">
-              Manage theaters, halls, shows, and approvals in one place.
-            </h1>
-            <p className="staff-copy max-w-2xl">
-              Use this dashboard to add venues, manage show schedules,
-              and track business activity.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3 text-sm text-slate-500">
-            <div className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 shadow-sm">
-              Owner tools
-            </div>
-            <div className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 shadow-sm">
-              Approval controls
-            </div>
-            <div className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 shadow-sm">
-              Revenue tracking
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="staff-card overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-blue-600 p-6 text-white md:p-8">
-        <div className="space-y-5">
-          <div className="text-xs uppercase tracking-[0.22em] text-blue-100">
-            Quick start
-          </div>
-          <div className="space-y-3">
-            <div className="text-2xl font-semibold tracking-tight">
-              Welcome to the staff dashboard
-            </div>
-            <p className="text-sm leading-7 text-blue-50/82">
-              Sign in to access tools for cinema partners and platform admins.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {['Create and manage theaters', 'Submit halls and shows', 'Review system-wide changes'].map((item) => (
-              <div
-                key={item}
-                className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3 backdrop-blur-sm"
-              >
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    </div>
-  )
+function LoginRoute() {
+  const { auth } = useAuth()
+  if (auth?.token) return <Navigate to="/dashboard" replace />
+  return <Login />
 }
 
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<Home />} />
-        <Route path="/login" element={<Login />} />
+        <Route index element={<DashboardRedirect />} />
+        <Route path="/dashboard" element={<DashboardRedirect />} />
+        <Route path="/login" element={<LoginRoute />} />
         <Route path="/owner/signup" element={<OwnerSignup />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/oauth/callback" element={<OAuthCallback />} />
 
-        <Route element={<RequireRole role="theater_owner" />}>
+        <Route element={<ProtectedRoute><RequireRole role="theater_owner" /></ProtectedRoute>}>
           <Route path="/owner/theaters" element={<OwnerTheaters />} />
           <Route path="/owner/theatres/:theatreId/halls" element={<OwnerTheaterHalls />} />
           <Route path="/owner/movies" element={<OwnerMovies />} />
@@ -99,24 +57,20 @@ export default function App() {
           <Route path="/owner/revenue" element={<OwnerRevenue />} />
         </Route>
 
-        <Route element={<RequireRole role="admin" />}>
+        <Route element={<ProtectedRoute><RequireRole role="admin" /></ProtectedRoute>}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
-
-          {/* ✅ NEW: Movie List Page */}
           <Route path="/admin/movies" element={<AdminMovies />} />
-
-          {/* EXISTING */}
           <Route path="/admin/movies/new" element={<AdminAddMovie />} />
-
-          {/* ✅ NEW: Edit Movie (reuse same form) */}
           <Route path="/admin/movies/:id/edit" element={<AdminAddMovie />} />
-
           <Route path="/admin/approvals" element={<AdminApprovals />} />
+          <Route path="/admin/approvals/:id" element={<HallDetails />} />
+          <Route path="/admin/shows/:id" element={<ShowDetails />} />
           <Route path="/admin/caps" element={<AdminCaps />} />
           <Route path="/admin/blocking" element={<AdminBlocking />} />
+          <Route path="/admin/reports" element={<Reports />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>
   )

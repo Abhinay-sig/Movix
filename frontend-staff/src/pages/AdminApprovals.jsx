@@ -1,20 +1,94 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
+import SeatCapModal from '../components/SeatCapModal'
+import RejectModal from '../components/RejectModal'
+import { formatDateTimeTo12Hour } from '../lib/time'
+
+function timeAgo(value) {
+  if (!value) return 'just now'
+  const dt = new Date(value)
+  const diffMs = Date.now() - dt.getTime()
+  if (!Number.isFinite(diffMs)) return 'just now'
+  const mins = Math.max(0, Math.floor(diffMs / 60000))
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
+function startsInText(startsAt) {
+  const dt = new Date(startsAt)
+  const diffMs = dt.getTime() - Date.now()
+  if (!Number.isFinite(diffMs)) return 'Starts soon'
+  if (diffMs <= 0) {
+    const minsPast = Math.floor(Math.abs(diffMs) / 60000)
+    if (minsPast < 60) return `Started ${minsPast} minute${minsPast === 1 ? '' : 's'} ago`
+    const hrsPast = Math.floor(minsPast / 60)
+    return `Started ${hrsPast} hour${hrsPast === 1 ? '' : 's'} ago`
+  }
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 60) return `Starts in ${mins} minute${mins === 1 ? '' : 's'}`
+  const hours = Math.floor(mins / 60)
+  return `Starts in ${hours} hour${hours === 1 ? '' : 's'}`
+}
+
+function submittedAgeMs(value) {
+  if (!value) return 0
+  const dt = new Date(value)
+  const diff = Date.now() - dt.getTime()
+  return Number.isFinite(diff) ? Math.max(0, diff) : 0
+}
+
+function priorityForHall(hall) {
+  const ageMs = submittedAgeMs(hall?.createdAt)
+  if (ageMs < 6 * 60 * 60 * 1000) return { label: 'New', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+  if (ageMs > 24 * 60 * 60 * 1000) return { label: 'Old', className: 'bg-amber-100 text-amber-800 border-amber-200' }
+  return null
+}
+
+function priorityForShow(show) {
+  const now = Date.now()
+  const startMs = new Date(show?.startsAt).getTime()
+  if (Number.isFinite(startMs)) {
+    const until = startMs - now
+    if (until > 0 && until <= 6 * 60 * 60 * 1000) {
+      return { label: 'Urgent', className: 'bg-rose-100 text-rose-800 border-rose-200' }
+    }
+  }
+  const ageMs = submittedAgeMs(show?.createdAt)
+  if (ageMs < 6 * 60 * 60 * 1000) return { label: 'New', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+  if (ageMs > 24 * 60 * 60 * 1000) return { label: 'Old', className: 'bg-amber-100 text-amber-800 border-amber-200' }
+  return null
+}
 
 export default function AdminApprovals() {
   const { auth } = useAuth()
   const [data, setData] = useState(null)
   const [err, setErr] = useState('')
+  const [capModalHallId, setCapModalHallId] = useState(null)
+  const [activeTab, setActiveTab] = useState('halls')
+  const [sortOrder, setSortOrder] = useState('newest')
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [selectedItem, setSelectedItem] = useState(null)
+  const [entityType, setEntityType] = useState(null)
+  const [rejectSubmitting, setRejectSubmitting] = useState(false)
+  const [rejectError, setRejectError] = useState('')
+  const [toast, setToast] = useState('')
 
   async function load() {
-    const response = await api('/admin/approvals/pending', { token: auth.token })
-    setData(response)
+    if (!auth?.token) return
+    const d = await api('/admin/approvals/pending', { token: auth.token })
+    setData(d)
   }
 
   useEffect(() => {
+    if (!auth?.token) return
     load().catch((e) => setErr(e.message))
-  }, [auth.token])
+  }, [auth?.token])
 
   async function actTheater(theaterId, approve) {
     await api('/admin/approvals/theater', {
@@ -43,200 +117,208 @@ export default function AdminApprovals() {
     await load()
   }
 
-  const primaryBtn =
-    'inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-200 active:scale-[0.98]'
-  const approveBtn =
-    `${primaryBtn} bg-emerald-600 text-white shadow-sm hover:bg-emerald-500 hover:shadow-md`
-  const rejectBtn =
-    `${primaryBtn} bg-rose-600 text-white shadow-sm hover:bg-rose-500 hover:shadow-md`
+  function openRejectModal(e, entity, item) {
+    e.preventDefault()
+    e.stopPropagation()
+    setSelectedItem(item)
+    setEntityType(entity)
+    setRejectError('')
+    setRejectModalOpen(true)
+  }
 
-  const theaters = data?.theaters || []
-  const halls = data?.halls || []
-  const shows = data?.shows || []
+  async function handleRejectSubmit(reason) {
+    if (!selectedItem?.id || !entityType) return
+    setRejectSubmitting(true)
+    setRejectError('')
+    try {
+      if (entityType === 'show') {
+        await api(`/admin/shows/${selectedItem.id}/reject`, {
+          method: 'POST',
+          token: auth.token,
+          body: { reason },
+        })
+      }
+      if (entityType === 'hall') {
+        await api(`/admin/halls/${selectedItem.id}/reject`, {
+          method: 'POST',
+          token: auth.token,
+          body: { reason },
+        })
+      }
+      setRejectModalOpen(false)
+      setSelectedItem(null)
+      setEntityType(null)
+      setToast(`${entityType === 'hall' ? 'Hall' : 'Show'} rejected successfully`)
+      await load()
+    } catch (e) {
+      setRejectError(e.message || 'Failed to reject')
+    } finally {
+      setRejectSubmitting(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(''), 2500)
+    return () => clearTimeout(timer)
+  }, [toast])
+
+  const sortedHalls = useMemo(() => {
+    const halls = [...(data?.halls || [])]
+    halls.sort((a, b) => {
+      const ta = new Date(a.createdAt || 0).getTime()
+      const tb = new Date(b.createdAt || 0).getTime()
+      return sortOrder === 'newest' ? tb - ta : ta - tb
+    })
+    return halls
+  }, [data?.halls, sortOrder])
+
+  const sortedShows = useMemo(() => {
+    const shows = [...(data?.shows || [])]
+    shows.sort((a, b) => {
+      const ta = new Date(a.createdAt || 0).getTime()
+      const tb = new Date(b.createdAt || 0).getTime()
+      return sortOrder === 'newest' ? tb - ta : ta - tb
+    })
+    return shows
+  }, [data?.shows, sortOrder])
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-          Review queue
-        </h2>
-        <p className="text-sm text-slate-500">
-          Review venue and showtime submissions before they appear to guests.
-        </p>
-      </div>
-
-      {err ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
-          {err}
-        </div>
+    <div>
+      <h2 className="text-4xl font-bold text-black">Approvals</h2>
+      {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900 mb-6">{err}</div> : null}
+      {toast ? (
+        <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg">{toast}</div>
       ) : null}
 
       {!data ? (
-        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-8 text-sm text-slate-500 shadow-sm">
-          Loading…
-        </div>
+        <div className="text-gray-300 text-lg">Loading…</div>
       ) : (
-        <div className="grid gap-8">
-          <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm sm:p-6">
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Theater submissions
-              </h3>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
-                {theaters.length} items
-              </span>
-            </div>
-
-            <div className="space-y-4">
-              {theaters.map((theater) => (
-                <div
-                  key={theater.id}
-                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <div className="mb-4 space-y-1">
-                    <div className="text-sm font-medium text-slate-400">
-                      Theater submission
+        <div className="space-y-8">
+          {(data.theaters || []).length ? (
+            <div className="bg-white rounded-xl p-4 shadow-md">
+              <h3 className="text-lg font-bold text-black mb-3">Pending theaters</h3>
+              <div className="space-y-3">
+                {data.theaters.map((t) => (
+                  <div key={t.id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-slate-900">{t.name}</div>
+                      <div className="text-sm text-slate-500">{t.address}, {t.city}</div>
                     </div>
-                    <div className="text-base font-semibold text-slate-900">
-                      {theater.name}
-                    </div>
-                    <div className="text-sm text-slate-500">
-                      {theater.address}, {theater.city}
-                    </div>
-                    <div className="text-sm text-slate-500">
-                      Owner: {theater.owner?.name || 'Unknown'}{theater.owner?.email ? ` • ${theater.owner.email}` : ''}
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => actTheater(t.id, true)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">Approve</button>
+                      <button type="button" onClick={() => actTheater(t.id, false)} className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg">Reject</button>
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => actTheater(theater.id, true)}
-                      className={approveBtn}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => actTheater(theater.id, false)}
-                      className={rejectBtn}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {theaters.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
-                  All theater submissions are up to date.
-                </div>
-              ) : null}
+                ))}
+              </div>
             </div>
-          </section>
+          ) : null}
 
-          <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm sm:p-6">
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Auditorium submissions
-              </h3>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
-                {halls.length} items
-              </span>
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="bg-white rounded-xl p-2 flex gap-2">
+              <button onClick={() => setActiveTab('halls')} className={`px-7 py-3 rounded-xl font-semibold transition-all ${activeTab === 'halls' ? 'bg-blue-700 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                Halls ({data.halls.length})
+              </button>
+              <button onClick={() => setActiveTab('shows')} className={`px-7 py-3 rounded-xl font-semibold transition-all ${activeTab === 'shows' ? 'bg-blue-700 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                Shows ({data.shows.length})
+              </button>
             </div>
+            <div className="flex items-center gap-2 text-white">
+              <label className="text-sm font-medium whitespace-nowrap">Sort:</label>
+              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="h-[52px] px-4 border border-gray-300 rounded-xl bg-white text-gray-700 min-w-[180px]">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </div>
+          </div>
 
-            <div className="space-y-4">
-              {halls.map((hall) => (
-                <div
-                  key={hall.id}
-                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <div className="mb-4 space-y-1">
-                    <div className="text-sm font-medium text-slate-400">
-                      Auditorium submission
-                    </div>
-                    <div className="text-base font-semibold text-slate-900">
-                      {hall.Theater?.name} <span className="text-slate-400">•</span> {hall.name}
+          {activeTab === 'halls' ? (
+            <div>
+              <h3 className="text-2xl font-bold text-black mb-6">Pending halls</h3>
+              <div className="space-y-4">
+                {sortedHalls.map((h) => (
+                  <div key={h.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+                    {priorityForHall(h) ? <div className="mb-2"><span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${priorityForHall(h).className}`}>{priorityForHall(h).label}</span></div> : null}
+                    <div className="font-extrabold text-xl text-gray-900 mb-2">#{h.id} {h.Theater?.name} — {h.name}</div>
+                    <div className="text-sm text-gray-400 mb-2">Submitted {timeAgo(h.createdAt)}</div>
+                    <div className="mb-4"><span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700">{h.screenType || 'Not specified'}</span></div>
+                    <div className="flex flex-wrap gap-3">
+                      <button type="button" onClick={() => setCapModalHallId(h.id)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">Approve</button>
+                      <Link to={`/admin/approvals/${h.id}`} className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300">View details</Link>
+                      <button type="button" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => openRejectModal(e, 'hall', h)} className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200">Reject</button>
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => actHall(hall.id, true)}
-                      className={approveBtn}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => actHall(hall.id, false)}
-                      className={rejectBtn}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {halls.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
-                  All auditorium submissions are up to date.
-                </div>
-              ) : null}
+                ))}
+                {sortedHalls.length === 0 ? <div className="text-gray-300 bg-white/10 p-6 rounded-lg text-center">No pending halls.</div> : null}
+              </div>
             </div>
-          </section>
+          ) : null}
 
-          <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm sm:p-6">
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Showtime submissions
-              </h3>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
-                {shows.length} items
-              </span>
-            </div>
+          {activeTab === 'shows' ? (
+            <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm sm:p-6">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Showtime submissions
+                </h3>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                  {sortedShows.length} items
+                </span>
+              </div>
 
-            <div className="space-y-4">
-              {shows.map((show) => (
-                <div
-                  key={show.id}
-                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <div className="mb-4 space-y-1">
-                    <div className="text-sm font-medium text-slate-400">
-                      Showtime submission
+              <div className="space-y-4">
+                {sortedShows.map((show) => (
+                  <div
+                    key={show.id}
+                    className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="mb-4 space-y-1">
+                      <div className="text-sm font-medium text-slate-400">
+                        Showtime submission
+                      </div>
+                      <div className="text-base font-semibold text-slate-900">
+                        {show.Hall?.Theater?.name} <span className="text-slate-400">•</span> {show.Hall?.name} <span className="text-slate-400">•</span> {show.Movie?.title}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        {formatDateTimeTo12Hour(show.startsAt)} • {show.language}
+                      </div>
                     </div>
-                    <div className="text-base font-semibold text-slate-900">
-                      {show.Hall?.Theater?.name} <span className="text-slate-400">•</span> {show.Hall?.name} <span className="text-slate-400">•</span> {show.Movie?.title}
-                    </div>
-                    <div className="text-sm text-slate-500">
-                      {new Date(show.startsAt).toLocaleString()} • {show.language}
+                    <div className="flex flex-wrap gap-3">
+                      <button type="button" onClick={() => actShow(show.id, true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">Approve</button>
+                      <Link to={`/admin/shows/${show.id}`} className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300">View details</Link>
+                      <button type="button" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => openRejectModal(e, 'show', show)} className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200">Reject</button>
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => actShow(show.id, true)}
-                      className={approveBtn}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => actShow(show.id, false)}
-                      className={rejectBtn}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {shows.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
-                  All showtime submissions are up to date.
-                </div>
-              ) : null}
-            </div>
-          </section>
+                ))}
+                {sortedShows.length === 0 ? <div className="text-gray-300 bg-white/10 p-6 rounded-lg text-center">No pending shows.</div> : null}
+              </div>
+            </section>
+          ) : null}
         </div>
       )}
+
+      <SeatCapModal
+        open={Boolean(capModalHallId)}
+        hallId={capModalHallId}
+        token={auth?.token}
+        onClose={() => setCapModalHallId(null)}
+        onApproved={() => load().catch(() => {})}
+      />
+
+      <RejectModal
+        open={rejectModalOpen}
+        entityType={entityType}
+        submitting={rejectSubmitting}
+        error={rejectError}
+        onClose={() => {
+          if (rejectSubmitting) return
+          setRejectModalOpen(false)
+          setSelectedItem(null)
+          setEntityType(null)
+          setRejectError('')
+        }}
+        onSubmit={handleRejectSubmit}
+      />
     </div>
   )
 }
