@@ -3,6 +3,7 @@ import { useAuth } from '../useAuth'
 
 export default function Layout() {
   const { auth, logout } = useAuth()
+  const isProActive = Boolean(auth?.user?.isProActive)
 
   return (
     <div className="app-shell bg-slate-50 text-slate-900">
@@ -44,9 +45,24 @@ export default function Layout() {
 
           {auth ? (
             <div className="flex items-center gap-3">
+              <Link
+                to="/pro"
+                className={`inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition-colors ${
+                  isProActive
+                    ? 'border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    : 'border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                }`}
+              >
+                Movix Pro
+              </Link>
               <div className="hidden text-right sm:block">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Signed in</div>
-                <div className="text-sm font-medium text-slate-900">{auth.user?.name}</div>
+                <div className={`rounded-lg px-3 py-1.5 ${isProActive ? 'border border-amber-200 bg-amber-50' : ''}`}>
+                  <div className="text-sm font-medium text-slate-900">{auth.user?.name}</div>
+                  {isProActive ? (
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-600">Pro</div>
+                  ) : null}
+                </div>
               </div>
               <button
                 onClick={logout}

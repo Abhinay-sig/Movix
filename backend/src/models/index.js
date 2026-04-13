@@ -15,6 +15,7 @@ const { defineSeatCapHistory } = require('./SeatCapHistory');
 const { defineSeatHold, HOLD_STATUS } = require('./SeatHold');
 const { defineBooking, BOOKING_STATUS } = require('./Booking');
 const { defineBookingSeat } = require('./BookingSeat');
+const { defineMovixCoinTransaction, MOVIX_COIN_TX_TYPES } = require('./MovixCoinTransaction');
 
 const db = {};
 
@@ -45,6 +46,8 @@ db.HOLD_STATUS = HOLD_STATUS;
 db.Booking = defineBooking(sequelize);
 db.BOOKING_STATUS = BOOKING_STATUS;
 db.BookingSeat = defineBookingSeat(sequelize);
+db.MovixCoinTransaction = defineMovixCoinTransaction(sequelize);
+db.MOVIX_COIN_TX_TYPES = MOVIX_COIN_TX_TYPES;
 
 // Associations
 db.User.hasMany(db.Theater, { foreignKey: 'ownerUserId' });
@@ -99,6 +102,11 @@ db.Show.hasMany(db.BookingSeat, { foreignKey: 'showId' });
 db.BookingSeat.belongsTo(db.Show, { foreignKey: 'showId' });
 db.SeatType.hasMany(db.BookingSeat, { foreignKey: 'seatTypeId' });
 db.BookingSeat.belongsTo(db.SeatType, { foreignKey: 'seatTypeId' });
+
+db.User.hasMany(db.MovixCoinTransaction, { foreignKey: 'userId' });
+db.MovixCoinTransaction.belongsTo(db.User, { foreignKey: 'userId' });
+db.Booking.hasMany(db.MovixCoinTransaction, { foreignKey: 'bookingId' });
+db.MovixCoinTransaction.belongsTo(db.Booking, { foreignKey: 'bookingId' });
 
 async function seedSeatTypes() {
   const defaults = [
@@ -281,6 +289,37 @@ async function ensureUserSchema() {
     });
   }
 
+  if (!table.pro_expires_at) {
+    await queryInterface.addColumn('users', 'pro_expires_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+  }
+
+  if (!table.movix_coins_balance) {
+    await queryInterface.addColumn('users', 'movix_coins_balance', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
+  if (!table.movix_coins_earned_total) {
+    await queryInterface.addColumn('users', 'movix_coins_earned_total', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
+  if (!table.movix_coins_redeemed_total) {
+    await queryInterface.addColumn('users', 'movix_coins_redeemed_total', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
   const indexes = await queryInterface.showIndex('users');
   const indexNames = new Set(indexes.map((index) => index.name));
 
@@ -310,6 +349,24 @@ async function ensureSeatHoldSchema() {
   if (!table.session_token) {
     await queryInterface.addColumn('seat_holds', 'session_token', {
       type: DataTypes.STRING(96),
+      allowNull: true,
+    });
+  }
+}
+
+async function ensureMovixCoinSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+
+  let table;
+  try {
+    table = await queryInterface.describeTable('movix_coin_transactions');
+  } catch {
+    return;
+  }
+
+  if (!table.booking_id) {
+    await queryInterface.addColumn('movix_coin_transactions', 'booking_id', {
+      type: DataTypes.BIGINT.UNSIGNED,
       allowNull: true,
     });
   }
@@ -360,6 +417,7 @@ async function syncDb() {
   await ensureMovieSchema();
   await ensureHallSchema();
   await ensureSeatHoldSchema();
+  await ensureMovixCoinSchema();
   await ensureApprovalStatusSchema();
 
   await db.User.update(
