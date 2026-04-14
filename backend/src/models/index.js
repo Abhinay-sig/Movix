@@ -281,6 +281,37 @@ async function ensureUserSchema() {
     });
   }
 
+  if (!table.pro_expires_at) {
+    await queryInterface.addColumn('users', 'pro_expires_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+  }
+
+  if (!table.movix_coins_balance) {
+    await queryInterface.addColumn('users', 'movix_coins_balance', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
+  if (!table.movix_coins_earned_total) {
+    await queryInterface.addColumn('users', 'movix_coins_earned_total', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
+  if (!table.movix_coins_redeemed_total) {
+    await queryInterface.addColumn('users', 'movix_coins_redeemed_total', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
   if (!table.is_blocked) {
     await queryInterface.addColumn('users', 'is_blocked', {
       type: DataTypes.BOOLEAN,
