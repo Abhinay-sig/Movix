@@ -52,11 +52,15 @@ export default function OwnerNewShow() {
   const [viewTheaterId, setViewTheaterId] = useState('')
   const [viewHallId, setViewHallId] = useState('')
   const [viewMovieId, setViewMovieId] = useState('')
+  const [viewStatus, setViewStatus] = useState('all')
+  const [viewTimeSlot, setViewTimeSlot] = useState('all')
   const [ownerShows, setOwnerShows] = useState([])
   const [showsPagination, setShowsPagination] = useState(null)
   const [showsPage, setShowsPage] = useState(1)
   const [loadingOwnerShows, setLoadingOwnerShows] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [showToDelete, setShowToDelete] = useState(null)
+  const [deletingShow, setDeletingShow] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -131,13 +135,15 @@ export default function OwnerNewShow() {
 
   useEffect(() => {
     setShowsPage(1)
-  }, [viewDate, viewTheaterId, viewHallId, viewMovieId])
+  }, [viewDate, viewTheaterId, viewHallId, viewMovieId, viewStatus, viewTimeSlot])
 
   function clearShowFilters() {
     setViewDate('')
     setViewTheaterId('')
     setViewHallId('')
     setViewMovieId('')
+    setViewStatus('all')
+    setViewTimeSlot('all')
   }
 
   useEffect(() => {
@@ -193,6 +199,8 @@ export default function OwnerNewShow() {
     if (viewTheaterId) params.set('theaterId', viewTheaterId)
     if (viewHallId) params.set('hallId', viewHallId)
     if (viewMovieId) params.set('movieId', viewMovieId)
+    if (viewStatus && viewStatus !== 'all') params.set('status', viewStatus)
+    if (viewTimeSlot && viewTimeSlot !== 'all') params.set('timeSlot', viewTimeSlot)
 
     let alive = true
     setLoadingOwnerShows(true)
@@ -216,41 +224,21 @@ export default function OwnerNewShow() {
     return () => {
       alive = false
     }
-  }, [auth.token, viewDate, viewTheaterId, viewHallId, viewMovieId, showsPage])
+  }, [
+    auth.token,
+    viewDate,
+    viewTheaterId,
+    viewHallId,
+    viewMovieId,
+    viewStatus,
+    viewTimeSlot,
+    showsPage,
+  ])
 
-  const groupedShows = useMemo(() => {
-    const grouped = []
-    const theaterMap = new Map()
-
-    for (const show of ownerShows) {
-      let theaterGroup = theaterMap.get(show.theaterId)
-      if (!theaterGroup) {
-        theaterGroup = {
-          theaterId: show.theaterId,
-          theaterName: show.theaterName,
-          halls: [],
-          hallMap: new Map(),
-        }
-        theaterMap.set(show.theaterId, theaterGroup)
-        grouped.push(theaterGroup)
-      }
-
-      let hallGroup = theaterGroup.hallMap.get(show.hallId)
-      if (!hallGroup) {
-        hallGroup = {
-          hallId: show.hallId,
-          hallName: show.hallName,
-          shows: [],
-        }
-        theaterGroup.hallMap.set(show.hallId, hallGroup)
-        theaterGroup.halls.push(hallGroup)
-      }
-
-      hallGroup.shows.push(show)
-    }
-
-    return grouped
-  }, [ownerShows])
+  const sortedShows = useMemo(
+    () => [...ownerShows].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)),
+    [ownerShows]
+  )
 
   async function submit(e) {
     e.preventDefault()
@@ -342,6 +330,37 @@ export default function OwnerNewShow() {
       setErr(e2.message || 'Something went wrong.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function confirmDeleteShow() {
+    if (!showToDelete) return
+
+    setDeletingShow(true)
+    setErr('')
+    setNotice('')
+
+    try {
+      await api(`/owner/shows/${showToDelete.id}`, {
+        method: 'DELETE',
+        token: auth.token,
+      })
+
+      setOwnerShows((prev) => prev.filter((show) => String(show.id) !== String(showToDelete.id)))
+      setShowsPagination((prev) => {
+        if (!prev) return prev
+        const total = Math.max(0, Number(prev.total || 0) - 1)
+        return {
+          ...prev,
+          total,
+        }
+      })
+      setNotice('Show deleted successfully.')
+      setShowToDelete(null)
+    } catch (e) {
+      setErr(e.message || 'Unable to delete the show right now.')
+    } finally {
+      setDeletingShow(false)
     }
   }
 
@@ -711,6 +730,35 @@ export default function OwnerNewShow() {
                 ))}
               </select>
             </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">Status</label>
+              <select
+                value={viewStatus}
+                onChange={(e) => setViewStatus(e.target.value)}
+                className={fieldClass}
+              >
+                <option value="all">All statuses</option>
+                <option value="approved">Approved</option>
+                <option value="pending">Pending</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">Time Slot</label>
+              <select
+                value={viewTimeSlot}
+                onChange={(e) => setViewTimeSlot(e.target.value)}
+                className={fieldClass}
+              >
+                <option value="all">All time slots</option>
+                <option value="morning">Morning (6AM - 12PM)</option>
+                <option value="afternoon">Afternoon (12PM - 5PM)</option>
+                <option value="evening">Evening (5PM - 9PM)</option>
+                <option value="night">Night (9PM - 12AM)</option>
+              </select>
+            </div>
           </div>
         </section>
 
@@ -719,78 +767,51 @@ export default function OwnerNewShow() {
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
               Loading scheduled shows…
             </div>
-          ) : groupedShows.length === 0 ? (
+          ) : sortedShows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
               No shows scheduled. Try selecting another date.
             </div>
           ) : (
-            <div className="space-y-6">
-              {groupedShows.map((theaterGroup) => (
+            <div className="grid gap-4">
+              {sortedShows.map((show) => (
                 <article
-                  key={theaterGroup.theaterId}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                  key={show.id}
+                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-6"
                 >
-                  <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                          Theatre
-                        </div>
-                        <div className="mt-1 text-xl font-semibold text-slate-950">
-                          Theatre Name: {theaterGroup.theaterName}
-                        </div>
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        <FilmIcon />
+                        Movie Name
                       </div>
-                      <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                        {theaterGroup.halls.length} hall{theaterGroup.halls.length === 1 ? '' : 's'}
+                      <div className="text-lg font-semibold text-slate-950">
+                        {show.movieTitle}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        Theatre Name: {show.theaterName}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        Hall Name: {show.hallName}
                       </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-4 px-5 py-5 sm:px-6">
-                    {theaterGroup.halls.map((hallGroup) => (
-                      <section
-                        key={hallGroup.hallId}
-                        className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                        <ClockIcon />
+                        Show Time: {formatScheduledTime(show.startsAt)} - {formatScheduledTime(show.endsAt)}
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        <GlobeIcon />
+                        Language: {show.language}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowToDelete(show)}
+                        className="rounded-lg bg-red-50 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
                       >
-                        <div className="mb-3 text-sm font-semibold text-slate-900">
-                          Hall Name: {hallGroup.hallName}
-                        </div>
-
-                        <div className="space-y-3">
-                          {hallGroup.shows.map((show) => (
-                            <div
-                              key={show.id}
-                              className="flex flex-col gap-3 rounded-2xl border-l-4 border-blue-500 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md md:flex-row md:items-center md:justify-between"
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900/5 text-slate-700">
-                                  <FilmIcon />
-                                </div>
-                                <div className="space-y-1">
-                                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                                    Movie Name
-                                  </div>
-                                  <div className="text-base font-semibold text-slate-950">
-                                    {show.movieTitle}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex flex-wrap gap-2">
-                                <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
-                                  <ClockIcon />
-                                  Show Time: {formatScheduledTime(show.startsAt)} - {formatScheduledTime(show.endsAt)}
-                                </span>
-                                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                  <GlobeIcon />
-                                  Language: {show.language}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                    ))}
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -821,6 +842,37 @@ export default function OwnerNewShow() {
         }
       >
         <div className="text-sm text-slate-600">Waiting for admin approval</div>
+      </Modal>
+
+      <Modal
+        open={Boolean(showToDelete)}
+        title="Delete Show"
+        onClose={() => {
+          if (deletingShow) return
+          setShowToDelete(null)
+        }}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setShowToDelete(null)}
+              disabled={deletingShow}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeleteShow}
+              disabled={deletingShow}
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white"
+            >
+              {deletingShow ? 'Deleting…' : 'Confirm Delete'}
+            </button>
+          </>
+        }
+      >
+        <div className="text-sm text-slate-600">Are you sure you want to delete this show?</div>
       </Modal>
     </div>
   )

@@ -20,7 +20,7 @@ import PaginationControls from '../components/PaginationControls'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
 import {
-  downloadRevenueCsv,
+
   downloadRevenuePdf,
   formatCurrency,
   formatPercent,
@@ -36,6 +36,7 @@ const REFRESH_INTERVAL_MS = 60000
 const MOVIE_PERFORMANCE_PAGE_SIZE = 10
 const THEATER_BREAKDOWN_PAGE_SIZE = 5
 const RECENT_BOOKINGS_PAGE_SIZE = 10
+const REVENUE_TIMEZONE = 'Asia/Kolkata'
 
 function buildPaginationState(total, page, pageSize) {
   const safePageSize = Math.max(1, Number(pageSize) || 1)
@@ -105,6 +106,8 @@ export default function OwnerRevenue() {
   const [theaterId, setTheaterId] = useState('')
   const [city, setCity] = useState('')
   const [showTime, setShowTime] = useState('')
+  const [paymentStatus, setPaymentStatus] = useState('success')
+  const [seatType, setSeatType] = useState('')
   const [refreshTick, setRefreshTick] = useState(0)
   const [moviesPage, setMoviesPage] = useState(1)
   const [theatersPage, setTheatersPage] = useState(1)
@@ -122,7 +125,7 @@ export default function OwnerRevenue() {
     setMoviesPage(1)
     setTheatersPage(1)
     setRecentBookingsPage(1)
-  }, [range, startDate, endDate, movieId, theaterId, city, showTime])
+  }, [range, startDate, endDate, movieId, theaterId, city, showTime, paymentStatus, seatType])
 
   function clearRevenueFilters() {
     const preset = getPresetDateRange('last30')
@@ -133,6 +136,8 @@ export default function OwnerRevenue() {
     setTheaterId('')
     setCity('')
     setShowTime('')
+    setPaymentStatus('success')
+    setSeatType('')
   }
 
   useEffect(() => {
@@ -184,6 +189,8 @@ export default function OwnerRevenue() {
     if (theaterId) params.set('theaterId', theaterId)
     if (city) params.set('city', city)
     if (showTime) params.set('showTime', showTime)
+    if (paymentStatus && paymentStatus !== 'success') params.set('paymentStatus', paymentStatus)
+    if (seatType) params.set('seatType', seatType)
 
     api(`/owner/me/revenue?${params.toString()}`, { token: auth.token })
       .then((response) => {
@@ -202,7 +209,19 @@ export default function OwnerRevenue() {
     return () => {
       alive = false
     }
-  }, [auth.token, range, startDate, endDate, movieId, theaterId, city, showTime, refreshTick])
+  }, [
+    auth.token,
+    range,
+    startDate,
+    endDate,
+    movieId,
+    theaterId,
+    city,
+    showTime,
+    paymentStatus,
+    seatType,
+    refreshTick,
+  ])
 
   const totals = useMemo(() => {
     const grossRevenue = Number(data?.totals?.grossRevenue ?? data?.totalRevenue ?? 0)
@@ -274,14 +293,14 @@ export default function OwnerRevenue() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
-          <button
+          {/* <button
             type="button"
             onClick={() => downloadRevenueCsv(data)}
             disabled={!data}
             className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-600 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
           >
             Export CSV
-          </button>
+          </button> */}
           <button
             type="button"
             onClick={() => downloadRevenuePdf(data)}
@@ -424,6 +443,33 @@ export default function OwnerRevenue() {
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">Payment status</label>
+            <select
+              value={paymentStatus}
+              onChange={(e) => setPaymentStatus(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+            >
+              <option value="all">All</option>
+              <option value="success">Success</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">Seat category</label>
+            <select
+              value={seatType}
+              onChange={(e) => setSeatType(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+            >
+              <option value="">All</option>
+              <option value="standard">Standard</option>
+              <option value="premium">Premium</option>
+              <option value="vip">VIP</option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -441,7 +487,7 @@ export default function OwnerRevenue() {
               value={formatCurrency(totals.grossRevenue)}
               trend={data?.comparisons?.revenueChangePct}
             />
-            <MetricCard label="Platform Fee (5%)" value={formatCurrency(totals.platformFee)} />
+            <MetricCard label="Platform Fee (20%)" value={formatCurrency(totals.platformFee)} />
             <MetricCard label="GST (18%)" value={formatCurrency(totals.gst)} />
             <MetricCard label="Net Earnings" value={formatCurrency(totals.netEarnings)} />
           </div>
@@ -707,7 +753,7 @@ export default function OwnerRevenue() {
                                 {show.movieName} <span className="text-slate-400">•</span> {show.hallName}
                               </td>
                               <td className="px-3 py-3 text-slate-600">
-                                {formatDateTimeTo12Hour(show.startsAt)}
+                                {formatDateTimeTo12Hour(show.startsAt, { timeZone: REVENUE_TIMEZONE })}
                               </td>
                               <td className="px-3 py-3 text-slate-600">{show.ticketsSold}</td>
                               <td className="px-3 py-3 text-slate-600">{formatCurrency(show.grossRevenue)}</td>
@@ -754,7 +800,7 @@ export default function OwnerRevenue() {
                         </div>
                       </div>
                       <div className="text-sm text-slate-600">
-                        {formatCurrency(booking.amount)} • {formatDateTimeTo12Hour(booking.createdAt)}
+                        {formatCurrency(booking.amount)} • {formatDateTimeTo12Hour(booking.createdAt, { timeZone: REVENUE_TIMEZONE })}
                       </div>
                     </div>
                   </div>

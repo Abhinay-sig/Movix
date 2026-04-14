@@ -10,7 +10,7 @@ const {
 } = require('../utils/movieLanguages');
 const { uploadImageBuffer } = require('../services/cloudinaryService');
 
-const NAME_REGEX = /^[A-Za-z ]+$/;
+const NAME_REGEX = /^[A-Za-z0-9\s:,'-]+$/;
 const posterUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -122,12 +122,12 @@ async function findMovieIdsByLanguage(language) {
 async function listMovies(req, res, next) {
   try {
     const where = buildMovieWhere(req.query);
+    const movieIds = await findMovieIdsByLanguage(req.query.language);
     const { page, limit, offset, hasPagination } = parsePagination(req.query, {
       defaultLimit: 5,
       maxLimit: 20,
     });
 
-    const movieIds = await findMovieIdsByLanguage(req.query.language);
     if (movieIds && movieIds.length === 0) {
       res.json({
         movies: [],
