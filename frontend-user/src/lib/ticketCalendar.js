@@ -24,9 +24,7 @@ function escapeIcs(value) {
     .replace(/;/g, '\\;')
 }
 
-export function downloadCalendarInvite(ticket) {
-  if (!ticket?.show?.startsAt || !ticket?.show?.endsAt) return
-
+function buildCalendarDetails(ticket) {
   const seatList = (ticket.seats || []).map((seat) => seat.seatCode).join(', ') || 'N/A'
   const title = `${ticket.show?.movieTitle || 'Movie'} - Movix Booking`
   const description = [
@@ -37,6 +35,44 @@ export function downloadCalendarInvite(ticket) {
     `Amount Paid: INR ${Number(ticket.totalAmount || 0)}`,
   ].join('\n')
   const location = `${ticket.show?.theaterName || 'Theater'} - ${ticket.show?.hallName || 'Hall'}`
+
+  return { title, description, location }
+}
+
+function toGoogleCalendarDate(value) {
+  const date = new Date(value)
+  return [
+    date.getUTCFullYear(),
+    pad(date.getUTCMonth() + 1),
+    pad(date.getUTCDate()),
+    'T',
+    pad(date.getUTCHours()),
+    pad(date.getUTCMinutes()),
+    pad(date.getUTCSeconds()),
+    'Z',
+  ].join('')
+}
+
+export function openCalendarAdd(ticket) {
+  if (!ticket?.show?.startsAt || !ticket?.show?.endsAt || typeof window === 'undefined') return
+
+  const { title, description, location } = buildCalendarDetails(ticket)
+  const url = new URL('https://calendar.google.com/calendar/render')
+  url.searchParams.set('action', 'TEMPLATE')
+  url.searchParams.set('text', title)
+  url.searchParams.set(
+    'dates',
+    `${toGoogleCalendarDate(ticket.show.startsAt)}/${toGoogleCalendarDate(ticket.show.endsAt)}`
+  )
+  url.searchParams.set('details', description)
+  url.searchParams.set('location', location)
+  window.open(url.toString(), '_blank', 'noopener,noreferrer')
+}
+
+export function downloadCalendarInvite(ticket) {
+  if (!ticket?.show?.startsAt || !ticket?.show?.endsAt) return
+
+  const { title, description, location } = buildCalendarDetails(ticket)
   const now = new Date()
 
   const contents = [

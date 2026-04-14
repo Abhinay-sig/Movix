@@ -16,7 +16,7 @@ export default function Layout() {
               {/* <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-sm font-bold text-white">
                 M
               </div> */}
-              <img src="../../public/movix.svg" alt="" srcset="" className="h-10 w-10" />
+              <img src="../../public/movix.svg" alt="" className="h-10 w-10" />
               <span>
                 <span className="block text-xl font-semibold tracking-[0.01em] text-slate-900">
                   Movix Staff

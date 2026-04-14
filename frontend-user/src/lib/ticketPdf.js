@@ -59,6 +59,9 @@ export function downloadTicketPdf(ticket) {
   const seatTypes = (ticket.seats || [])
     .map((seat) => `${seat.seatCode} (${String(seat.seatTypeCode || 'standard').toUpperCase()})`)
     .join(', ')
+  const paymentMethod = String(ticket.payment?.method || 'online').toUpperCase()
+  const paymentId = ticket.payment?.paymentId || 'Unavailable'
+  const receiptNumber = ticket.payment?.receiptNumber || `MOVIX-${ticket.bookingId}`
 
   const commands = [
     '1 w',
@@ -98,14 +101,15 @@ export function downloadTicketPdf(ticket) {
     textCommand(64, 550, 11, `Language: ${ticket.show?.language || 'Standard'}`),
     textCommand(64, 528, 11, `Booked At: ${bookedAt}`),
     textCommand(324, 572, 11, `Amount Paid: INR ${Number(ticket.totalAmount || 0)}`),
-    textCommand(324, 550, 11, 'Mode: Movix Pay Secure Checkout'),
-    textCommand(324, 528, 11, 'Verification: OTP Confirmed'),
+    textCommand(324, 550, 11, `Mode: Razorpay ${paymentMethod}`),
+    textCommand(324, 528, 11, `Receipt: ${receiptNumber}`),
     textCommand(64, 438, 11, `Seats: ${seatList}`),
     textCommand(64, 416, 11, `Seat Types: ${seatTypes || 'N/A'}`),
     textCommand(64, 394, 11, `Ticket Count: ${(ticket.seats || []).length}`),
     textCommand(64, 300, 11, 'Present this ticket PDF or the booking ID at entry.'),
-    textCommand(64, 278, 11, 'Seat allocation and show access remain subject to theater policies.'),
-    textCommand(64, 256, 11, 'For support, refer to the booked ticket in your Movix dashboard.'),
+    textCommand(64, 278, 11, `Razorpay Payment ID: ${paymentId}`),
+    textCommand(64, 256, 11, 'Seat allocation and show access remain subject to theater policies.'),
+    textCommand(64, 234, 11, 'For support, refer to the booked ticket in your Movix dashboard.'),
     colorStroke(0.82, 0.87, 0.97),
     lineCommand(48, 208, 547, 208),
     colorFill(0.38, 0.44, 0.56),

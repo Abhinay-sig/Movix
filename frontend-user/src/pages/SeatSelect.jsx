@@ -340,6 +340,7 @@ export default function SeatSelect() {
           seatCodes: selectedArr,
           displaySeatCodes: selectedDisplayArr,
           expiresAt: hold.expiresAt,
+          holdMs: hold.holdMs,
           estimate: {
             total: payableAmount,
             subTotal: totalAmount,

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-import { downloadCalendarInvite } from '../lib/ticketCalendar'
+import { downloadPaymentSlipPdf } from '../lib/paymentSlipPdf'
+import { downloadCalendarInvite, openCalendarAdd } from '../lib/ticketCalendar'
 import { downloadTicketPdf, isUpcomingTicket } from '../lib/ticketPdf'
 import { useAuth } from '../useAuth'
 import { formatDateTimeTo12Hour } from '../lib/time'
@@ -82,7 +83,7 @@ export default function MyTickets() {
       <section className="page-panel px-6 py-8 md:px-8">
         <div className="hero-chip">My Tickets</div>
         <h2 className="section-title mt-3">Your confirmed bookings</h2>
-        <p className="section-copy mt-2">Every successful payment appears here, and you can download the ticket PDF again anytime.</p>
+        <p className="section-copy mt-2">Every successful payment appears here with ticket, payment proof, and calendar actions.</p>
       </section>
 
       <section className="space-y-5">
@@ -112,14 +113,19 @@ export default function MyTickets() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => downloadTicketPdf(booking)}
-                disabled={!isUpcoming}
-                className={`primary-button ${!isUpcoming ? 'cursor-not-allowed opacity-60' : ''}`}
-              >
-                {isUpcoming ? 'Download PDF' : 'PDF Unavailable'}
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button type="button" onClick={() => downloadPaymentSlipPdf(booking)} className="secondary-button">
+                  Payment slip
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadTicketPdf(booking)}
+                  disabled={!isUpcoming}
+                  className={`primary-button ${!isUpcoming ? 'cursor-not-allowed opacity-60' : ''}`}
+                >
+                  {isUpcoming ? 'Ticket PDF' : 'Ticket PDF unavailable'}
+                </button>
+              </div>
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -138,16 +144,17 @@ export default function MyTickets() {
             </div>
             {!isUpcoming ? (
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                This show has already finished, so PDF download is disabled for this ticket.
+                This show has already finished, so ticket PDF and calendar actions are disabled. Your payment slip is still available.
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => downloadCalendarInvite(booking)}
-                className="secondary-button mt-4"
-              >
-                Add to calendar
-              </button>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button type="button" onClick={() => openCalendarAdd(booking)} className="secondary-button">
+                  Add to calendar
+                </button>
+                <button type="button" onClick={() => downloadCalendarInvite(booking)} className="secondary-button">
+                  Download .ics
+                </button>
+              </div>
             )}
                 </>
               )
