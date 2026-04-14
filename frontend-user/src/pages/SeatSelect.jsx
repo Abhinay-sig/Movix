@@ -307,6 +307,7 @@ export default function SeatSelect() {
           seatCodes: selectedArr,
           displaySeatCodes: selectedDisplayArr,
           expiresAt: hold.expiresAt,
+          holdMs: hold.holdMs,
           estimate: {
             total: totalAmount,
             breakdown: selectedArr.map((seatCode) => {

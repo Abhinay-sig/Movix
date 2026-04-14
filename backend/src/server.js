@@ -10,7 +10,13 @@ const { ownerRoutes } = require('./routes/ownerRoutes');
 const { adminRoutes } = require('./routes/adminRoutes');
 const { publicRoutes } = require('./routes/publicRoutes');
 const { errorHandler } = require('./middleware/errorHandler');
-const { cleanupExpiredHolds } = require('./controllers/holdController');
+const { requireAuth, requireRole } = require('./middleware/auth');
+const { db } = require('./models');
+const {
+  cleanupExpiredHolds,
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+} = require('./controllers/holdController');
 
 const app = express();
 
@@ -28,6 +34,18 @@ app.get('/api/health', async (req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.post(
+  '/api/payments/razorpay/order',
+  requireAuth,
+  requireRole(db.USER_ROLES.USER, db.USER_ROLES.ADMIN),
+  createRazorpayOrder
+);
+app.post(
+  '/api/payments/razorpay/verify',
+  requireAuth,
+  requireRole(db.USER_ROLES.USER, db.USER_ROLES.ADMIN),
+  verifyRazorpayPayment
+);
 app.use('/api', holdRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/owner', ownerRoutes);
