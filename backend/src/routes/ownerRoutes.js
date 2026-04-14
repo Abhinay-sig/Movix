@@ -12,6 +12,7 @@ const {
   listMyHalls,
   listMyShows,
   createShow,
+  deleteShow,
   getHallSchedule,
   revenueSummary,
 } = require('../controllers/ownerController');
@@ -34,6 +35,7 @@ router.post('/halls', createHallWithLayout);
 
 router.get('/halls/:hallId/schedule', getHallSchedule);
 router.post('/shows', createShow);
+router.delete('/shows/:showId', deleteShow);
 
 router.get('/me/revenue', revenueSummary);
 

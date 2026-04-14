@@ -184,17 +184,20 @@ export default function Home() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {movies.map((movie) => (
             <div key={movie.id} className="soft-card group overflow-hidden">
-              <div className="relative h-52 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-800 to-blue-500">
-                {movie.posterUrl ? (
-                  <img
-                    src={movie.posterUrl}
-                    alt={movie.title}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    onError={(e) => {
+              <div className="relative h-52 overflow-hidden bg-slate-100">
+                <img
+                  src={movie.posterUrl || '/fallback_poster.jpeg'}
+                  alt={movie.title}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  onError={(e) => {
+                    if (e.currentTarget.dataset.fallbackApplied === 'true') {
                       e.currentTarget.style.display = 'none'
-                    }}
-                  />
-                ) : null}
+                      return
+                    }
+                    e.currentTarget.dataset.fallbackApplied = 'true'
+                    e.currentTarget.src = '/fallback_poster.jpeg'
+                  }}
+                />
 
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/82 via-slate-900/30 to-transparent" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.18),transparent_40%)]" />

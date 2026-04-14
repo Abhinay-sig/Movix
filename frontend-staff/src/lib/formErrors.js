@@ -29,8 +29,8 @@ export function validateNameField(value, label = 'Name') {
   const normalized = normalizeTextInput(value)
   if (!normalized) return `${label} is required.`
   if (normalized.length < 3) return `${label} must be at least 3 characters.`
-  if (!isLettersAndSpaces(normalized)) {
-    return `${label} can contain only alphabets and spaces.`
+   if (!/^[A-Za-z0-9\s:,'-]+$/.test(normalized)) {
+    return `${label} can contain letters, numbers, spaces, and basic symbols (: , ' -).`
   }
   return ''
 }

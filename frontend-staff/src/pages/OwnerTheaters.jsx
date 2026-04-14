@@ -73,8 +73,12 @@ export default function OwnerTheaters() {
   const [cityFilter, setCityFilter] = useState('')
   const [stateFilter, setStateFilter] = useState('')
   const [pincodeFilter, setPincodeFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
+  const [createAmenityFields, setCreateAmenityFields] = useState([
+    { id: Date.now(), value: '' },
+  ])
   const [amenitiesTarget, setAmenitiesTarget] = useState(null)
  const [amenityFields, setAmenityFields] = useState([
   { id: Date.now(), value: '' }
@@ -83,12 +87,13 @@ export default function OwnerTheaters() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
+  const [dialogError, setDialogError] = useState('')
   const [notice, setNotice] = useState('')
   const [showApprovalModal, setShowApprovalModal] = useState(false)
 
   useEffect(() => {
     setPage(1)
-  }, [nameFilter, cityFilter, stateFilter, pincodeFilter])
+  }, [nameFilter, cityFilter, stateFilter, pincodeFilter, statusFilter])
 
   async function load(targetPage = page) {
     setLoading(true)
@@ -102,6 +107,7 @@ export default function OwnerTheaters() {
       if (cityFilter.trim()) params.set('city', cityFilter.trim())
       if (stateFilter.trim()) params.set('state', stateFilter.trim())
       if (pincodeFilter.trim()) params.set('pincode', pincodeFilter.trim())
+      if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter)
 
       const response = await api(`/owner/me/theaters?${params.toString()}`, {
         token: auth.token,
@@ -118,7 +124,7 @@ export default function OwnerTheaters() {
 
   useEffect(() => {
     load(page)
-  }, [auth.token, nameFilter, cityFilter, stateFilter, pincodeFilter, page])
+  }, [auth.token, nameFilter, cityFilter, stateFilter, pincodeFilter, statusFilter, page])
 
   function updateField(key, value) {
     const nextValue =
@@ -133,6 +139,7 @@ export default function OwnerTheaters() {
   function resetForm() {
     setForm(EMPTY_FORM)
     setFieldErrors({})
+    setCreateAmenityFields([{ id: Date.now(), value: '' }])
     setShowForm(false)
   }
 
@@ -141,13 +148,16 @@ export default function OwnerTheaters() {
     setCityFilter('')
     setStateFilter('')
     setPincodeFilter('')
+    setStatusFilter('all')
   }
 
   function startCreate() {
     setErr('')
+    setDialogError('')
     setNotice('')
     setForm(EMPTY_FORM)
     setFieldErrors({})
+    setCreateAmenityFields([{ id: Date.now(), value: '' }])
     setShowForm(true)
   }
 
@@ -189,6 +199,7 @@ export default function OwnerTheaters() {
   async function submit(e) {
     e.preventDefault()
     setErr('')
+    setDialogError('')
     setNotice('')
 
     const nextErrors = validateCreateForm()
@@ -207,7 +218,10 @@ export default function OwnerTheaters() {
           city: form.city.trim(),
           state: form.state.trim(),
           pincode: form.pincode.trim(),
-          amenities: form.amenities.trim(),
+          amenities: createAmenityFields
+            .map((item) => item.value.trim())
+            .filter(Boolean)
+            .join(', '),
         },
       })
 
@@ -218,6 +232,8 @@ export default function OwnerTheaters() {
       const nextServerErrors = extractFieldErrors(e2)
       if (Object.keys(nextServerErrors).length) {
         setFieldErrors(nextServerErrors)
+      } else if (e2?.status === 409) {
+        setDialogError(e2.message || 'A theater with this name already exists.')
       } else {
         setErr(e2.message)
       }
@@ -379,139 +395,195 @@ export default function OwnerTheaters() {
             placeholder="Pincode"
             className={inputClass}
           />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className={inputClass}
+          >
+            <option value="all">All statuses</option>
+            <option value="approved">Approved</option>
+            <option value="pending">Pending</option>
+            <option value="rejected">Rejected</option>
+          </select>
         </div>
       </section>
 
-      {showForm ? (
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-          <div className="mb-6 flex items-center justify-between gap-3">
+      <Modal
+        open={showForm}
+        title="Add a new theater"
+        onClose={resetForm}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition-all duration-200 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="create-theater-form"
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-600 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Submit theater'}
+            </button>
+          </>
+        }
+      >
+        <form id="create-theater-form" onSubmit={submit} className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <h3 className="text-xl font-semibold text-slate-900">Add a new theater</h3>
-              <p className="mt-1 text-sm text-slate-500">
-                New theaters are submitted for admin approval before they go live.
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={submit} className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Theatre Name
-                </label>
-                <input
-                  placeholder="Theater name"
-                  value={form.name}
-                  onChange={(e) => updateField('name', e.target.value)}
-                  className={withFieldError(inputClass, Boolean(fieldErrors.name))}
-                  required
-                />
-                {fieldErrors.name ? (
-                  <div className="mt-2 text-sm text-red-600">{fieldErrors.name}</div>
-                ) : null}
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  City
-                </label>
-                <input
-                  placeholder="City"
-                  value={form.city}
-                  onChange={(e) => updateField('city', e.target.value)}
-                  className={withFieldError(inputClass, Boolean(fieldErrors.city))}
-                  required
-                />
-                {fieldErrors.city ? (
-                  <div className="mt-2 text-sm text-red-600">{fieldErrors.city}</div>
-                ) : null}
-              </div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Theatre Name
+              </label>
+              <input
+                placeholder="Theater name"
+                value={form.name}
+                onChange={(e) => updateField('name', e.target.value)}
+                className={withFieldError(inputClass, Boolean(fieldErrors.name))}
+                required
+              />
+              {fieldErrors.name ? (
+                <div className="mt-2 text-sm text-red-600">{fieldErrors.name}</div>
+              ) : null}
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
-                Address
+                City
               </label>
               <input
-                placeholder="Street address"
-                value={form.address}
-                onChange={(e) => updateField('address', e.target.value)}
-                className={withFieldError(inputClass, Boolean(fieldErrors.address))}
+                placeholder="City"
+                value={form.city}
+                onChange={(e) => updateField('city', e.target.value)}
+                className={withFieldError(inputClass, Boolean(fieldErrors.city))}
                 required
               />
-              {fieldErrors.address ? (
-                <div className="mt-2 text-sm text-red-600">{fieldErrors.address}</div>
+              {fieldErrors.city ? (
+                <div className="mt-2 text-sm text-red-600">{fieldErrors.city}</div>
               ) : null}
             </div>
+          </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  State
-                </label>
-                <input
-                  placeholder="State"
-                  value={form.state}
-                  onChange={(e) => updateField('state', e.target.value)}
-                  className={withFieldError(inputClass, Boolean(fieldErrors.state))}
-                  required
-                />
-                {fieldErrors.state ? (
-                  <div className="mt-2 text-sm text-red-600">{fieldErrors.state}</div>
-                ) : null}
-              </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Address
+            </label>
+            <input
+              placeholder="Street address"
+              value={form.address}
+              onChange={(e) => updateField('address', e.target.value)}
+              className={withFieldError(inputClass, Boolean(fieldErrors.address))}
+              required
+            />
+            {fieldErrors.address ? (
+              <div className="mt-2 text-sm text-red-600">{fieldErrors.address}</div>
+            ) : null}
+          </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Pincode
-                </label>
-                <input
-                  placeholder="Pincode"
-                  value={form.pincode}
-                  onChange={(e) => updateField('pincode', e.target.value)}
-                  className={withFieldError(inputClass, Boolean(fieldErrors.pincode))}
-                  required
-                />
-                {fieldErrors.pincode ? (
-                  <div className="mt-2 text-sm text-red-600">{fieldErrors.pincode}</div>
-                ) : null}
-              </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                State
+              </label>
+              <input
+                placeholder="State"
+                value={form.state}
+                onChange={(e) => updateField('state', e.target.value)}
+                className={withFieldError(inputClass, Boolean(fieldErrors.state))}
+                required
+              />
+              {fieldErrors.state ? (
+                <div className="mt-2 text-sm text-red-600">{fieldErrors.state}</div>
+              ) : null}
             </div>
 
             <div>
-  <label className="mb-2 block text-sm font-medium text-slate-700">
-    Amenities (Optional)
-  </label>
-  <textarea
-    placeholder="Amenities"
-    value={form.amenities}
-    onChange={(e) => updateField('amenities', e.target.value)}
-    rows={4}
-    className={withFieldError(inputClass, Boolean(fieldErrors.amenities))}
-  />
-              {fieldErrors.amenities ? (
-                <div className="mt-2 text-sm text-red-600">{fieldErrors.amenities}</div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Pincode
+              </label>
+              <input
+                placeholder="Pincode"
+                value={form.pincode}
+                onChange={(e) => updateField('pincode', e.target.value)}
+                className={withFieldError(inputClass, Boolean(fieldErrors.pincode))}
+                required
+              />
+              {fieldErrors.pincode ? (
+                <div className="mt-2 text-sm text-red-600">{fieldErrors.pincode}</div>
               ) : null}
             </div>
+          </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                disabled={saving}
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-600 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Submit theater'}
-              </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition-all duration-200 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-slate-700">
+              Amenities (Optional)
+            </label>
+
+            <div className="space-y-3">
+              {createAmenityFields.map((field, index) => (
+                <div key={field.id} className="flex items-center gap-3">
+                  <input
+                    value={field.value}
+                    onChange={(e) => {
+                      const next = [...createAmenityFields]
+                      next[index].value = e.target.value
+                      setCreateAmenityFields(next)
+                    }}
+                    placeholder={`Amenity ${index + 1}`}
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCreateAmenityFields((prev) =>
+                        prev.length === 1
+                          ? [{ ...prev[0], value: '' }]
+                          : prev.filter((_, itemIndex) => itemIndex !== index)
+                      )
+                    }
+                    className="inline-flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 transition-all duration-200 hover:bg-rose-100"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
             </div>
-          </form>
-        </section>
-      ) : null}
+
+            <button
+              type="button"
+              onClick={() =>
+                setCreateAmenityFields((prev) => [
+                  ...prev,
+                  { id: Date.now() + Math.random(), value: '' },
+                ])
+              }
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-all duration-200 hover:bg-slate-50"
+            >
+              Add amenity
+            </button>
+          </div>
+        </form>
+</Modal>
+
+      <Modal
+        open={Boolean(dialogError)}
+        title="Unable to create theater"
+        onClose={() => setDialogError('')}
+        footer={
+          <button
+            type="button"
+            onClick={() => setDialogError('')}
+            className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-blue-600"
+          >
+            OK
+          </button>
+        }
+      >
+        <div className="text-sm text-slate-600">{dialogError}</div>
+      </Modal>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
@@ -567,7 +639,7 @@ export default function OwnerTheaters() {
                         to={`/owner/theatres/${theater.id}/halls`}
                         className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-600"
                       >
-                        Manage halls
+                          View halls
                       </Link>
                       <button
                         type="button"
