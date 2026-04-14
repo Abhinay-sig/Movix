@@ -44,6 +44,8 @@ function getRetryAfterSeconds(user) {
 }
 
 function userToJson(user) {
+  const proExpiresMs = user.proExpiresAt ? new Date(user.proExpiresAt).getTime() : 0;
+  const proDaysLeft = proExpiresMs > Date.now() ? Math.ceil((proExpiresMs - Date.now()) / 86400000) : 0;
   return {
     id: user.id,
     email: user.email,
@@ -51,6 +53,12 @@ function userToJson(user) {
     role: user.role,
     isEmailVerified: Boolean(user.emailVerifiedAt),
     authProvider: user.authProvider,
+    proExpiresAt: user.proExpiresAt,
+    isProActive: proDaysLeft > 0,
+    proDaysLeft,
+    movixCoinsBalance: Number(user.movixCoinsBalance || 0),
+    movixCoinsEarnedTotal: Number(user.movixCoinsEarnedTotal || 0),
+    movixCoinsRedeemedTotal: Number(user.movixCoinsRedeemedTotal || 0),
   };
 }
 

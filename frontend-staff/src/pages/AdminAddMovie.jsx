@@ -12,8 +12,6 @@ import {
 } from '../lib/formErrors'
 import Toast from '../components/Toast'
 
-const LANGUAGE_OPTIONS = ['English', 'Hindi', 'Tamil', 'Telugu']
-
 const EMPTY_FORM = {
   title: '',
   genre: '',
@@ -44,15 +42,25 @@ export default function AdminAddMovie() {
     setFieldErrors((prev) => ({ ...prev, [key]: '' }))
   }
 
-  function toggleLanguage(language) {
+  function updateLanguageField(index, value) {
     setForm((prev) => {
-      const hasLanguage = prev.languages.includes(language)
-      const languages = hasLanguage
-        ? prev.languages.filter((item) => item !== language)
-        : [...prev.languages, language]
+      const languages = [...prev.languages]
+      languages[index] = value
+      return { ...prev, languages }
+    })
+    setFieldErrors((prev) => ({ ...prev, languages: '' }))
+  }
+
+  function addLanguageField() {
+    setForm((prev) => ({ ...prev, languages: [...prev.languages, ''] }))
+  }
+
+  function removeLanguageField(index) {
+    setForm((prev) => {
+      const next = prev.languages.filter((_, itemIndex) => itemIndex !== index)
       return {
         ...prev,
-        languages,
+        languages: next.length ? next : [''],
       }
     })
     setFieldErrors((prev) => ({ ...prev, languages: '' }))
@@ -72,7 +80,7 @@ export default function AdminAddMovie() {
           description: movie.description || '',
           durationMins: movie.durationMins || '',
           posterUrl: movie.posterUrl || '',
-          languages: movie.languages?.length ? movie.languages : ['English'],
+          languages: movie.languages?.length ? movie.languages : [''],
         })
         setErr('')
       })
@@ -108,7 +116,8 @@ export default function AdminAddMovie() {
       }
     }
 
-    if (!form.languages.length) {
+    const languages = form.languages.map((item) => String(item || '').trim()).filter(Boolean)
+    if (!languages.length) {
       nextErrors.languages = 'Choose at least one language.'
     }
 
@@ -159,6 +168,8 @@ export default function AdminAddMovie() {
     setFieldErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
 
+    const languages = form.languages.map((item) => String(item || '').trim()).filter(Boolean)
+
     setSavingMovie(true)
 
     try {
@@ -169,7 +180,7 @@ export default function AdminAddMovie() {
         description: form.description.trim(),
         durationMins: Number(form.durationMins),
         posterUrl: form.posterUrl.trim(),
-        languages: form.languages,
+        languages,
       }
 
       if (isEdit) {
@@ -224,9 +235,9 @@ export default function AdminAddMovie() {
           <form onSubmit={submitMovie} className="space-y-4 max-w-3xl">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-gray-700 font-medium mb-2">Movie Title</label>
+                <label className="block text-gray-700 font-medium mb-2">Movie Name</label>
                 <input
-                  placeholder="Movie title"
+                  placeholder="Movie Name"
                   value={form.title}
                   onChange={(e) => updateField('title', e.target.value)}
                   className={withFieldError(inputClass, Boolean(fieldErrors.title))}
@@ -287,23 +298,32 @@ export default function AdminAddMovie() {
 
             <div>
               <label className="block text-gray-700 font-medium mb-2">Languages</label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {LANGUAGE_OPTIONS.map((language) => (
-                  <label
-                    key={language}
-                    className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
-                      fieldErrors.languages ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  >
+              <div className="space-y-3">
+                {form.languages.map((language, index) => (
+                  <div key={index} className="flex items-center gap-3">
                     <input
-                      type="checkbox"
-                      checked={form.languages.includes(language)}
-                      onChange={() => toggleLanguage(language)}
+                      value={language}
+                      onChange={(e) => updateLanguageField(index, e.target.value)}
+                      placeholder={`Language ${index + 1}`}
+                      className={withFieldError(inputClass, Boolean(fieldErrors.languages))}
                     />
-                    <span className="text-sm text-gray-700">{language}</span>
-                  </label>
+                    <button
+                      type="button"
+                      onClick={() => removeLanguageField(index)}
+                      className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition-colors hover:bg-red-100"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 ))}
               </div>
+              <button
+                type="button"
+                onClick={addLanguageField}
+                className="mt-3 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+              >
+                Add language
+              </button>
               {fieldErrors.languages ? (
                 <div className="mt-2 text-sm text-red-600">{fieldErrors.languages}</div>
               ) : null}

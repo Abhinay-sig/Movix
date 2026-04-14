@@ -43,8 +43,12 @@ export function formatPercent(value) {
   return `${Number(value || 0).toFixed(2)}%`
 }
 
+function formatPdfCurrency(value) {
+  return sanitizeExportValue(`Rs. ${Number(value || 0).toFixed(2)}`, 'Rs. 0.00')
+}
+
 function escapeCsv(value) {
-  const normalized = String(value ?? '')
+  const normalized = sanitizeExportValue(value)
   if (/[",\n]/.test(normalized)) {
     return `"${normalized.replace(/"/g, '""')}"`
   }
@@ -61,16 +65,49 @@ function downloadBlob(content, fileName, type) {
   URL.revokeObjectURL(url)
 }
 
+function formatFilterRange(data) {
+  const startDate = data?.appliedFilters?.startDate || ''
+  const endDate = data?.appliedFilters?.endDate || ''
+  if (startDate && endDate) return `${startDate} to ${endDate}`
+  return data?.appliedFilters?.range || 'All'
+}
+
+function sanitizeExportValue(value, fallback = 'N/A') {
+  const normalized = String(value ?? '').replace(/`/g, '').trim()
+  return normalized || fallback
+}
+
 function buildAppliedFilterRows(data) {
   return [
-    ['Range', data?.appliedFilters?.range || 'all'],
-    ['Start Date', data?.appliedFilters?.startDate || 'All'],
-    ['End Date', data?.appliedFilters?.endDate || 'All'],
-    ['Show Time', data?.appliedFilters?.showTime || 'All'],
-    ['City', data?.appliedFilters?.city || 'All'],
-    ['Movie', data?.selectedLabels?.movieName || 'All'],
-    ['Theater', data?.selectedLabels?.theaterName || 'All'],
+    ['Date Range', sanitizeExportValue(formatFilterRange(data), 'All')],
+    ['Movie', sanitizeExportValue(data?.selectedLabels?.movieName, 'All')],
+    ['Theatre', sanitizeExportValue(data?.selectedLabels?.theaterName, 'All')],
+    ['Status', sanitizeExportValue(data?.appliedFilters?.paymentStatus, 'All')],
+    ['Seat Category', sanitizeExportValue(data?.appliedFilters?.seatType, 'All')],
+    ['Show Time', sanitizeExportValue(data?.appliedFilters?.showTime, 'All')],
+    ['City', sanitizeExportValue(data?.appliedFilters?.city, 'All')],
   ]
+}
+
+function buildMoviePerformanceRows(data) {
+  const aggregate = new Map()
+
+  for (const row of data?.moviePerformance || []) {
+    const key = String(row?.movieId ?? row?.movieName ?? '').trim()
+    if (!key) continue
+
+    const current = aggregate.get(key) || {
+      movieName: sanitizeExportValue(row?.movieName, 'Unknown Movie'),
+      ticketsSold: 0,
+      revenue: 0,
+    }
+
+    current.ticketsSold += Number(row?.ticketsSold || 0)
+    current.revenue += Number(row?.revenue || 0)
+    aggregate.set(key, current)
+  }
+
+  return Array.from(aggregate.values()).sort((a, b) => b.revenue - a.revenue)
 }
 
 export function formatRelativeUpdateTime(value) {
@@ -84,149 +121,111 @@ export function formatRelativeUpdateTime(value) {
   return `Last updated ${minutes} mins ago`
 }
 
-export function downloadRevenueCsv(data, fileName = 'revenue-report.csv') {
-  const rows = [
-    ['Section', 'Label', 'Value'],
-    ['Summary', 'Gross Revenue', Number(data?.totals?.grossRevenue || 0).toFixed(2)],
-    ['Summary', 'Platform Fee', Number(data?.totals?.platformFee || 0).toFixed(2)],
-    ['Summary', 'GST', Number(data?.totals?.gst || 0).toFixed(2)],
-    ['Summary', 'Net Earnings', Number(data?.totals?.netEarnings || 0).toFixed(2)],
-    ['Summary', 'Confirmed Bookings', Number(data?.totalBookings || 0)],
-    ['Summary', 'Sold Tickets', Number(data?.soldTickets || 0)],
-  ]
+// export function downloadRevenueCsv(data, fileName = 'revenue-report.csv') {
+//   const rows = []
 
-  for (const [label, value] of buildAppliedFilterRows(data)) {
-    rows.push(['Applied Filters', label, value])
-  }
+//   rows.push(['Applied Filters', ''])
+//   rows.push(['Filter Name', 'Value'])
+//   for (const [label, value] of buildAppliedFilterRows(data)) {
+//     rows.push([label, value])
+//   }
 
-  for (const row of data?.moviePerformance || []) {
-    rows.push([
-      'Movie Performance',
-      row.movieName,
-      `Revenue ${Number(row.revenue || 0).toFixed(2)} | Tickets ${row.ticketsSold || 0} | Occupancy ${Number(row.occupancyPct || 0).toFixed(2)}%`,
-    ])
-  }
+//   rows.push([])
+//   rows.push(['Summary Metrics', ''])
+//   rows.push(['Metric', 'Value'])
+//   rows.push(['Total Revenue', Number(data?.totals?.grossRevenue || data?.grossRevenue || 0).toFixed(2)])
+//   rows.push(['Total Bookings', Number(data?.totalBookings || data?.confirmedBookings || 0)])
+//   rows.push(['Tickets Sold', Number(data?.soldTickets || 0)])
+//   rows.push(['Platform Fee', Number(data?.totals?.platformFee || data?.platformFee || 0).toFixed(2)])
+//   rows.push(['GST', Number(data?.totals?.gst || data?.gst || 0).toFixed(2)])
+//   rows.push(['Net Earnings', Number(data?.totals?.netEarnings || data?.netEarnings || 0).toFixed(2)])
+//   rows.push(['Avg Ticket Price', Number(data?.totals?.averageTicketPrice || data?.avgTicketPrice || 0).toFixed(2)])
+//   rows.push(['Occupancy Rate', formatPercent(data?.totals?.occupancyRate || data?.occupancyRate || 0)])
 
-  for (const row of data?.theaterBreakdown || []) {
-    rows.push([
-      'Theater Breakdown',
-      row.theaterName,
-      `Revenue ${Number(row.grossRevenue || 0).toFixed(2)} | Tickets ${row.ticketsSold || 0} | Occupancy ${Number(row.occupancyPct || 0).toFixed(2)}%`,
-    ])
-  }
+//   rows.push([])
+//   rows.push(['Movie Performance', '', ''])
+//   rows.push(['Movie Name', 'Tickets Sold', 'Revenue'])
+//   for (const row of buildMoviePerformanceRows(data)) {
+//     rows.push([
+//       sanitizeExportValue(row.movieName, 'Unknown Movie'),
+//       Number(row.ticketsSold || 0),
+//       Number(row.revenue || 0).toFixed(2),
+//     ])
+//   }
 
-  const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n')
-  downloadBlob(csv, fileName, 'text/csv;charset=utf-8;')
-}
+//   const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n')
+//   downloadBlob(csv, fileName, 'text/csv;charset=utf-8;')
+// }
 
 export function downloadRevenuePdf(data, fileName = 'revenue-report.pdf') {
   const doc = new jsPDF()
+  const moviePerformanceRows = buildMoviePerformanceRows(data)
+  const generatedAt = sanitizeExportValue(
+    formatDateTimeTo12Hour(new Date(), { timeZone: 'Asia/Kolkata' }),
+    ''
+  )
 
-  doc.setFillColor(40, 40, 40)
-  doc.rect(0, 0, 210, 30, 'F')
+  doc.setFillColor(22, 28, 45)
+  doc.rect(0, 0, 210, 34, 'F')
 
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(18)
-  doc.text('THEATRE REVENUE REPORT', 14, 18)
+  doc.setFontSize(20)
+  doc.text(sanitizeExportValue('Movie Admin Report', ''), 14, 16)
 
   doc.setFontSize(10)
-  doc.text(`Generated on: ${formatDateTimeTo12Hour(new Date())}`, 14, 25)
+  doc.text(sanitizeExportValue(`Generated on: ${generatedAt}`, ''), 14, 24)
+  doc.text(sanitizeExportValue('Applied filters are included below for traceability.', ''), 14, 30)
 
   doc.setTextColor(0, 0, 0)
 
   autoTable(doc, {
-    startY: 40,
-    head: [['Applied Filters', 'Value']],
+    startY: 42,
+    head: [['Filter Summary', 'Value']],
     body: buildAppliedFilterRows(data),
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [90, 90, 90] },
+    styles: { fontSize: 9, cellPadding: 3, lineColor: [210, 214, 220], lineWidth: 0.2 },
+    headStyles: { fillColor: [43, 55, 86], halign: 'left' },
+    tableLineColor: [210, 214, 220],
+    tableLineWidth: 0.2,
   })
 
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 8,
-    head: [['Summary', 'Amount (₹)']],
+    head: [['Main Summary', 'Value']],
     body: [
-      ['Gross Revenue', Number(data?.totals?.grossRevenue || 0).toFixed(2)],
-      ['Platform Fee', Number(data?.totals?.platformFee || 0).toFixed(2)],
-      ['GST', Number(data?.totals?.gst || 0).toFixed(2)],
-      ['Net Earnings', Number(data?.totals?.netEarnings || 0).toFixed(2)],
-      ['Confirmed Bookings', Number(data?.totalBookings || 0)],
-      ['Sold Tickets', Number(data?.soldTickets || 0)],
+      ['Total Revenue', formatPdfCurrency(data?.totals?.grossRevenue || data?.grossRevenue || 0)],
+      ['Total Tickets Sold', Number(data?.soldTickets || 0)],
+      ['Total Bookings', Number(data?.totalBookings || data?.confirmedBookings || 0)],
+      ['Platform Fees', formatPdfCurrency(data?.totals?.platformFee || data?.platformFee || 0)],
+      ['Net Revenue', formatPdfCurrency(data?.totals?.netEarnings || data?.netEarnings || 0)],
     ],
-    styles: { fontSize: 10 },
-    headStyles: { fillColor: [22, 160, 133] },
+    styles: { fontSize: 10, cellPadding: 3, lineColor: [210, 214, 220], lineWidth: 0.2 },
+    headStyles: { fillColor: [15, 118, 110], halign: 'left' },
+    tableLineColor: [210, 214, 220],
+    tableLineWidth: 0.2,
   })
 
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 10,
-    head: [['Movie', 'Tickets Sold', 'Revenue (₹)', 'Occupancy %', 'Shows']],
-    body: (data?.moviePerformance || []).map(row => [
-      row.movieName,
-      row.ticketsSold,
-      Number(row.revenue || 0).toFixed(2),
-      Number(row.occupancyPct || 0).toFixed(2),
-      row.showCount,
-    ]),
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [52, 152, 219] },
-  })
-
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 10,
-    head: [['Revenue Over Time', 'Revenue (₹)']],
-    body: (data?.charts?.revenueOverTime || []).map((row) => [
-      row.date,
-      Number(row.revenue || 0).toFixed(2),
-    ]),
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [46, 134, 193] },
-  })
-
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 10,
-    head: [['Tickets Sold Per Day', 'Tickets Sold']],
-    body: (data?.charts?.ticketsSoldPerDay || []).map((row) => [
-      row.date,
+    head: [['Movie Name', 'Tickets Sold', 'Revenue Generated']],
+    body: moviePerformanceRows.map((row) => [
+      sanitizeExportValue(row.movieName, 'Unknown Movie'),
       Number(row.ticketsSold || 0),
+      formatPdfCurrency(row.revenue || 0),
     ]),
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [39, 174, 96] },
-  })
-
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 10,
-    head: [['Theater', 'Revenue (₹)', 'Tickets', 'Occupancy %', 'Avg Price']],
-    body: (data?.theaterBreakdown || []).map(row => [
-      row.theaterName,
-      Number(row.grossRevenue || 0).toFixed(2),
-      row.ticketsSold,
-      Number(row.occupancyPct || 0).toFixed(2),
-      Number(row.averageTicketPrice || 0).toFixed(2),
-    ]),
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [155, 89, 182] },
-  })
-
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 10,
-    head: [['User', 'Movie', 'Theater', 'Seats', 'Amount (₹)']],
-    body: (data?.recentBookings || []).map(row => [
-      row.user,
-      row.movie,
-      row.theater,
-      Array.isArray(row.seats) ? row.seats.join(' | ') : '',
-      Number(row.amount || 0).toFixed(2),
-    ]),
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [231, 76, 60] },
+    styles: { fontSize: 9, cellPadding: 3, lineColor: [210, 214, 220], lineWidth: 0.2 },
+    headStyles: { fillColor: [37, 99, 235], halign: 'left' },
+    tableLineColor: [210, 214, 220],
+    tableLineWidth: 0.2,
   })
 
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
     doc.setFontSize(10)
+    doc.setTextColor(90, 98, 112)
+    doc.text(sanitizeExportValue('Generated by Admin Panel', ''), 14, 290)
     doc.text(
-      `Page ${i} of ${pageCount}`,
+      sanitizeExportValue(`Page ${i} of ${pageCount}`, ''),
       180,
       290
     )

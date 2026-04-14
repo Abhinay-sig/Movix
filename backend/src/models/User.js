@@ -39,6 +39,10 @@ function defineUser(sequelize) {
       passwordResetTokenHash: { type: DataTypes.STRING(128), allowNull: true },
       passwordResetTokenExpiresAt: { type: DataTypes.DATE, allowNull: true },
       passwordResetLastSentAt: { type: DataTypes.DATE, allowNull: true },
+      proExpiresAt: { type: DataTypes.DATE, allowNull: true },
+      movixCoinsBalance: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+      movixCoinsEarnedTotal: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+      movixCoinsRedeemedTotal: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
       isBlocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     },
     {

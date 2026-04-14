@@ -5,33 +5,6 @@ import PaginationControls from '../components/PaginationControls'
 
 const PAGE_LIMIT = 6
 
-function toDateOnly(value) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  date.setHours(0, 0, 0, 0)
-  return date
-}
-
-function matchesTimeRange(movie, timeRange) {
-  if (!timeRange) return true
-
-  const referenceDate = toDateOnly(movie?.addedAt || movie?.releaseDate)
-  if (!referenceDate) return false
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  if (timeRange === 'today') {
-    return referenceDate.getTime() === today.getTime()
-  }
-
-  const start = new Date(today)
-  if (timeRange === 'last7') start.setDate(start.getDate() - 6)
-  if (timeRange === 'last30') start.setDate(start.getDate() - 29)
-
-  return referenceDate >= start && referenceDate <= today
-}
-
 export default function OwnerMovies() {
   const { auth } = useAuth()
   const [movies, setMovies] = useState([])
@@ -39,20 +12,21 @@ export default function OwnerMovies() {
   const [nameFilter, setNameFilter] = useState('')
   const [genreFilter, setGenreFilter] = useState('')
   const [releaseDateFilter, setReleaseDateFilter] = useState('')
+  const [languageFilter, setLanguageFilter] = useState('')
   const [page, setPage] = useState(1)
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState('')
 
-  const activeFilterCount = [nameFilter, genreFilter, releaseDateFilter, timeRange].filter((value) =>
+  const activeFilterCount = [nameFilter, genreFilter, releaseDateFilter, languageFilter, timeRange].filter((value) =>
     String(value || '').trim()
   ).length
 
-  const visibleMovies = movies.filter((movie) => matchesTimeRange(movie, timeRange))
+  const visibleMovies = movies
 
   useEffect(() => {
     setPage(1)
-  }, [nameFilter, genreFilter, releaseDateFilter])
+  }, [nameFilter, genreFilter, releaseDateFilter, languageFilter, timeRange])
 
   useEffect(() => {
     let alive = true
@@ -65,6 +39,8 @@ export default function OwnerMovies() {
     if (nameFilter.trim()) params.set('name', nameFilter.trim())
     if (genreFilter.trim()) params.set('genre', genreFilter.trim())
     if (releaseDateFilter.trim()) params.set('releaseDate', releaseDateFilter.trim())
+    if (languageFilter.trim()) params.set('language', languageFilter.trim())
+    if (timeRange.trim()) params.set('timeRange', timeRange.trim())
 
     api(`/owner/me/movies?${params.toString()}`, { token: auth.token })
       .then((data) => {
@@ -84,7 +60,7 @@ export default function OwnerMovies() {
     return () => {
       alive = false
     }
-  }, [auth.token, nameFilter, genreFilter, releaseDateFilter, page])
+  }, [auth.token, nameFilter, genreFilter, releaseDateFilter, languageFilter, timeRange, page])
 
   return (
     <div className="space-y-8">
@@ -152,6 +128,7 @@ export default function OwnerMovies() {
                 setNameFilter('')
                 setGenreFilter('')
                 setReleaseDateFilter('')
+                setLanguageFilter('')
                 setTimeRange('')
               }}
               className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-all duration-200 hover:bg-slate-100"
@@ -198,6 +175,15 @@ export default function OwnerMovies() {
               type="date"
               value={releaseDateFilter}
               onChange={(e) => setReleaseDateFilter(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-slate-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Language</label>
+            <input
+              value={languageFilter}
+              onChange={(e) => setLanguageFilter(e.target.value)}
+              placeholder="Language"
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-slate-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -264,17 +250,11 @@ export default function OwnerMovies() {
                 >
                   <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                     <div className="flex flex-1 flex-col gap-4 md:flex-row">
-                      {movie.posterUrl ? (
-                        <img
-                          src={movie.posterUrl}
-                          alt={movie.title}
-                          className="h-44 w-full rounded-xl object-cover shadow-sm md:w-30"
-                        />
-                      ) : (
-                        <div className="flex h-44 w-full items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 text-4xl text-slate-400 md:w-30">
-                          🎬
-                        </div>
-                      )}
+                      <img
+  src={movie.posterUrl || '/fallback_poster.jpeg'}
+  alt={movie.title}
+  className="h-44 w-full rounded-xl object-cover shadow-sm md:w-30"
+/>
 
                       <div className="space-y-4">
                         <div>

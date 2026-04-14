@@ -85,6 +85,8 @@ export default function SeatSelect() {
   const [dragMode, setDragMode] = useState(null)
   const [conflictNote, setConflictNote] = useState('')
   const [loadingHold, setLoadingHold] = useState(false)
+  const [useMovixCoins, setUseMovixCoins] = useState(false)
+  const [zeroPayDialog, setZeroPayDialog] = useState(null)
 
   const refreshSeatMap = useCallback(
     async (keepError = false) => {
@@ -227,6 +229,17 @@ export default function SeatSelect() {
     [seatStats]
   )
 
+  const canUseMovixCoins = Boolean(auth?.user?.isProActive && Number(auth?.user?.movixCoinsBalance || 0) > 0)
+  const redeemableMovixCoins = useMemo(() => {
+    if (!canUseMovixCoins || !useMovixCoins) return 0
+    return Math.min(Math.floor(totalAmount), Number(auth?.user?.movixCoinsBalance || 0))
+  }, [auth?.user?.movixCoinsBalance, canUseMovixCoins, totalAmount, useMovixCoins])
+  const payableAmount = Math.max(0, totalAmount - redeemableMovixCoins)
+
+  useEffect(() => {
+    if (!canUseMovixCoins && useMovixCoins) setUseMovixCoins(false)
+  }, [canUseMovixCoins, useMovixCoins])
+
   useEffect(() => {
     if (!selected.size) return
 
@@ -302,6 +315,26 @@ export default function SeatSelect() {
         body: { showId: Number(showId), seatCodes: selectedArr, sessionToken: seatSessionToken },
       })
 
+      if (payableAmount === 0 && useMovixCoins) {
+        const booking = await api('/bookings/confirm', {
+          method: 'POST',
+          token: auth.token,
+          body: {
+            showId: Number(showId),
+            seatCodes: selectedArr,
+            email: auth.user?.email || '',
+            sessionToken: seatSessionToken,
+            useMovixCoins: true,
+          },
+        })
+
+        setZeroPayDialog({
+          coinsUsed: Number(booking.movixCoinsUsed || 0),
+          cashback: Number(booking.movixCoinsCashback || 0),
+        })
+        return
+      }
+
       nav(`/shows/${showId}/payment`, {
         state: {
           seatCodes: selectedArr,
@@ -309,7 +342,9 @@ export default function SeatSelect() {
           expiresAt: hold.expiresAt,
           holdMs: hold.holdMs,
           estimate: {
-            total: totalAmount,
+            total: payableAmount,
+            subTotal: totalAmount,
+            movixCoinsUsed: redeemableMovixCoins,
             breakdown: selectedArr.map((seatCode) => {
               const seat = rows.flatMap((row) => row.cells).find((cell) => cell?.seatCode === seatCode)
               const seatType = seatTypeMap.get(seat?.seatTypeCode || 'standard')
@@ -326,6 +361,7 @@ export default function SeatSelect() {
           },
           showSummary: data?.showSummary || null,
           seatTypes: data?.seatTypes || [],
+          useMovixCoins,
         },
       })
     } catch (e) {
@@ -382,6 +418,34 @@ export default function SeatSelect() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 md:px-6">
+      {zeroPayDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-lg font-bold text-emerald-700">
+              M
+            </div>
+            <div className="mt-4 text-center">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Booking confirmed</div>
+              <div className="mt-2 text-2xl font-semibold text-slate-950">Paid with MovixCoins</div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                Coins used: {zeroPayDialog.coinsUsed} <br />
+                Cashback credited: {zeroPayDialog.cashback}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setZeroPayDialog(null)
+                nav('/my-tickets', { replace: true })
+              }}
+              className="primary-button mt-6 w-full"
+            >
+              View my tickets
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <section className="page-panel fade-up px-6 py-7 md:px-10">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-3">
@@ -425,7 +489,7 @@ export default function SeatSelect() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-gradient-to-b from-white via-slate-50 to-slate-100 px-3 py-5 md:px-5">
+        <div className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-linear-to-b from-white via-slate-50 to-slate-100 px-3 py-5 md:px-5">
           <div className="mx-auto flex w-full flex-col items-center">
             <div
               className="mb-3 grid items-center"
@@ -510,7 +574,7 @@ export default function SeatSelect() {
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">
                 Screen This Side
               </div>
-              <div className="mx-auto h-18 w-full rounded-[100%] border border-sky-100 bg-gradient-to-b from-sky-100 via-blue-50 to-white shadow-[0_18px_40px_rgba(96,165,250,0.18)]" />
+              <div className="mx-auto h-18 w-full rounded-[100%] border border-sky-100 bg-linear-to-b from-sky-100 via-blue-50 to-white shadow-[0_18px_40px_rgba(96,165,250,0.18)]" />
             </div>
           </div>
         </div>
@@ -585,6 +649,29 @@ export default function SeatSelect() {
                 <span className="text-blue-100/80">Total</span>
                 <span className="text-xl font-semibold">₹{totalAmount}</span>
               </div>
+              {canUseMovixCoins ? (
+                <label className="flex items-start gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={useMovixCoins}
+                    onChange={(event) => setUseMovixCoins(event.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Use MovixCoins (Available: {Number(auth?.user?.movixCoinsBalance || 0)}). Applying now: {redeemableMovixCoins}
+                  </span>
+                </label>
+              ) : null}
+              {useMovixCoins && canUseMovixCoins ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-blue-100/80">MovixCoin discount</span>
+                  <span className="text-emerald-300">-₹{redeemableMovixCoins}</span>
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between">
+                <span className="text-blue-100/80">Payable</span>
+                <span className="text-xl font-semibold">₹{payableAmount}</span>
+              </div>
             </div>
 
             <button
@@ -593,7 +680,11 @@ export default function SeatSelect() {
               disabled={selectedArr.length === 0 || loadingHold}
               className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-white px-5 py-3.5 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loadingHold ? 'Locking seats...' : 'Proceed to payment'}
+              {loadingHold
+                ? 'Locking seats...'
+                : payableAmount === 0 && useMovixCoins
+                  ? 'Confirm booking'
+                  : 'Proceed to payment'}
             </button>
           </div>
         </div>

@@ -11,6 +11,8 @@ import MyTickets from './pages/MyTickets'
 import VerifyEmail from './pages/VerifyEmail'
 import OAuthCallback from './pages/OAuthCallback'
 import ResetPassword from './pages/ResetPassword'
+import Pro from './pages/Pro'
+import ProCheckout from './pages/ProCheckout'
 
 export default function App() {
   return (
@@ -28,6 +30,8 @@ export default function App() {
           <Route path="/shows/:showId/seats" element={<SeatSelect />} />
           <Route path="/shows/:showId/payment" element={<Payment />} />
           <Route path="/my-tickets" element={<MyTickets />} />
+          <Route path="/pro" element={<Pro />} />
+          <Route path="/pro/checkout" element={<ProCheckout />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

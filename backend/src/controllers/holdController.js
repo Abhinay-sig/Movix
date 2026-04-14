@@ -41,6 +41,15 @@ const createPaymentOrderSchema = z.object({
   seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
   email: z.string().email().max(320),
   sessionToken: z.string().min(8).max(96),
+  useMovixCoins: z.boolean().optional(),
+});
+
+const confirmSchema = z.object({
+  showId: z.coerce.number().int().positive(),
+  seatCodes: z.array(z.string().min(2).max(16)).min(1).max(10),
+  email: z.string().email().max(320),
+  sessionToken: z.string().min(8).max(96),
+  useMovixCoins: z.boolean().optional(),
 });
 
 const verifyPaymentSchema = z.object({
@@ -51,6 +60,7 @@ const verifyPaymentSchema = z.object({
   razorpayOrderId: z.string().min(8).max(128),
   razorpayPaymentId: z.string().min(8).max(128),
   razorpaySignature: z.string().min(8).max(255),
+  useMovixCoins: z.boolean().optional(),
 });
 
 const releaseHoldSchema = z.object({
@@ -94,6 +104,23 @@ function buildReceiptNumber({ showId, userId }) {
 function getPaymentSlipLabel(ticket) {
   const paymentId = ticket?.payment?.paymentId;
   return paymentId ? `Razorpay payment ${paymentId}` : 'Razorpay payment receipt';
+}
+
+function getWalletPaymentSummary({ user, totalAmount, useMovixCoins }) {
+  const proExpiresMs = user?.proExpiresAt ? new Date(user.proExpiresAt).getTime() : 0;
+  const isProActive = Number.isFinite(proExpiresMs) && proExpiresMs > Date.now();
+  const coinBalance = Number(user?.movixCoinsBalance || 0);
+  const redeemableCoins =
+    useMovixCoins && isProActive ? Math.min(Math.floor(Number(totalAmount || 0)), coinBalance) : 0;
+  const payableAmount = Math.max(0, Number(totalAmount || 0) - redeemableCoins);
+  const cashbackCoins = isProActive ? Math.floor(payableAmount * 0.1) : 0;
+
+  return {
+    isProActive,
+    redeemableCoins,
+    payableAmount,
+    cashbackCoins,
+  };
 }
 
 function buildBookingTicket({ booking, seatMeta, show }) {
@@ -457,6 +484,139 @@ async function createHold(req, res, next) {
   }
 }
 
+async function confirmBooking(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const body = confirmSchema.parse(req.body);
+    const normalizedEmail = assertRegisteredEmail(req, body.email);
+    const checkout = await buildCheckoutContext({
+      t,
+      showId: body.showId,
+      seatCodes: body.seatCodes,
+      userId: req.user.id,
+      sessionToken: body.sessionToken,
+    });
+
+    const user = await db.User.findByPk(req.user.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!user) throw new HttpError(404, 'User not found');
+
+    const wallet = getWalletPaymentSummary({
+      user,
+      totalAmount: checkout.totalAmount,
+      useMovixCoins: Boolean(body.useMovixCoins),
+    });
+
+    if (wallet.payableAmount > 0) {
+      throw new HttpError(400, 'This booking still needs Razorpay payment');
+    }
+
+    const booking = await db.Booking.create(
+      {
+        showId: checkout.show.id,
+        userId: req.user.id,
+        status: BOOKING_STATUS.CONFIRMED,
+        totalAmount: wallet.payableAmount,
+        customerEmail: normalizedEmail,
+        receiptNumber: buildReceiptNumber({ showId: body.showId, userId: req.user.id }),
+        paymentProvider: 'movix_coins',
+        paymentStatus: 'captured',
+        paymentMethod: wallet.redeemableCoins > 0 ? 'movix_coins' : 'complimentary',
+      },
+      { transaction: t }
+    );
+
+    for (const { seatCode, seatTypeId, price } of checkout.seatMeta) {
+      // eslint-disable-next-line no-await-in-loop
+      await db.BookingSeat.create(
+        {
+          bookingId: booking.id,
+          showId: checkout.show.id,
+          seatCode,
+          seatTypeId,
+          price,
+        },
+        { transaction: t }
+      );
+    }
+
+    await db.SeatHold.update(
+      { status: HOLD_STATUS.RELEASED },
+      {
+        where: {
+          showId: checkout.show.id,
+          seatCode: { [Op.in]: checkout.absoluteSeatCodes },
+          sessionToken: body.sessionToken,
+          status: HOLD_STATUS.HELD,
+        },
+        transaction: t,
+      }
+    );
+
+    if (wallet.isProActive && wallet.redeemableCoins > 0) {
+      user.movixCoinsBalance = Math.max(0, Number(user.movixCoinsBalance || 0) - wallet.redeemableCoins);
+      user.movixCoinsRedeemedTotal =
+        Number(user.movixCoinsRedeemedTotal || 0) + wallet.redeemableCoins;
+
+      await db.MovixCoinTransaction.create(
+        {
+          userId: user.id,
+          bookingId: booking.id,
+          type: db.MOVIX_COIN_TX_TYPES.BOOKING_DEBIT,
+          coins: -wallet.redeemableCoins,
+          note: `MovixCoins redeemed on booking #${booking.id}`,
+        },
+        { transaction: t }
+      );
+    }
+
+    if (wallet.isProActive && wallet.cashbackCoins > 0) {
+      user.movixCoinsBalance = Number(user.movixCoinsBalance || 0) + wallet.cashbackCoins;
+      user.movixCoinsEarnedTotal = Number(user.movixCoinsEarnedTotal || 0) + wallet.cashbackCoins;
+
+      await db.MovixCoinTransaction.create(
+        {
+          userId: user.id,
+          bookingId: booking.id,
+          type: db.MOVIX_COIN_TX_TYPES.CASHBACK_CREDIT,
+          coins: wallet.cashbackCoins,
+          note: `10% cashback for booking #${booking.id}`,
+        },
+        { transaction: t }
+      );
+    }
+
+    if (wallet.isProActive) {
+      await user.save({ transaction: t });
+    }
+
+    await t.commit();
+
+    res.status(201).json({
+      bookingId: booking.id,
+      showId: checkout.show.id,
+      seatCodes: checkout.publicSeatCodes,
+      totalAmount: wallet.payableAmount,
+      subTotalAmount: checkout.totalAmount,
+      movixCoinsUsed: wallet.redeemableCoins,
+      movixCoinsCashback: wallet.cashbackCoins,
+      wallet: {
+        currentBalance: Number(user.movixCoinsBalance || 0),
+        totalEarned: Number(user.movixCoinsEarnedTotal || 0),
+        totalRedeemed: Number(user.movixCoinsRedeemedTotal || 0),
+      },
+      ticket: buildBookingTicket({
+        booking,
+        seatMeta: checkout.seatMeta,
+        show: checkout.show,
+      }),
+    });
+  } catch (e) {
+    if (!t.finished) await t.rollback();
+    if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
+    return next(e);
+  }
+}
+
 async function createRazorpayOrder(req, res, next) {
   const t = await db.sequelize.transaction();
   try {
@@ -473,10 +633,20 @@ async function createRazorpayOrder(req, res, next) {
       userId: req.user.id,
       sessionToken: body.sessionToken,
     });
+    const user = await db.User.findByPk(req.user.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!user) throw new HttpError(404, 'User not found');
+    const wallet = getWalletPaymentSummary({
+      user,
+      totalAmount: checkout.totalAmount,
+      useMovixCoins: Boolean(body.useMovixCoins),
+    });
+    if (wallet.payableAmount <= 0) {
+      throw new HttpError(400, 'This booking does not require Razorpay payment');
+    }
 
     const receipt = buildReceiptNumber({ showId: body.showId, userId: req.user.id });
     const order = await createCheckoutOrder({
-      amount: checkout.totalAmount,
+      amount: wallet.payableAmount,
       receipt,
       notes: {
         userId: String(req.user.id),
@@ -484,6 +654,8 @@ async function createRazorpayOrder(req, res, next) {
         email: normalizedEmail,
         sessionToken: body.sessionToken,
         seatCodes: checkout.publicSeatCodes.join(','),
+        useMovixCoins: wallet.redeemableCoins > 0 ? 'true' : 'false',
+        movixCoinsUsed: String(wallet.redeemableCoins),
       },
     });
 
@@ -500,11 +672,13 @@ async function createRazorpayOrder(req, res, next) {
         key: getCheckoutConfig().keyId,
         name: getCheckoutDisplayName(),
         description: `${checkout.show.Movie?.title || 'Movie'} booking`,
-        amount: checkout.totalAmount,
+        amount: wallet.payableAmount,
         email: normalizedEmail,
         seatCodes: checkout.publicSeatCodes,
         expiresAt: checkout.expiresAt,
         holdMs: checkout.holdMs,
+        subTotalAmount: checkout.totalAmount,
+        movixCoinsUsed: wallet.redeemableCoins,
       },
     });
   } catch (e) {
@@ -595,6 +769,13 @@ async function verifyRazorpayPayment(req, res, next) {
       userId: req.user.id,
       sessionToken: body.sessionToken,
     });
+    const user = await db.User.findByPk(req.user.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!user) throw new HttpError(404, 'User not found');
+    const wallet = getWalletPaymentSummary({
+      user,
+      totalAmount: checkout.totalAmount,
+      useMovixCoins: Boolean(body.useMovixCoins),
+    });
 
     verifyPaymentSignature({
       orderId: body.razorpayOrderId,
@@ -620,7 +801,7 @@ async function verifyRazorpayPayment(req, res, next) {
       throw new HttpError(400, 'Payment has not been captured by Razorpay');
     }
 
-    const expectedAmount = toRazorpayAmount(checkout.totalAmount);
+    const expectedAmount = toRazorpayAmount(wallet.payableAmount);
     if (Number(razorpayOrder.amount) !== expectedAmount || Number(razorpayPayment.amount) !== expectedAmount) {
       throw new HttpError(400, 'Razorpay amount does not match the booking total');
     }
@@ -634,7 +815,9 @@ async function verifyRazorpayPayment(req, res, next) {
       String(notes.showId || '') !== String(body.showId) ||
       String(notes.email || '').trim().toLowerCase() !== normalizedEmail ||
       String(notes.sessionToken || '') !== String(body.sessionToken) ||
-      String(notes.seatCodes || '') !== checkout.publicSeatCodes.join(',')
+      String(notes.seatCodes || '') !== checkout.publicSeatCodes.join(',') ||
+      String(notes.useMovixCoins || 'false') !== (wallet.redeemableCoins > 0 ? 'true' : 'false') ||
+      Number(notes.movixCoinsUsed || 0) !== wallet.redeemableCoins
     ) {
       throw new HttpError(400, 'Razorpay order details do not match this booking');
     }
@@ -644,7 +827,7 @@ async function verifyRazorpayPayment(req, res, next) {
         showId: checkout.show.id,
         userId: req.user.id,
         status: BOOKING_STATUS.CONFIRMED,
-        totalAmount: checkout.totalAmount,
+        totalAmount: wallet.payableAmount,
         customerEmail: normalizedEmail,
         receiptNumber: razorpayOrder.receipt || buildReceiptNumber({ showId: body.showId, userId: req.user.id }),
         paymentProvider: 'razorpay',
@@ -684,13 +867,58 @@ async function verifyRazorpayPayment(req, res, next) {
       }
     );
 
+    if (wallet.isProActive && wallet.redeemableCoins > 0) {
+      user.movixCoinsBalance = Math.max(0, Number(user.movixCoinsBalance || 0) - wallet.redeemableCoins);
+      user.movixCoinsRedeemedTotal =
+        Number(user.movixCoinsRedeemedTotal || 0) + wallet.redeemableCoins;
+
+      await db.MovixCoinTransaction.create(
+        {
+          userId: user.id,
+          bookingId: booking.id,
+          type: db.MOVIX_COIN_TX_TYPES.BOOKING_DEBIT,
+          coins: -wallet.redeemableCoins,
+          note: `MovixCoins redeemed on booking #${booking.id}`,
+        },
+        { transaction: t }
+      );
+    }
+
+    if (wallet.isProActive && wallet.cashbackCoins > 0) {
+      user.movixCoinsBalance = Number(user.movixCoinsBalance || 0) + wallet.cashbackCoins;
+      user.movixCoinsEarnedTotal = Number(user.movixCoinsEarnedTotal || 0) + wallet.cashbackCoins;
+
+      await db.MovixCoinTransaction.create(
+        {
+          userId: user.id,
+          bookingId: booking.id,
+          type: db.MOVIX_COIN_TX_TYPES.CASHBACK_CREDIT,
+          coins: wallet.cashbackCoins,
+          note: `10% cashback for booking #${booking.id}`,
+        },
+        { transaction: t }
+      );
+    }
+
+    if (wallet.isProActive) {
+      await user.save({ transaction: t });
+    }
+
     await t.commit();
 
     res.status(201).json({
       bookingId: booking.id,
       showId: checkout.show.id,
       seatCodes: checkout.publicSeatCodes,
-      totalAmount: checkout.totalAmount,
+      totalAmount: wallet.payableAmount,
+      subTotalAmount: checkout.totalAmount,
+      movixCoinsUsed: wallet.redeemableCoins,
+      movixCoinsCashback: wallet.cashbackCoins,
+      wallet: {
+        currentBalance: Number(user.movixCoinsBalance || 0),
+        totalEarned: Number(user.movixCoinsEarnedTotal || 0),
+        totalRedeemed: Number(user.movixCoinsRedeemedTotal || 0),
+      },
       ticket: buildBookingTicket({
         booking,
         seatMeta: checkout.seatMeta,
@@ -786,6 +1014,7 @@ async function releaseHold(req, res, next) {
 
 module.exports = {
   createHold,
+  confirmBooking,
   createRazorpayOrder,
   verifyRazorpayPayment,
   cleanupExpiredHolds,

@@ -52,8 +52,31 @@ function normalizeErrorMessage(error) {
   return error?.message || 'Something went wrong while processing the payment.'
 }
 
+function applyCoinDiscount(estimate, useMovixCoins, user) {
+  if (!estimate) return estimate
+
+  const baseTotal = Number(estimate.total || 0)
+  if (!useMovixCoins || !user?.isProActive) {
+    return {
+      ...estimate,
+      subTotal: baseTotal,
+      movixCoinsUsed: 0,
+      total: baseTotal,
+    }
+  }
+
+  const balance = Number(user.movixCoinsBalance || 0)
+  const used = Math.min(Math.floor(baseTotal), balance)
+  return {
+    ...estimate,
+    subTotal: baseTotal,
+    movixCoinsUsed: used,
+    total: Math.max(0, baseTotal - used),
+  }
+}
+
 export default function Payment() {
-  const { auth, logout } = useAuth()
+  const { auth, logout, setAuth } = useAuth()
   const { showNotification } = useNotification()
   const { showId } = useParams()
   const location = useLocation()
@@ -80,8 +103,11 @@ export default function Payment() {
 
   const seatCodes = useMemo(() => location.state?.seatCodes || [], [location.state])
   const displaySeatCodes = useMemo(() => location.state?.displaySeatCodes || [], [location.state])
+  const useMovixCoins = Boolean(location.state?.useMovixCoins)
   const breakdown = estimate?.breakdown || []
   const totalAmount = booking?.totalAmount ?? estimate?.total ?? 0
+  const subTotalAmount = estimate?.subTotal ?? estimate?.total ?? 0
+  const movixCoinsUsed = estimate?.movixCoinsUsed ?? 0
   const canDownloadTicket = booking?.ticket ? isUpcomingTicket(booking.ticket) : false
   const bookingRef = useRef(booking)
   const seatCodesRef = useRef(seatCodes)
@@ -199,11 +225,11 @@ export default function Payment() {
       body: { seatCodes },
     })
       .then((response) => {
-        setEstimate(response)
+        setEstimate(applyCoinDiscount(response, useMovixCoins, auth.user))
         if (!showSummary && response.showSummary) setShowSummary(response.showSummary)
       })
       .catch(() => {})
-  }, [seatCodes, showId, showSummary])
+  }, [auth.user, seatCodes, showId, showSummary, useMovixCoins])
 
   useEffect(() => {
     if (!holdExpiresAt || booking) {
@@ -265,6 +291,7 @@ export default function Payment() {
           seatCodes,
           email: trimmedEmail,
           sessionToken: seatSessionToken,
+          useMovixCoins,
         },
       })
 
@@ -303,6 +330,7 @@ export default function Payment() {
           razorpayOrderId: razorpayResponse.razorpay_order_id,
           razorpayPaymentId: razorpayResponse.razorpay_payment_id,
           razorpaySignature: razorpayResponse.razorpay_signature,
+          useMovixCoins,
         },
       })
 
@@ -311,6 +339,17 @@ export default function Payment() {
         totalAmount: verifyResponse.totalAmount,
         ticket: verifyResponse.ticket || null,
       })
+      if (verifyResponse?.wallet) {
+        setAuth({
+          token: auth.token,
+          user: {
+            ...auth.user,
+            movixCoinsBalance: verifyResponse.wallet.currentBalance,
+            movixCoinsEarnedTotal: verifyResponse.wallet.totalEarned,
+            movixCoinsRedeemedTotal: verifyResponse.wallet.totalRedeemed,
+          },
+        })
+      }
       clearPendingSeatRelease()
       showNotification({
         title: 'Payment successful',
@@ -566,7 +605,7 @@ export default function Payment() {
           <div className="mt-3 text-3xl font-semibold">{formatCurrency(totalAmount)}</div>
           <div className="mt-1 text-sm text-blue-100/80">{seatCodes.length} seat(s) reserved</div>
 
-          <div className="mt-6 space-y-3 border-t border-white/10 pt-5 text-sm">
+            <div className="mt-6 space-y-3 border-t border-white/10 pt-5 text-sm">
             <div className="flex items-center justify-between gap-4">
               <span className="text-blue-100/80">Movie</span>
               <span className="text-right font-medium">{showSummary?.movieTitle || 'Show'}</span>
@@ -585,7 +624,13 @@ export default function Payment() {
               <span className="text-blue-100/80">Seats</span>
               <span className="text-right font-medium">{(displaySeatCodes.length ? displaySeatCodes : seatCodes).join(', ')}</span>
             </div>
-          </div>
+            </div>
+
+          {movixCoinsUsed > 0 ? (
+            <div className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-4 py-4 text-sm text-emerald-50">
+              Subtotal {formatCurrency(subTotalAmount)}. MovixCoins applied: {formatCurrency(movixCoinsUsed)}.
+            </div>
+          ) : null}
 
           <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
             {breakdown.map((seat) => (
