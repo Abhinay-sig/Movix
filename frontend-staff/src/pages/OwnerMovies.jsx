@@ -250,17 +250,11 @@ export default function OwnerMovies() {
                 >
                   <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                     <div className="flex flex-1 flex-col gap-4 md:flex-row">
-                      {movie.posterUrl ? (
-                        <img
-                          src={movie.posterUrl}
-                          alt={movie.title}
-                          className="h-44 w-full rounded-xl object-cover shadow-sm md:w-30"
-                        />
-                      ) : (
-                        <div className="flex h-44 w-full items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 text-4xl text-slate-400 md:w-30">
-                          🎬
-                        </div>
-                      )}
+                      <img
+  src={movie.posterUrl || '/fallback_poster.jpeg'}
+  alt={movie.title}
+  className="h-44 w-full rounded-xl object-cover shadow-sm md:w-30"
+/>
 
                       <div className="space-y-4">
                         <div>

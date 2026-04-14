@@ -187,7 +187,7 @@ export default function Home() {
             <div key={movie.id} className="soft-card group overflow-hidden">
               <div className="relative h-52 overflow-hidden bg-slate-100">
                 <img
-                  src={movie.posterUrl || '/fallback_poster.png'}
+                  src={movie.posterUrl || '/fallback_poster.jpeg'}
                   alt={movie.title}
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   onError={(e) => {
@@ -196,7 +196,7 @@ export default function Home() {
                       return
                     }
                     e.currentTarget.dataset.fallbackApplied = 'true'
-                    e.currentTarget.src = '/fallback_poster.png'
+                    e.currentTarget.src = '/fallback_poster.jpeg'
                   }}
                 />
 
