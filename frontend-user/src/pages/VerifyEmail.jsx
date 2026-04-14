@@ -15,7 +15,7 @@ export default function VerifyEmail() {
           </h1>
           <p className="section-copy">
             {isSuccess
-              ? 'Your account is ready. You can sign in now and continue with your booking flow.'
+              ? 'Your account is ready. You can sign in now and continue your booking.'
               : 'The link may have expired after 2 minutes or it was already used once. Go back to signup or login to request a fresh verification email.'}
           </p>
 

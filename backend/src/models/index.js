@@ -10,9 +10,12 @@ const { defineOwnerMovie } = require('./OwnerMovie');
 const { defineShow } = require('./Show');
 const { defineSeatType, SEAT_TYPES } = require('./SeatType');
 const { defineShowSeatPrice } = require('./ShowSeatPrice');
+const { defineHallSeatCap } = require('./HallSeatCap');
+const { defineSeatCapHistory } = require('./SeatCapHistory');
 const { defineSeatHold, HOLD_STATUS } = require('./SeatHold');
 const { defineBooking, BOOKING_STATUS } = require('./Booking');
 const { defineBookingSeat } = require('./BookingSeat');
+const { defineMovixCoinTransaction, MOVIX_COIN_TX_TYPES } = require('./MovixCoinTransaction');
 
 const db = {};
 
@@ -34,6 +37,8 @@ db.Show = defineShow(sequelize);
 db.SeatType = defineSeatType(sequelize);
 db.SEAT_TYPES = SEAT_TYPES;
 db.ShowSeatPrice = defineShowSeatPrice(sequelize);
+db.HallSeatCap = defineHallSeatCap(sequelize);
+db.SeatCapHistory = defineSeatCapHistory(sequelize);
 
 db.SeatHold = defineSeatHold(sequelize);
 db.HOLD_STATUS = HOLD_STATUS;
@@ -41,6 +46,8 @@ db.HOLD_STATUS = HOLD_STATUS;
 db.Booking = defineBooking(sequelize);
 db.BOOKING_STATUS = BOOKING_STATUS;
 db.BookingSeat = defineBookingSeat(sequelize);
+db.MovixCoinTransaction = defineMovixCoinTransaction(sequelize);
+db.MOVIX_COIN_TX_TYPES = MOVIX_COIN_TX_TYPES;
 
 // Associations
 db.User.hasMany(db.Theater, { foreignKey: 'ownerUserId' });
@@ -54,6 +61,7 @@ db.HallLayout.belongsTo(db.Hall, { foreignKey: 'hallId' });
 
 db.Hall.hasMany(db.Show, { foreignKey: 'hallId' });
 db.Show.belongsTo(db.Hall, { foreignKey: 'hallId' });
+
 
 db.Movie.hasMany(db.Show, { foreignKey: 'movieId' });
 db.Show.belongsTo(db.Movie, { foreignKey: 'movieId' });
@@ -70,6 +78,14 @@ db.ShowSeatPrice.belongsTo(db.Show, { foreignKey: 'showId' });
 db.SeatType.hasMany(db.ShowSeatPrice, { foreignKey: 'seatTypeId' });
 db.ShowSeatPrice.belongsTo(db.SeatType, { foreignKey: 'seatTypeId' });
 
+db.Hall.hasMany(db.HallSeatCap, { foreignKey: 'hallId' });
+db.HallSeatCap.belongsTo(db.Hall, { foreignKey: 'hallId' });
+db.SeatType.hasMany(db.HallSeatCap, { foreignKey: 'seatTypeId' });
+db.HallSeatCap.belongsTo(db.SeatType, { foreignKey: 'seatTypeId' });
+
+db.Hall.hasMany(db.SeatCapHistory, { foreignKey: 'hallId' });
+db.SeatCapHistory.belongsTo(db.Hall, { foreignKey: 'hallId' });
+
 db.Show.hasMany(db.SeatHold, { foreignKey: 'showId' });
 db.SeatHold.belongsTo(db.Show, { foreignKey: 'showId' });
 db.User.hasMany(db.SeatHold, { foreignKey: 'userId' });
@@ -84,6 +100,13 @@ db.Booking.hasMany(db.BookingSeat, { foreignKey: 'bookingId' });
 db.BookingSeat.belongsTo(db.Booking, { foreignKey: 'bookingId' });
 db.Show.hasMany(db.BookingSeat, { foreignKey: 'showId' });
 db.BookingSeat.belongsTo(db.Show, { foreignKey: 'showId' });
+db.SeatType.hasMany(db.BookingSeat, { foreignKey: 'seatTypeId' });
+db.BookingSeat.belongsTo(db.SeatType, { foreignKey: 'seatTypeId' });
+
+db.User.hasMany(db.MovixCoinTransaction, { foreignKey: 'userId' });
+db.MovixCoinTransaction.belongsTo(db.User, { foreignKey: 'userId' });
+db.Booking.hasMany(db.MovixCoinTransaction, { foreignKey: 'bookingId' });
+db.MovixCoinTransaction.belongsTo(db.Booking, { foreignKey: 'bookingId' });
 
 async function seedSeatTypes() {
   const defaults = [
@@ -114,8 +137,8 @@ async function ensureMovieSchema() {
   if (!table.release_date) {
     await queryInterface.addColumn('movies', 'release_date', {
       type: DataTypes.DATEONLY,
-      allowNull: false,
-      defaultValue: '2000-01-01',
+      allowNull: true,
+      defaultValue: null,
     });
   }
 
@@ -146,6 +169,32 @@ async function ensureMovieSchema() {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true,
+    });
+  }
+}
+
+async function ensureHallSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+  const table = await queryInterface.describeTable('halls');
+
+  if (!table.screen_type) {
+    await queryInterface.addColumn('halls', 'screen_type', {
+      type: DataTypes.STRING(40),
+      allowNull: true,
+    });
+  }
+
+  if (!table.facilities) {
+    await queryInterface.addColumn('halls', 'facilities', {
+      type: DataTypes.JSON,
+      allowNull: true,
+    });
+  }
+
+  if (!table.images) {
+    await queryInterface.addColumn('halls', 'images', {
+      type: DataTypes.JSON,
+      allowNull: true,
     });
   }
 }
@@ -203,11 +252,71 @@ async function ensureUserSchema() {
     });
   }
 
+  if (!table.has_usable_password) {
+    await queryInterface.addColumn('users', 'has_usable_password', {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: null,
+    });
+  }
+
+  if (!table.password_reset_token_hash) {
+    await queryInterface.addColumn('users', 'password_reset_token_hash', {
+      type: DataTypes.STRING(128),
+      allowNull: true,
+    });
+  }
+
+  if (!table.password_reset_token_expires_at) {
+    await queryInterface.addColumn('users', 'password_reset_token_expires_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+  }
+
+  if (!table.password_reset_last_sent_at) {
+    await queryInterface.addColumn('users', 'password_reset_last_sent_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+  }
+
   if (!table.is_blocked) {
     await queryInterface.addColumn('users', 'is_blocked', {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+    });
+  }
+
+  if (!table.pro_expires_at) {
+    await queryInterface.addColumn('users', 'pro_expires_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+  }
+
+  if (!table.movix_coins_balance) {
+    await queryInterface.addColumn('users', 'movix_coins_balance', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
+  if (!table.movix_coins_earned_total) {
+    await queryInterface.addColumn('users', 'movix_coins_earned_total', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
+  if (!table.movix_coins_redeemed_total) {
+    await queryInterface.addColumn('users', 'movix_coins_redeemed_total', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
     });
   }
 
@@ -225,6 +334,12 @@ async function ensureUserSchema() {
       name: 'users_oauth_subject',
     });
   }
+
+  if (!indexNames.has('users_password_reset_token_hash')) {
+    await queryInterface.addIndex('users', ['password_reset_token_hash'], {
+      name: 'users_password_reset_token_hash',
+    });
+  }
 }
 
 async function ensureSeatHoldSchema() {
@@ -239,11 +354,91 @@ async function ensureSeatHoldSchema() {
   }
 }
 
+async function ensureMovixCoinSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+
+  let table;
+  try {
+    table = await queryInterface.describeTable('movix_coin_transactions');
+  } catch {
+    return;
+  }
+
+  if (!table.booking_id) {
+    await queryInterface.addColumn('movix_coin_transactions', 'booking_id', {
+      type: DataTypes.BIGINT.UNSIGNED,
+      allowNull: true,
+    });
+  }
+}
+
+async function ensureApprovalStatusSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+
+  const halls = await queryInterface.describeTable('halls');
+  if (!halls.status) {
+    await queryInterface.addColumn('halls', 'status', {
+      type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+      allowNull: false,
+      defaultValue: 'pending',
+    });
+  }
+  if (!halls.rejection_reason) {
+    await queryInterface.addColumn('halls', 'rejection_reason', {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    });
+  }
+  await sequelize.query("UPDATE halls SET status = CASE WHEN is_approved = 1 THEN 'approved' ELSE COALESCE(status, 'pending') END");
+
+  const shows = await queryInterface.describeTable('shows');
+  if (!shows.status) {
+    await queryInterface.addColumn('shows', 'status', {
+      type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+      allowNull: false,
+      defaultValue: 'pending',
+    });
+  }
+  if (!shows.rejection_reason) {
+    await queryInterface.addColumn('shows', 'rejection_reason', {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    });
+  }
+  await sequelize.query("UPDATE shows SET status = CASE WHEN is_approved = 1 THEN 'approved' ELSE COALESCE(status, 'pending') END");
+}
+
 async function syncDb() {
   await ensureUserSchema();
+  // Avoid repeated ALTER-based index churn (can hit MySQL max-keys limit on long-lived DBs).
+  // Schema evolution is handled by explicit ensure* functions below.
   await sequelize.sync();
+
   await ensureMovieSchema();
+  await ensureHallSchema();
   await ensureSeatHoldSchema();
+  await ensureMovixCoinSchema();
+  await ensureApprovalStatusSchema();
+
+  await db.User.update(
+    { hasUsablePassword: true },
+    {
+      where: {
+        authProvider: db.AUTH_PROVIDERS.LOCAL,
+        hasUsablePassword: null,
+      },
+    }
+  );
+  await db.User.update(
+    { hasUsablePassword: false },
+    {
+      where: {
+        authProvider: db.AUTH_PROVIDERS.GOOGLE,
+        hasUsablePassword: null,
+      },
+    }
+  );
+
   await seedSeatTypes();
 }
 

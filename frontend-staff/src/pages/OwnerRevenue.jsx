@@ -444,7 +444,7 @@ export default function OwnerRevenue() {
             </select>
           </div>
 
-          <div>
+          {/* <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">Payment status</label>
             <select
               value={paymentStatus}
@@ -455,7 +455,7 @@ export default function OwnerRevenue() {
               <option value="success">Success</option>
               <option value="failed">Failed</option>
             </select>
-          </div>
+          </div> */}
 
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">Seat category</label>

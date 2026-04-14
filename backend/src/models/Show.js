@@ -12,6 +12,12 @@ function defineShow(sequelize) {
       endsAt: { type: DataTypes.DATE, allowNull: false },
 
       language: { type: DataTypes.STRING(40), allowNull: false, defaultValue: 'English' },
+      status: {
+        type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+        allowNull: false,
+        defaultValue: 'pending',
+      },
+      rejectionReason: { type: DataTypes.TEXT, allowNull: true },
 
       isApproved: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
       approvedAt: { type: DataTypes.DATE, allowNull: true },
@@ -34,4 +40,3 @@ function defineShow(sequelize) {
 }
 
 module.exports = { defineShow };
-

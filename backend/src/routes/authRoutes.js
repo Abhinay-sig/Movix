@@ -4,6 +4,8 @@ const {
   login,
   adminLogin,
   resendVerification,
+  forgotPassword,
+  resetPassword,
   verifyEmail,
   googleStart,
   googleCallback,
@@ -15,6 +17,8 @@ router.post('/signup', signup);
 router.post('/login', login);
 router.post('/admin/login', adminLogin);
 router.post('/resend-verification', resendVerification);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 router.get('/verify-email', verifyEmail);
 router.get('/google/start', googleStart);
 router.get('/google/callback', googleCallback);

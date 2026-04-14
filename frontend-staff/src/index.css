@@ -24,11 +24,8 @@
   body {
     min-height: 100vh;
     background:
-      radial-gradient(circle at top left, rgba(191, 219, 254, 0.68), transparent 30%),
-      radial-gradient(circle at top right, rgba(233, 213, 255, 0.52), transparent 24%),
-      radial-gradient(circle at 18% 82%, rgba(254, 240, 138, 0.22), transparent 24%),
-      radial-gradient(circle at 84% 74%, rgba(167, 243, 208, 0.28), transparent 24%),
-      linear-gradient(180deg, #fbfdff 0%, #f7f9ff 36%, #f4f7ff 62%, #f8f9fc 100%);
+      radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 32%),
+      linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
     color: var(--color-ink);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -57,7 +54,7 @@
   }
 
   .staff-panel {
-    @apply rounded-[2rem] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.88),rgba(239,246,255,0.8),rgba(245,243,255,0.82))] shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl;
+    @apply rounded-4xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl;
   }
 
   .staff-card {
@@ -69,7 +66,7 @@
   }
 
   .staff-chip {
-    @apply inline-flex items-center gap-2 rounded-full border border-fuchsia-100 bg-[linear-gradient(90deg,rgba(239,246,255,0.95),rgba(245,243,255,0.95),rgba(255,237,213,0.9))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600;
+    @apply inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700;
   }
 
   .staff-title {
@@ -81,23 +78,23 @@
   }
 
   .staff-input {
-    @apply w-full rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,255,0.96))] px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-400 focus:-translate-y-0.5 focus:border-fuchsia-200 focus:bg-white focus:ring-4 focus:ring-fuchsia-100/70;
+    @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100;
   }
 
   .staff-primary {
-    @apply inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-blue-700 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:from-blue-700 hover:via-blue-600 hover:to-sky-500 hover:shadow-[0_18px_40px_rgba(59,130,246,0.25)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition-all duration-300 hover:bg-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .staff-secondary {
-    @apply inline-flex items-center justify-center rounded-2xl border border-pink-100 bg-gradient-to-r from-white via-blue-50 to-orange-50 px-6 py-3.5 text-sm font-semibold text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-fuchsia-200 hover:from-blue-50 hover:via-lilac-50 hover:to-peach-50 hover:text-slate-950;
+    @apply inline-flex items-center justify-center rounded-2xl border border-pink-100 bg-linear-to-r from-white via-blue-50 to-orange-50 px-6 py-3.5 text-sm font-semibold text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-fuchsia-200 hover:from-blue-50 hover:via-lilac-50 hover:to-peach-50 hover:text-slate-950;
   }
 
   .nav-link {
-    @apply rounded-full px-5 py-2.5 text-sm font-medium text-blue-50/82 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/14 hover:text-white hover:shadow-sm;
+    @apply rounded-full border border-transparent px-5 py-2.5 text-sm font-medium text-slate-600 transition-all duration-300 hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm;
   }
 
   .nav-chip {
-    @apply inline-flex items-center rounded-full border border-white/16 bg-white/10 px-4 py-2.5 text-sm font-medium text-blue-50/82 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/24 hover:bg-white/16 hover:text-white;
+    @apply inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-all duration-300 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700;
   }
 
   .fade-up {

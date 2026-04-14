@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
-import { useAuth } from '../AuthContext'
+import { useAuth } from '../useAuth'
+import { useNotification } from '../NotificationProvider'
 import Modal from '../components/Modal'
 import PaginationControls from '../components/PaginationControls'
 
@@ -9,6 +10,7 @@ const PAGE_LIMIT = 5
 
 export default function AdminMovies() {
   const { auth } = useAuth()
+  const { showNotification } = useNotification()
   const navigate = useNavigate()
 
   const [movies, setMovies] = useState([])
@@ -84,9 +86,18 @@ export default function AdminMovies() {
       if (movies.length === 1 && page > 1) {
         setPage((prev) => prev - 1)
       }
+      showNotification({
+        title: 'Movie deleted',
+        message: `${deleteTarget.title} was removed successfully.`,
+        type: 'success',
+      })
       setDeleteTarget(null)
     } catch (e) {
-      setErr(e.message)
+      showNotification({
+        title: 'Delete failed',
+        message: e.message,
+        type: 'error',
+      })
     }
   }
 
@@ -184,20 +195,31 @@ export default function AdminMovies() {
           {movies.map((movie) => (
             <div
               key={movie.id}
-              className="bg-white rounded-xl shadow-lg p-6 flex justify-between items-center"
+              className="bg-white rounded-xl shadow-lg p-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div>
-                <div className="text-xl font-bold text-gray-900">{movie.title}</div>
-                <div className="text-gray-600">
-                  {movie.genre} • {movie.durationMins} mins
-                </div>
-                <div className="text-gray-500 text-sm">Release: {movie.releaseDate}</div>
-                <div className="text-gray-500 text-sm">
-                  Languages: {(movie.languages || []).join(', ') || 'English'}
+              <div className="flex items-start gap-4">
+                <img
+                  src={movie.posterUrl || '/fallback_poster.jpeg'}
+                  alt={movie.title}
+                  className="h-28 w-20 rounded-xl object-cover shadow-sm"
+                  onError={(e) => {
+                    e.currentTarget.src = '/fallback_poster.jpeg'
+                  }}
+                />
+
+                <div>
+                  <div className="text-xl font-bold text-gray-900">{movie.title}</div>
+                  <div className="text-gray-600">
+                    {movie.genre} • {movie.durationMins} mins
+                  </div>
+                  <div className="text-gray-500 text-sm">Release: {movie.releaseDate}</div>
+                  <div className="text-gray-500 text-sm">
+                    Languages: {(movie.languages || []).join(', ') || 'English'}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 self-start sm:self-auto">
                 <button
                   onClick={() => navigate(`/admin/movies/${movie.id}/edit`)}
                   className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium"

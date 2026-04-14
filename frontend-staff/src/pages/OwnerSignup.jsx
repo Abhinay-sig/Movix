@@ -13,6 +13,7 @@ export default function OwnerSignup() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
   const [verification, setVerification] = useState(null)
@@ -80,35 +81,35 @@ export default function OwnerSignup() {
   }
 
   const fieldClass =
-    'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100'
+    'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100'
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 px-4">
-      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm transition-all duration-300 hover:shadow-md">
+    <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center px-4 py-8 bg-transparent">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 flex flex-col gap-2">
           <h2 className="text-3xl font-semibold tracking-tight text-slate-900">
-            Join Movix Partners
+            Create partner account
           </h2>
           <p className="text-sm text-slate-500">
-            Create your partner account to publish venues, experiences, and schedules.
+            Create your account to add theaters, halls, and show schedules.
           </p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
           {err ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {err}
             </div>
           ) : null}
 
           {notice ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
               {notice}
             </div>
           ) : null}
 
           {verification ? (
-            <div className="space-y-4 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-5 text-sm text-amber-800">
+            <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-5 text-sm text-amber-800">
               <div>
                 <div className="font-semibold text-amber-950">Check your inbox</div>
                 <div className="mt-1">
@@ -146,7 +147,7 @@ export default function OwnerSignup() {
               <button
                 type="button"
                 onClick={startGoogleAuth}
-                className="flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-blue-200 hover:text-blue-700"
+                className="flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
               >
                 Continue with Google
               </button>
@@ -171,17 +172,26 @@ export default function OwnerSignup() {
                 className={fieldClass}
               />
 
-              <input
-                placeholder="Password (min 8 characters)"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={fieldClass}
-              />
+              <div className="relative">
+                <input
+                  placeholder="Password (min 8 characters)"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`${fieldClass} pr-20`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
 
               <button
                 disabled={loading}
-                className="mt-2 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-600 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? 'Creating account…' : 'Create partner account'}
               </button>
