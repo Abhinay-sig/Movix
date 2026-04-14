@@ -32,9 +32,9 @@ export default function Layout() {
               <Link to="/" className="transition-colors hover:text-blue-600">
                 Home
               </Link>
-              <Link to="/" className="transition-colors hover:text-blue-600">
+              {/* <Link to="/" className="transition-colors hover:text-blue-600">
                 Movies
-              </Link>
+              </Link> */}
               {auth ? (
                 <Link to="/my-tickets" className="transition-colors hover:text-blue-600">
                   My Tickets
