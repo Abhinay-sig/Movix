@@ -69,6 +69,12 @@ const env = {
   },
 
   seatHoldMs: Number(process.env.SEAT_HOLD_MS ?? 300000),
+
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID ?? '',
+    keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
+    brandName: process.env.RAZORPAY_BRAND_NAME ?? 'Movix',
+  },
 };
 
 module.exports = { env };

@@ -281,14 +281,6 @@ async function ensureUserSchema() {
     });
   }
 
-  if (!table.is_blocked) {
-    await queryInterface.addColumn('users', 'is_blocked', {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false,
-    });
-  }
-
   if (!table.pro_expires_at) {
     await queryInterface.addColumn('users', 'pro_expires_at', {
       type: DataTypes.DATE,
@@ -317,6 +309,14 @@ async function ensureUserSchema() {
       type: DataTypes.INTEGER.UNSIGNED,
       allowNull: false,
       defaultValue: 0,
+    });
+  }
+
+  if (!table.is_blocked) {
+    await queryInterface.addColumn('users', 'is_blocked', {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     });
   }
 
@@ -350,6 +350,86 @@ async function ensureSeatHoldSchema() {
     await queryInterface.addColumn('seat_holds', 'session_token', {
       type: DataTypes.STRING(96),
       allowNull: true,
+    });
+  }
+}
+
+async function ensureBookingSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+  const table = await queryInterface.describeTable('bookings');
+
+  if (!table.customer_email) {
+    await queryInterface.addColumn('bookings', 'customer_email', {
+      type: DataTypes.STRING(320),
+      allowNull: true,
+    });
+  }
+
+  if (!table.receipt_number) {
+    await queryInterface.addColumn('bookings', 'receipt_number', {
+      type: DataTypes.STRING(80),
+      allowNull: true,
+    });
+  }
+
+  if (!table.payment_provider) {
+    await queryInterface.addColumn('bookings', 'payment_provider', {
+      type: DataTypes.STRING(32),
+      allowNull: false,
+      defaultValue: 'razorpay',
+    });
+  }
+
+  if (!table.payment_status) {
+    await queryInterface.addColumn('bookings', 'payment_status', {
+      type: DataTypes.STRING(32),
+      allowNull: false,
+      defaultValue: 'captured',
+    });
+  }
+
+  if (!table.payment_method) {
+    await queryInterface.addColumn('bookings', 'payment_method', {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+    });
+  }
+
+  if (!table.payment_order_id) {
+    await queryInterface.addColumn('bookings', 'payment_order_id', {
+      type: DataTypes.STRING(128),
+      allowNull: true,
+    });
+  }
+
+  if (!table.payment_id) {
+    await queryInterface.addColumn('bookings', 'payment_id', {
+      type: DataTypes.STRING(128),
+      allowNull: true,
+    });
+  }
+
+  if (!table.payment_signature) {
+    await queryInterface.addColumn('bookings', 'payment_signature', {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    });
+  }
+
+  const indexes = await queryInterface.showIndex('bookings');
+  const indexNames = new Set(indexes.map((index) => index.name));
+
+  if (!indexNames.has('bookings_payment_id')) {
+    await queryInterface.addIndex('bookings', ['payment_id'], {
+      name: 'bookings_payment_id',
+      unique: true,
+    });
+  }
+
+  if (!indexNames.has('bookings_payment_order_id')) {
+    await queryInterface.addIndex('bookings', ['payment_order_id'], {
+      name: 'bookings_payment_order_id',
+      unique: true,
     });
   }
 }
@@ -417,6 +497,7 @@ async function syncDb() {
   await ensureMovieSchema();
   await ensureHallSchema();
   await ensureSeatHoldSchema();
+  await ensureBookingSchema();
   await ensureMovixCoinSchema();
   await ensureApprovalStatusSchema();
 
