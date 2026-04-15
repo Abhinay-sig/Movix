@@ -7,6 +7,7 @@ const {
   pendingHallDetails,
   pendingShowDetails,
   listHalls,
+  listShows,
   listApprovedHalls,
   hallCapsDetails,
   updateHallCaps,
@@ -64,6 +65,7 @@ router.delete('/movies/:id', deleteMovie);
 
 router.get('/approvals/pending', pendingApprovals);
 router.get('/halls', listHalls);
+router.get('/shows', listShows);
 router.get('/halls/pending/:id', pendingHallDetails);
 router.get('/halls/approved', listApprovedHalls);
 router.get('/halls/:id/caps', hallCapsDetails);

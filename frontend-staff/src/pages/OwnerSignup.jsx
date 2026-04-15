@@ -91,7 +91,7 @@ export default function OwnerSignup() {
             Create partner account
           </h2>
           <p className="text-sm text-slate-500">
-            Create your account to add theaters, halls, and show schedules.
+            Create your account to add theaters, halls, and schedule shows.
           </p>
         </div>
 
@@ -159,7 +159,7 @@ export default function OwnerSignup() {
               </div>
 
               <input
-                placeholder="Full name"
+                placeholder="Multiplex name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className={fieldClass}
@@ -185,7 +185,7 @@ export default function OwnerSignup() {
                   onClick={() => setShowPassword((value) => !value)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
                 >
-                  {showPassword ? 'Hide' : 'Show'}
+                  {showPassword ? <img src="../../public/close_eye.svg" alt="" srcset="" className='w-6 opacity-25' /> : <img src="../../public/open_eye.svg" alt="" srcset="" className='w-6 opacity-25' />}
                 </button>
               </div>
 

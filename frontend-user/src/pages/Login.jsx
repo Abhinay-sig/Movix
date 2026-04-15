@@ -148,9 +148,13 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setShowPassword((value) => !value)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 transition-colors hover:bg-slate-100"
             >
-              {showPassword ? 'Hide' : 'Show'}
+              {showPassword ? (
+                <img src="/close_eye.svg" alt="Hide password" className="w-6 opacity-25" />
+              ) : (
+                <img src="/open_eye.svg" alt="Show password" className="w-6 opacity-25" />
+              )}
             </button>
           </div>
 

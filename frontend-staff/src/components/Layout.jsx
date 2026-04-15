@@ -19,7 +19,7 @@ export default function Layout() {
               <img src="../../public/movix.svg" alt="" className="h-10 w-10" />
               <span>
                 <span className="block text-xl font-semibold tracking-[0.01em] text-slate-900">
-                  Movix Staff
+                  Movix {auth?.user?.role === 'theater_owner' ? 'Multiplex' : (auth?.user?.role === 'admin' ? 'Admin' : '')}
                 </span>
                 <span className="block text-xs uppercase tracking-[0.18em] text-slate-500">
                   Theater workspace
