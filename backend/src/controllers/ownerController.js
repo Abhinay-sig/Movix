@@ -1032,7 +1032,7 @@ async function listMyShows(req, res, next) {
 
 const createHallSchema = z.object({
   theaterId: z.coerce.number().int().positive(),
-  name: z.string().min(1).max(120),
+  name: z.string().trim().min(1).max(120),
   screenType: z.string().min(1).max(40).optional(),
   facilities: z.array(z.string().min(1).max(80)).max(30).optional(),
   images: z.array(z.string().url().max(500)).max(20).optional(),
@@ -1080,16 +1080,29 @@ async function createHallWithLayout(req, res, next) {
   try {
     const body = createHallSchema.parse(req.body);
     validateSegmentsByRow(body.segmentsByRow);
+    const normalizedHallName = body.name.trim();
 
     const theater = await db.Theater.findByPk(body.theaterId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!theater || String(theater.ownerUserId) !== String(req.user.id)) {
       throw new HttpError(404, 'Theater not found');
     }
 
+    const existingHall = await db.Hall.findOne({
+      where: db.sequelize.where(
+        db.sequelize.fn('LOWER', db.sequelize.fn('TRIM', db.sequelize.col('name'))),
+        normalizedHallName.toLowerCase()
+      ),
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    if (existingHall) {
+      throw new HttpError(409, 'Hall name already exists. Please choose a unique hall name.');
+    }
+
     const hall = await db.Hall.create(
       {
         theaterId: theater.id,
-        name: body.name,
+        name: normalizedHallName,
         screenType: body.screenType ?? null,
         facilities: body.facilities?.length ? body.facilities : null,
         images: body.images?.length ? body.images : null,
