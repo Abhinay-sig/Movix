@@ -193,6 +193,10 @@ async function listShowsForMovie(req, res, next) {
           where: { isApproved: true, isBlocked: false },
           include: [{ model: db.Theater, where: { isBlocked: false } }],
         },
+        {
+          model: db.ShowSeatPrice,
+          required: false,
+        },
       ],
       order: [['startsAt', 'ASC']],
     });

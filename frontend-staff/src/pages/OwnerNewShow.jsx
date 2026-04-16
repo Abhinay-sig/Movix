@@ -12,7 +12,8 @@ const SHOWS_PAGE_LIMIT = 6
 function toDateInputValue(value) {
   if (!value) return ''
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function toWallClockUtc(date, time) {
@@ -24,6 +25,16 @@ function isPastDateTime(date, time) {
   const value = toWallClockUtc(date, time)
   if (Number.isNaN(value.getTime())) return false
   return value.getTime() < Date.now()
+}
+
+function getTodayDateInputValue() {
+  return toDateInputValue(new Date())
+}
+
+function getMaxShowDateInputValue() {
+  const next = new Date()
+  next.setDate(next.getDate() + 7)
+  return toDateInputValue(next)
 }
 
 export default function OwnerNewShow() {
@@ -61,6 +72,7 @@ export default function OwnerNewShow() {
   const [submitting, setSubmitting] = useState(false)
   const [showToDelete, setShowToDelete] = useState(null)
   const [deletingShow, setDeletingShow] = useState(false)
+  const [alertMessage, setAlertMessage] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -246,9 +258,28 @@ export default function OwnerNewShow() {
     setNotice('')
     setShowApprovalModal(false)
     setFieldErrors({})
+    setAlertMessage('')
 
     if (!theaterId || !hallId || !movieId || !date || !startTime || !language || !durationMins) {
-      setErr('Please fill all required fields before creating the show.')
+      setAlertMessage('Please fill all required fields before creating the show.')
+      return
+    }
+
+    const todayDate = getTodayDateInputValue()
+    if (date < todayDate) {
+      setAlertMessage('You cannot book past day movie.')
+      return
+    }
+
+    const maxShowDate = getMaxShowDateInputValue()
+    if (date > maxShowDate) {
+      setAlertMessage('You cannot book a movie after more than 7 days.')
+      return
+    }
+
+    const releaseDate = toDateInputValue(selectedMovie?.releaseDate)
+    if (releaseDate && date < releaseDate) {
+      setAlertMessage('You cannot create or book a show before the movie release date.')
       return
     }
 
@@ -267,23 +298,18 @@ export default function OwnerNewShow() {
 
     if (Object.keys(nextErrors).length) {
       setFieldErrors(nextErrors)
+      setAlertMessage(Object.values(nextErrors)[0])
       return
     }
 
     const selectedHall = filteredHalls.find((hall) => String(hall.id) === String(hallId))
     if (selectedHall && !selectedHall.isApproved) {
-      setErr('Selected hall is not approved yet.')
-      return
-    }
-
-    const releaseDate = toDateInputValue(selectedMovie?.releaseDate)
-    if (releaseDate && date < releaseDate) {
-      setErr('Cannot schedule a show before the movie release date.')
+      setAlertMessage('Selected hall is not approved yet.')
       return
     }
 
     if (hasConflict) {
-      setErr('Time conflicts with another show, including the required buffer window.')
+      setAlertMessage('Time conflicts with another show, including the required buffer window.')
       return
     }
 
@@ -293,7 +319,7 @@ export default function OwnerNewShow() {
     }))
 
     if (seatPrices.length === 0) {
-      setErr('Add at least one seat price before submitting the show.')
+      setAlertMessage('Add at least one seat price before submitting the show.')
       return
     }
 
@@ -327,7 +353,17 @@ export default function OwnerNewShow() {
       setPrices(Object.fromEntries(TYPES.map((type) => [type, ''])))
       setSchedule(null)
     } catch (e2) {
-      setErr(e2.message || 'Something went wrong.')
+      if (String(e2?.message || '').includes('Price exceeds admin cap for this seat type')) {
+        setAlertMessage('Price exceeds admin cap for this seat type.')
+      } else if (String(e2?.message || '').includes('Cannot schedule show in the past')) {
+        setAlertMessage('You cannot book past day movie.')
+      } else if (String(e2?.message || '').includes('Shows can only be scheduled within next 7 days')) {
+        setAlertMessage('You cannot book a movie after more than 7 days.')
+      } else if (String(e2?.message || '').includes('Cannot schedule a show before the movie release date')) {
+        setAlertMessage('You cannot create or book a show before the movie release date.')
+      } else {
+        setAlertMessage(e2.message || 'Something went wrong.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -339,6 +375,7 @@ export default function OwnerNewShow() {
     setDeletingShow(true)
     setErr('')
     setNotice('')
+    setAlertMessage('')
 
     try {
       await api(`/owner/shows/${showToDelete.id}`, {
@@ -355,10 +392,9 @@ export default function OwnerNewShow() {
           total,
         }
       })
-      setNotice('Show deleted successfully.')
       setShowToDelete(null)
     } catch (e) {
-      setErr(e.message || 'Unable to delete the show right now.')
+      setAlertMessage(e.message || 'Unable to delete the show right now.')
     } finally {
       setDeletingShow(false)
     }
@@ -380,18 +416,6 @@ export default function OwnerNewShow() {
           Choose a theater, then one of its halls, and schedule a show without breaking release-date or buffer rules.
         </p>
       </div>
-
-      {err ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
-          {err}
-        </div>
-      ) : null}
-
-      {/* {notice ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-sm">
-          {notice}
-        </div>
-      ) : null} */}
 
       <div className={`max-w-5xl ${panelClass}`}>
         <form onSubmit={submit} className="space-y-6">
@@ -502,9 +526,6 @@ export default function OwnerNewShow() {
                 className={withFieldError(fieldClass, Boolean(fieldErrors.startTime))}
                 required
               />
-              {fieldErrors.startTime ? (
-                <div className="text-sm text-red-600">{fieldErrors.startTime}</div>
-              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -575,9 +596,6 @@ export default function OwnerNewShow() {
                     className={withFieldError(fieldClass, Boolean(fieldErrors[`price_${type}`]))}
                     required
                   />
-                  {fieldErrors[`price_${type}`] ? (
-                    <div className="text-sm text-red-600">{fieldErrors[`price_${type}`]}</div>
-                  ) : null}
                 </label>
               ))}
             </div>
@@ -613,15 +631,6 @@ export default function OwnerNewShow() {
                 ))}
               </div>
 
-              {hasConflict ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-                  This start time overlaps with another scheduled show.
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  This time slot is available.
-                </div>
-              )}
             </div>
           ) : null}
 
@@ -826,6 +835,23 @@ export default function OwnerNewShow() {
           )}
         </div>
       </div>
+
+      <Modal
+        open={Boolean(alertMessage)}
+        title="Message"
+        onClose={() => setAlertMessage('')}
+        footer={
+          <button
+            type="button"
+            onClick={() => setAlertMessage('')}
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            OK
+          </button>
+        }
+      >
+        <div className="text-sm text-slate-600">{alertMessage}</div>
+      </Modal>
 
       <Modal
         open={showApprovalModal}

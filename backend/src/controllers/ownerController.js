@@ -672,37 +672,15 @@ async function listMyShows(req, res, next) {
       isCancelled: false,
     };
     if (query.status === 'approved') {
+      showWhere.status = 'approved';
       showWhere.isApproved = true;
       showWhere.isBlocked = false;
     } else if (query.status === 'pending') {
+      showWhere.status = 'pending';
       showWhere.isApproved = false;
       showWhere.isBlocked = false;
     } else if (query.status === 'rejected') {
-      showWhere.isBlocked = true;
-    }
-    if (query.timeSlot && query.timeSlot !== 'all') {
-      const hourExpr = db.sequelize.fn('HOUR', db.sequelize.col('starts_at'));
-      if (query.timeSlot === 'morning') {
-        showWhere[Op.and] = [
-          ...(showWhere[Op.and] || []),
-          db.sequelize.where(hourExpr, { [Op.between]: [6, 11] }),
-        ];
-      } else if (query.timeSlot === 'afternoon') {
-        showWhere[Op.and] = [
-          ...(showWhere[Op.and] || []),
-          db.sequelize.where(hourExpr, { [Op.between]: [12, 16] }),
-        ];
-      } else if (query.timeSlot === 'evening') {
-        showWhere[Op.and] = [
-          ...(showWhere[Op.and] || []),
-          db.sequelize.where(hourExpr, { [Op.between]: [17, 20] }),
-        ];
-      } else if (query.timeSlot === 'night') {
-        showWhere[Op.and] = [
-          ...(showWhere[Op.and] || []),
-          db.sequelize.where(hourExpr, { [Op.between]: [21, 23] }),
-        ];
-      }
+      showWhere.status = 'rejected';
     }
     if (query.date) {
       const startOfDay = wallClockUtc(query.date, '00:00');
@@ -729,28 +707,36 @@ async function listMyShows(req, res, next) {
       { model: db.Movie, required: true },
     ];
 
-    const total = await db.Show.count({
-      where: showWhere,
-      include,
-      distinct: true,
-      col: 'id',
-    });
-
     const options = {
       where: showWhere,
       include,
       order: [['startsAt', 'ASC']],
     };
 
-    if (!query.date && hasPagination) {
+    if (!query.date && hasPagination && (!query.timeSlot || query.timeSlot === 'all')) {
       options.limit = limit;
       options.offset = offset;
     }
 
-    const shows = await db.Show.findAll(options);
+    const rawShows = await db.Show.findAll(options);
+    const shows = query.timeSlot && query.timeSlot !== 'all'
+      ? rawShows.filter((show) => matchesShowTimeFilter(show.startsAt, `${query.timeSlot[0].toUpperCase()}${query.timeSlot.slice(1)}`))
+      : rawShows;
+    const paginatedShows =
+      !query.date && hasPagination && query.timeSlot && query.timeSlot !== 'all'
+        ? shows.slice(offset, offset + limit)
+        : shows;
+    const total = query.timeSlot && query.timeSlot !== 'all'
+      ? shows.length
+      : await db.Show.count({
+          where: showWhere,
+          include,
+          distinct: true,
+          col: 'id',
+        });
 
     res.json({
-      shows: shows.map((show) => ({
+      shows: paginatedShows.map((show) => ({
         id: show.id,
         movieId: show.movieId,
         movieTitle: show.Movie.title,
