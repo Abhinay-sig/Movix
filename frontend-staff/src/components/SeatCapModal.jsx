@@ -79,8 +79,8 @@ export default function SeatCapModal({ open, hallId, token, mode = 'approve', on
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl bg-white rounded-xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 mt-40">
+      <div className="w-full max-w-3xl bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-300">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h3 className="text-xl font-bold text-gray-900">
             {mode === 'edit' ? 'Edit Seat Caps' : 'Approve Hall With Seat Caps'}

@@ -86,7 +86,6 @@ export default function SeatSelect() {
   const [conflictNote, setConflictNote] = useState('')
   const [loadingHold, setLoadingHold] = useState(false)
   const [useMovixCoins, setUseMovixCoins] = useState(false)
-  const [zeroPayDialog, setZeroPayDialog] = useState(null)
 
   const refreshSeatMap = useCallback(
     async (keepError = false) => {
@@ -315,26 +314,6 @@ export default function SeatSelect() {
         body: { showId: Number(showId), seatCodes: selectedArr, sessionToken: seatSessionToken },
       })
 
-      if (payableAmount === 0 && useMovixCoins) {
-        const booking = await api('/bookings/confirm', {
-          method: 'POST',
-          token: auth.token,
-          body: {
-            showId: Number(showId),
-            seatCodes: selectedArr,
-            email: auth.user?.email || '',
-            sessionToken: seatSessionToken,
-            useMovixCoins: true,
-          },
-        })
-
-        setZeroPayDialog({
-          coinsUsed: Number(booking.movixCoinsUsed || 0),
-          cashback: Number(booking.movixCoinsCashback || 0),
-        })
-        return
-      }
-
       nav(`/shows/${showId}/payment`, {
         state: {
           seatCodes: selectedArr,
@@ -418,34 +397,6 @@ export default function SeatSelect() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 md:px-6">
-      {zeroPayDialog ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-lg font-bold text-emerald-700">
-              M
-            </div>
-            <div className="mt-4 text-center">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Booking confirmed</div>
-              <div className="mt-2 text-2xl font-semibold text-slate-950">Paid with MovixCoins</div>
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Coins used: {zeroPayDialog.coinsUsed} <br />
-                Cashback credited: {zeroPayDialog.cashback}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setZeroPayDialog(null)
-                nav('/my-tickets', { replace: true })
-              }}
-              className="primary-button mt-6 w-full"
-            >
-              View my tickets
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       <section className="page-panel fade-up px-6 py-7 md:px-10">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-3">

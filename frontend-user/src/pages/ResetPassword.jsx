@@ -12,6 +12,8 @@ export default function ResetPassword() {
   const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
@@ -97,20 +99,46 @@ export default function ResetPassword() {
           <form onSubmit={onSubmit} className="space-y-4">
             {isTokenMode ? (
               <>
-                <input
-                  placeholder="New password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="field-input"
-                />
-                <input
-                  placeholder="Confirm new password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="field-input"
-                />
+                <div className="relative">
+                  <input
+                    placeholder="New password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="field-input pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((value) => !value)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 transition-colors hover:bg-slate-100"
+                  >
+                    {showPassword ? (
+                      <img src="/close_eye.svg" alt="Hide password" className="w-6 opacity-25" />
+                    ) : (
+                      <img src="/open_eye.svg" alt="Show password" className="w-6 opacity-25" />
+                    )}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    placeholder="Confirm new password"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="field-input pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((value) => !value)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 transition-colors hover:bg-slate-100"
+                  >
+                    {showConfirmPassword ? (
+                      <img src="/close_eye.svg" alt="Hide password" className="w-6 opacity-25" />
+                    ) : (
+                      <img src="/open_eye.svg" alt="Show password" className="w-6 opacity-25" />
+                    )}
+                  </button>
+                </div>
               </>
             ) : (
               <input

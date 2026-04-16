@@ -781,10 +781,52 @@ async function listHalls(req, res, next) {
 
     const halls = await db.Hall.findAll({
       where,
-      include: [{ model: db.Theater }],
+      include: [{ model: db.Theater, include: [{ model: db.User, as: 'owner', attributes: ['id', 'name', 'email'] }] }],
       order: [['updatedAt', 'DESC']],
     });
     res.json({ halls });
+  } catch (e) {
+    next(e);
+  }
+}
+
+const listShowsSchema = z.object({
+  theaterId: z.coerce.number().int().positive().optional(),
+  hallId: z.coerce.number().int().positive().optional(),
+  multiplexId: z.coerce.number().int().positive().optional(),
+});
+
+async function listShows(req, res, next) {
+  try {
+    const parsed = listShowsSchema.safeParse(req.query ?? {});
+    if (!parsed.success) throw new HttpError(400, 'Invalid query');
+
+    const where = {};
+    if (parsed.data.hallId) where.hallId = parsed.data.hallId;
+
+    const theaterWhere = {};
+    if (parsed.data.theaterId) theaterWhere.id = parsed.data.theaterId;
+    if (parsed.data.multiplexId) theaterWhere.ownerUserId = parsed.data.multiplexId;
+
+    const shows = await db.Show.findAll({
+      where,
+      include: [
+        {
+          model: db.Hall,
+          include: [
+            {
+              model: db.Theater,
+              where: Object.keys(theaterWhere).length ? theaterWhere : undefined,
+              include: [{ model: db.User, as: 'owner', attributes: ['id', 'name', 'email'] }],
+            },
+          ],
+        },
+        { model: db.Movie },
+      ],
+      order: [['startsAt', 'DESC']],
+    });
+
+    res.json({ shows });
   } catch (e) {
     next(e);
   }
@@ -1804,6 +1846,7 @@ module.exports = {
   pendingHallDetails,
   pendingShowDetails,
   listHalls,
+  listShows,
   listApprovedHalls,
   hallCapsDetails,
   updateHallCaps,

@@ -108,6 +108,7 @@ export default function Payment() {
   const totalAmount = booking?.totalAmount ?? estimate?.total ?? 0
   const subTotalAmount = estimate?.subTotal ?? estimate?.total ?? 0
   const movixCoinsUsed = estimate?.movixCoinsUsed ?? 0
+  const isZeroAmountPayment = Number(totalAmount) <= 0
   const canDownloadTicket = booking?.ticket ? isUpcomingTicket(booking.ticket) : false
   const bookingRef = useRef(booking)
   const seatCodesRef = useRef(seatCodes)
@@ -280,9 +281,44 @@ export default function Payment() {
 
     setErr('')
     setLoading(true)
-    setPaymentStep('Creating Razorpay order...')
+    setPaymentStep(isZeroAmountPayment ? 'Confirming booking...' : 'Creating Razorpay order...')
 
     try {
+      if (isZeroAmountPayment) {
+        const confirmResponse = await api('/bookings/confirm', {
+          method: 'POST',
+          token: auth.token,
+          body: {
+            showId: Number(showId),
+            seatCodes,
+            email: trimmedEmail,
+            sessionToken: seatSessionToken,
+            useMovixCoins,
+          },
+        })
+
+        setBooking({
+          bookingId: confirmResponse.bookingId,
+          totalAmount: confirmResponse.totalAmount,
+          ticket: confirmResponse.ticket || null,
+        })
+
+        if (confirmResponse?.wallet) {
+          setAuth({
+            token: auth.token,
+            user: {
+              ...auth.user,
+              movixCoinsBalance: confirmResponse.wallet.currentBalance,
+              movixCoinsEarnedTotal: confirmResponse.wallet.totalEarned,
+              movixCoinsRedeemedTotal: confirmResponse.wallet.totalRedeemed,
+            },
+          })
+        }
+
+        clearPendingSeatRelease()
+        return
+      }
+
       const orderResponse = await api('/payments/razorpay/order', {
         method: 'POST',
         token: auth.token,
@@ -390,7 +426,7 @@ export default function Payment() {
       <div className="mx-auto max-w-5xl space-y-8 px-4 py-10 md:px-6">
         {showSuccessModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-[2rem] border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
+            <div className="w-full max-w-md rounded-4xl border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-xl font-bold text-emerald-700">
                 M
               </div>
@@ -458,7 +494,7 @@ export default function Payment() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+          <div className="rounded-4xl border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
             <div className="text-xs uppercase tracking-[0.22em] text-blue-100/75">Post-booking actions</div>
             <div className="mt-3 text-3xl font-semibold">{formatCurrency(totalAmount)}</div>
             <div className="mt-1 text-sm text-blue-100/80">
@@ -525,7 +561,7 @@ export default function Payment() {
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-6">
       {showHoldExpiredModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
+          <div className="w-full max-w-md rounded-4xl border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-red-500">Seat hold expired</div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">Choose seats again</div>
             <p className="mt-3 text-sm leading-6 text-slate-500">{holdExpiredMessage}</p>
@@ -539,10 +575,12 @@ export default function Payment() {
       <section className="page-panel px-6 py-8 md:px-10">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
-            <div className="hero-chip">Razorpay Checkout</div>
+            <div className="hero-chip">{isZeroAmountPayment ? 'Instant Confirmation' : 'Razorpay Checkout'}</div>
             <h2 className="section-title max-w-3xl">Secure your seats before the hold ends</h2>
             <p className="section-copy max-w-2xl">
-              We’ll create a Razorpay order for your held seats, open the hosted checkout, then verify the payment before issuing the ticket.
+              {isZeroAmountPayment
+                ? 'Your payable amount is ₹0 after MovixCoins. Confirm once to book instantly without opening Razorpay.'
+                : 'We’ll create a Razorpay order for your held seats, open the hosted checkout, then verify the payment before issuing the ticket.'}
             </p>
           </div>
 
@@ -577,7 +615,9 @@ export default function Payment() {
             </label>
 
             <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-700">
-              Razorpay will handle UPI, cards, wallets, and netbanking inside the hosted checkout window. The email above must match your Movix account.
+              {isZeroAmountPayment
+                ? 'No gateway step is required for ₹0 payable. We will directly confirm this booking after one click.'
+                : 'Razorpay will handle UPI, cards, wallets, and netbanking inside the hosted checkout window. The email above must match your Movix account.'}
             </div>
           </div>
 
@@ -600,7 +640,7 @@ export default function Payment() {
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+        <div className="rounded-4xl border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
           <div className="text-xs uppercase tracking-[0.22em] text-blue-100/75">Booking summary</div>
           <div className="mt-3 text-3xl font-semibold">{formatCurrency(totalAmount)}</div>
           <div className="mt-1 text-sm text-blue-100/80">{seatCodes.length} seat(s) reserved</div>
@@ -650,7 +690,11 @@ export default function Payment() {
               disabled={loading || holdSecondsLeft <= 0}
               className="primary-button w-full bg-white text-slate-950 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? paymentStep || 'Opening Razorpay...' : `Pay ${formatCurrency(totalAmount)}`}
+              {loading
+                ? paymentStep || (isZeroAmountPayment ? 'Confirming booking...' : 'Opening Razorpay...')
+                : isZeroAmountPayment
+                  ? 'Confirm booking'
+                  : `Pay ${formatCurrency(totalAmount)}`}
             </button>
 
             <button

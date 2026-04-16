@@ -246,6 +246,7 @@ async function signup({ email, name, password, role }) {
       email: normalizedEmail,
       name,
       passwordHash,
+      hasUsablePassword: true,
       role: requestedRole,
       authProvider: db.AUTH_PROVIDERS.LOCAL,
     });
@@ -271,6 +272,7 @@ async function signup({ email, name, password, role }) {
   existingUser.authProvider = db.AUTH_PROVIDERS.LOCAL;
   existingUser.oauthSubject = null;
   existingUser.passwordHash = await db.User.hashPassword(password);
+  existingUser.hasUsablePassword = true;
   await existingUser.save();
 
   return issueVerification(existingUser, 'Previous link expired. A new verification link has been sent.');
@@ -391,6 +393,9 @@ async function verifyEmailToken(rawToken, fallbackRole = db.USER_ROLES.USER) {
   }
 
   user.emailVerifiedAt = new Date();
+  if (user.authProvider === db.AUTH_PROVIDERS.LOCAL && user.passwordHash && user.hasUsablePassword !== true) {
+    user.hasUsablePassword = true;
+  }
   user.verificationTokenHash = null;
   user.verificationTokenExpiresAt = null;
   await user.save();

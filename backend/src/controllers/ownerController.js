@@ -1,4 +1,3 @@
-
 const { z } = require('zod');
 const { Op } = require('sequelize');
 const { db } = require('../models');
@@ -819,10 +818,13 @@ async function createHallWithLayout(req, res, next) {
     }
 
     const existingHall = await db.Hall.findOne({
-      where: db.sequelize.where(
-        db.sequelize.fn('LOWER', db.sequelize.fn('TRIM', db.sequelize.col('name'))),
-        normalizedHallName.toLowerCase()
-      ),
+      where: {
+        theaterId: body.theaterId,
+        [Op.and]: db.sequelize.where(
+          db.sequelize.fn('LOWER', db.sequelize.fn('TRIM', db.sequelize.col('name'))),
+          normalizedHallName.toLowerCase()
+        )
+      },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -945,82 +947,6 @@ async function getHallSchedule(req, res, next) {
   }
 }
 
-// async function createShow(req, res, next) {
-//   const t = await db.sequelize.transaction();
-//   try {
-//     const body = createShowSchema.parse(req.body);
-
-//     const hall = await db.Hall.findByPk(body.hallId, {
-//       transaction: t,
-//       lock: t.LOCK.UPDATE,
-//       include: [{ model: db.Theater }],
-//     });
-//     if (!hall || String(hall.Theater.ownerUserId) !== String(req.user.id)) {
-//       throw new HttpError(404, 'Hall not found');
-//     }
-
-//     // Calculate startsAt and endsAt from date, startTime, and durationMins
-//     const startsAt = dayjs(`${body.date} ${body.startTime}`, 'YYYY-MM-DD HH:mm');
-//     const endsAt = startsAt.add(body.durationMins, 'minute');
-
-//     if (!startsAt.isValid() || !endsAt.isValid() || !endsAt.isAfter(startsAt)) {
-//       throw new HttpError(400, 'Invalid show time');
-//     }
-
-//     const bufferMins = 30;
-//     const bufferedStart = startsAt.subtract(bufferMins, 'minute').toDate();
-//     const bufferedEnd = endsAt.add(bufferMins, 'minute').toDate();
-
-//     const conflicts = await db.Show.count({
-//       where: {
-//         hallId: hall.id,
-//         isCancelled: false,
-//         startsAt: { [Op.lt]: bufferedEnd },
-//         endsAt: { [Op.gt]: bufferedStart },
-//       },
-//       transaction: t,
-//       lock: t.LOCK.UPDATE,
-//     });
-//     if (conflicts > 0) throw new HttpError(409, 'Show conflicts with existing timeline (30 min buffer)');
-
-//     const show = await db.Show.create(
-//       {
-//         hallId: hall.id,
-//         movieId: body.movieId,
-//         startsAt: startsAt.toDate(),
-//         endsAt: endsAt.toDate(),
-//         language: body.language,
-//         isApproved: false,
-//       },
-//       { transaction: t }
-//     );
-
-//     if (body.seatPrices?.length) {
-//       const seatTypes = await db.SeatType.findAll({ transaction: t });
-//       const byCode = new Map(seatTypes.map((s) => [s.code, s]));
-//       for (const sp of body.seatPrices) {
-//         const st = byCode.get(sp.seatTypeCode);
-//         if (!st) throw new HttpError(400, `Unknown seat type: ${sp.seatTypeCode}`);
-//         // if (Number(sp.price) > Number(st.adminPriceCap)) {
-//         //   throw new HttpError(400, `Price exceeds admin cap for ${st.code}`);
-//         // }
-        
-    
-//         await db.ShowSeatPrice.create(
-//           { showId: show.id, seatTypeId: st.id, price: sp.price },
-//           { transaction: t }
-//         );
-//       }
-//     }
-
-//     await t.commit();
-//     res.status(201).json({ show });
-//   } catch (e) {
-//     await t.rollback();
-//     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
-//     return next(e);
-//   }
-// }
 async function createShow(req, res, next) {
   const t = await db.sequelize.transaction();
   try {
