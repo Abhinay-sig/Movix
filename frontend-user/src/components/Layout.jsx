@@ -7,8 +7,8 @@ export default function Layout() {
 
   return (
     <div className="app-shell bg-slate-50 text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-blue-300/70 bg-gradient-to-r from-blue-700 via-blue-600 to-sky-600 text-white shadow-[0_18px_40px_rgba(37,99,235,0.22)] backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-4 px-4 py-4 md:px-6 md:py-5">
+      <header className="sticky top-0 z-50 px-3 pt-3 text-white">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-[1.75rem] border border-blue-300/70 bg-gradient-to-r from-blue-700 via-blue-600 to-sky-600 px-4 py-4 shadow-[0_18px_40px_rgba(37,99,235,0.22)] backdrop-blur md:px-6 md:py-5">
           <div className="flex items-center gap-6 lg:gap-10">
             <Link
               to="/"

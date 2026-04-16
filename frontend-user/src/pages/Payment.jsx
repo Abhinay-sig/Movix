@@ -557,6 +557,7 @@ export default function Payment() {
   const formattedHoldTime = formatHoldCountdown(holdSecondsLeft)
   const configuredHoldMinutes =
     configuredHoldMs > 0 ? Math.max(1, Math.round(configuredHoldMs / 60000)) : null
+  const isHoldExpiringSoon = holdSecondsLeft > 0 && holdSecondsLeft <= 100
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-6">
@@ -585,12 +586,35 @@ export default function Payment() {
             </p>
           </div>
 
-          <div className="rounded-[1.75rem] border border-amber-100 bg-amber-50 px-5 py-4 shadow-sm">
-            <div className="text-xs uppercase tracking-[0.18em] text-amber-600">Time left</div>
-            <div className="mt-2 text-3xl font-semibold text-amber-950">{formattedHoldTime}</div>
-            <div className="mt-1 text-xs text-amber-700">
+          <div
+            className={`rounded-[1.75rem] px-5 py-4 shadow-sm ${
+              isHoldExpiringSoon
+                ? 'border border-red-200 bg-red-50'
+                : 'border border-amber-100 bg-amber-50'
+            }`}
+          >
+            <div
+              className={`text-xs uppercase tracking-[0.18em] ${
+                isHoldExpiringSoon ? 'text-red-600' : 'text-amber-600'
+              }`}
+            >
+              Time left
+            </div>
+            <div
+              className={`mt-2 text-3xl font-semibold ${
+                isHoldExpiringSoon ? 'text-red-700' : 'text-amber-950'
+              }`}
+            >
+              {formattedHoldTime}
+            </div>
+            <div className={`mt-1 text-xs ${isHoldExpiringSoon ? 'text-red-600' : 'text-amber-700'}`}>
               {configuredHoldMinutes ? `Your seats are reserved for ${configuredHoldMinutes} minute(s)` : 'Your seats are temporarily reserved'}
             </div>
+            {isHoldExpiringSoon ? (
+              <div className="mt-3 rounded-2xl border border-red-200 bg-white/80 px-4 py-3 text-sm font-medium text-red-700">
+                Your seat hold is about to expire. Complete your booking now to avoid losing these seats.
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
@@ -609,9 +633,9 @@ export default function Payment() {
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Email address</div>
               <input
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="Enter your email address"
-                className="field-input"
+                readOnly
+                aria-readonly="true"
+                className="field-input cursor-not-allowed bg-slate-100 text-slate-600"
               />
             </label>
 

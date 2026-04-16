@@ -6,8 +6,8 @@ export default function Layout() {
 
   return (
     <div className="staff-shell text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-blue-300/70 bg-gradient-to-r from-blue-700 via-blue-600 to-sky-600 text-white shadow-[0_18px_40px_rgba(37,99,235,0.22)] backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
+      <header className="sticky top-0 z-50 px-3 pt-3 text-white">
+        <div className="mx-auto max-w-7xl rounded-[1.75rem] border border-blue-300/70 bg-gradient-to-r from-blue-700 via-blue-600 to-sky-600 px-4 py-4 shadow-[0_18px_40px_rgba(37,99,235,0.22)] backdrop-blur sm:px-6 lg:px-8 lg:py-5">
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
             <Link
               to="/"
