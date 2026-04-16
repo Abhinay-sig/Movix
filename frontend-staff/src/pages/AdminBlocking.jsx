@@ -56,16 +56,14 @@ export default function AdminBlocking() {
   )
 
   const hallsInScope = useMemo(() => {
-    if (theaterId === ALL_THEATERS) {
-      if (multiplexId !== ALL_MULTIPLEXES) {
-        return halls.filter((h) => String(h.Theater?.ownerUserId) === String(multiplexId))
-      }
-      return halls
+    let scoped = halls
+    if (multiplexId !== ALL_MULTIPLEXES) {
+      scoped = scoped.filter((h) => String(h.Theater?.ownerUserId) === String(multiplexId))
     }
-    if (theaterId) {
-      return halls.filter((h) => String(h.theaterId) === String(theaterId))
+    if (theaterId && theaterId !== ALL_THEATERS) {
+      scoped = scoped.filter((h) => String(h.theaterId) === String(theaterId))
     }
-    return []
+    return scoped
   }, [halls, multiplexId, theaterId])
 
   const showsInScope = useMemo(() => {
@@ -87,8 +85,13 @@ export default function AdminBlocking() {
   const blockedShows = useMemo(() => shows.filter((s) => s.isBlocked), [shows])
   const isAllTheaters = theaterId === ALL_THEATERS
   const isAllHalls = hallId === ALL_HALLS
+  const isShowEntity = entity === 'show'
+  const hasSelectedMultiplex = multiplexId !== ALL_MULTIPLEXES
+  const canChooseTheater = hasSelectedMultiplex
+  const canChooseHall = canChooseTheater && theaterId && theaterId !== ALL_THEATERS
 
   const impactText = useMemo(() => {
+    if (!hasSelectedMultiplex && !isShowEntity) return 'Select a multiplex first to continue.'
     if (isAllTheaters) return 'This action will affect all theaters.'
     const selectedTheater = theaters.find((t) => String(t.id) === String(theaterId))
     if (theaterId && isAllHalls) {
@@ -102,7 +105,18 @@ export default function AdminBlocking() {
       return `This action will affect ${selectedHall?.name || 'selected hall'}.`
     }
     return 'Select entities to apply visibility.'
-  }, [isAllTheaters, isAllHalls, theaterId, theaters, hallId, halls, entity, showId])
+  }, [hasSelectedMultiplex, isShowEntity, isAllTheaters, isAllHalls, theaterId, theaters, hallId, halls, entity, showId])
+
+  function resetFormState() {
+    setEntity('theater')
+    setVisible(true)
+    setReason('policy')
+    setCustomReason('')
+    setMultiplexId(ALL_MULTIPLEXES)
+    setTheaterId('')
+    setHallId('')
+    setShowId('')
+  }
 
   async function load() {
     if (!auth?.token) return
@@ -127,14 +141,18 @@ export default function AdminBlocking() {
   }, [auth?.token])
 
   useEffect(() => {
-    if (multiplexId !== ALL_MULTIPLEXES) {
-      const theaterStillValid =
-        theaterId === ALL_THEATERS || theaters.some((t) => String(t.id) === String(theaterId))
-      if (!theaterStillValid) {
-        setTheaterId('')
-        setHallId('')
-        setShowId('')
-      }
+    if (multiplexId === ALL_MULTIPLEXES) {
+      setTheaterId('')
+      setHallId('')
+      setShowId('')
+      return
+    }
+
+    const theaterStillValid = theaterId === ALL_THEATERS || theaters.some((t) => String(t.id) === String(theaterId))
+    if (!theaterStillValid) {
+      setTheaterId('')
+      setHallId('')
+      setShowId('')
     }
   }, [multiplexId, theaterId, theaters])
 
@@ -153,6 +171,21 @@ export default function AdminBlocking() {
     setErr('')
 
     try {
+      if (!hasSelectedMultiplex && !isShowEntity) {
+        setErr('Select a multiplex first.')
+        return
+      }
+
+      if (!isShowEntity && !theaterId) {
+        setErr('Select a theater scope before applying visibility.')
+        return
+      }
+
+      if (entity === 'hall' && !isAllTheaters && !hallId) {
+        setErr('Select a hall scope before applying visibility.')
+        return
+      }
+
       let targetIds = []
       if (entity === 'theater') {
         targetIds = isAllTheaters ? theaters.map((t) => Number(t.id)) : [Number(theaterId)]
@@ -163,9 +196,7 @@ export default function AdminBlocking() {
       } else {
         if (showId) {
           targetIds = [Number(showId)]
-        } else if (isAllTheaters || isAllHalls) {
-          targetIds = showsInScope.map((s) => Number(s.id))
-        } else if (hallId && hallId !== ALL_HALLS) {
+        } else {
           targetIds = showsInScope.map((s) => Number(s.id))
         }
       }
@@ -192,6 +223,7 @@ export default function AdminBlocking() {
         type: 'success',
       })
       await load()
+      resetFormState()
     } catch (e2) {
       setErr(e2.message)
     }
@@ -224,31 +256,33 @@ export default function AdminBlocking() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Theater</label>
-            <select value={theaterId} onChange={(e) => setTheaterId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Select theater</option>
-              <option value={ALL_THEATERS}>All Theaters</option>
-              {theaters.map((t) => (
-                <option key={t.id} value={t.id}>#{t.id} {t.name}</option>
-              ))}
-            </select>
-          </div>
+          {canChooseTheater ? (
+            <div>
+              <label className="block text-gray-700 font-medium mb-2">Theater</label>
+              <select value={theaterId} onChange={(e) => setTheaterId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Select theater</option>
+                <option value={ALL_THEATERS}>All Theaters</option>
+                {theaters.map((t) => (
+                  <option key={t.id} value={t.id}>#{t.id} {t.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
-          {(entity === 'hall' || entity === 'show') && theaterId && !isAllTheaters ? (
+          {(entity === 'hall' || entity === 'show') && canChooseHall ? (
             <div className="transition-all duration-200">
               <label className="block text-gray-700 font-medium mb-2">Hall</label>
               <select value={hallId} onChange={(e) => setHallId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Select hall</option>
+                <option value="">{entity === 'show' ? 'All halls in selected scope' : 'Select hall'}</option>
                 <option value={ALL_HALLS}>All Halls</option>
-                {hallsForTheater.map((h) => (
+                {(entity === 'show' ? hallsInScope : hallsForTheater).map((h) => (
                   <option key={h.id} value={h.id}>#{h.id} {h.name}</option>
                 ))}
               </select>
             </div>
           ) : null}
 
-          {entity === 'show' && theaterId && hallId ? (
+          {entity === 'show' ? (
             <div className="transition-all duration-200">
               <label className="block text-gray-700 font-medium mb-2">Show</label>
               <select value={showId} onChange={(e) => setShowId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">

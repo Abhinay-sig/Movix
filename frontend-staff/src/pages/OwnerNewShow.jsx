@@ -59,7 +59,7 @@ export default function OwnerNewShow() {
   )
 
   const [schedule, setSchedule] = useState(null)
-  const [viewDate, setViewDate] = useState('')
+  const [viewDate, setViewDate] = useState(new Date().toISOString().split("T")[0])
   const [viewTheaterId, setViewTheaterId] = useState('')
   const [viewHallId, setViewHallId] = useState('')
   const [viewMovieId, setViewMovieId] = useState('')
