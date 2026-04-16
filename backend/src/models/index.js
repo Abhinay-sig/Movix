@@ -16,6 +16,7 @@ const { defineSeatHold, HOLD_STATUS } = require('./SeatHold');
 const { defineBooking, BOOKING_STATUS } = require('./Booking');
 const { defineBookingSeat } = require('./BookingSeat');
 const { defineMovixCoinTransaction, MOVIX_COIN_TX_TYPES } = require('./MovixCoinTransaction');
+const { defineProMembershipPurchase, PRO_PLAN_CODES } = require('./ProMembershipPurchase');
 
 const db = {};
 
@@ -48,6 +49,8 @@ db.BOOKING_STATUS = BOOKING_STATUS;
 db.BookingSeat = defineBookingSeat(sequelize);
 db.MovixCoinTransaction = defineMovixCoinTransaction(sequelize);
 db.MOVIX_COIN_TX_TYPES = MOVIX_COIN_TX_TYPES;
+db.ProMembershipPurchase = defineProMembershipPurchase(sequelize);
+db.PRO_PLAN_CODES = PRO_PLAN_CODES;
 
 // Associations
 db.User.hasMany(db.Theater, { foreignKey: 'ownerUserId' });
@@ -107,6 +110,9 @@ db.User.hasMany(db.MovixCoinTransaction, { foreignKey: 'userId' });
 db.MovixCoinTransaction.belongsTo(db.User, { foreignKey: 'userId' });
 db.Booking.hasMany(db.MovixCoinTransaction, { foreignKey: 'bookingId' });
 db.MovixCoinTransaction.belongsTo(db.Booking, { foreignKey: 'bookingId' });
+
+db.User.hasMany(db.ProMembershipPurchase, { foreignKey: 'userId' });
+db.ProMembershipPurchase.belongsTo(db.User, { foreignKey: 'userId' });
 
 async function seedSeatTypes() {
   const defaults = [
@@ -452,6 +458,25 @@ async function ensureMovixCoinSchema() {
   }
 }
 
+async function ensureProMembershipSchema() {
+  const queryInterface = sequelize.getQueryInterface();
+
+  let table;
+  try {
+    table = await queryInterface.describeTable('pro_membership_purchases');
+  } catch {
+    return;
+  }
+
+  if (!table.payment_status) {
+    await queryInterface.addColumn('pro_membership_purchases', 'payment_status', {
+      type: DataTypes.STRING(32),
+      allowNull: false,
+      defaultValue: 'captured',
+    });
+  }
+}
+
 async function ensureApprovalStatusSchema() {
   const queryInterface = sequelize.getQueryInterface();
 
@@ -499,6 +524,7 @@ async function syncDb() {
   await ensureSeatHoldSchema();
   await ensureBookingSchema();
   await ensureMovixCoinSchema();
+  await ensureProMembershipSchema();
   await ensureApprovalStatusSchema();
 
   await db.User.update(

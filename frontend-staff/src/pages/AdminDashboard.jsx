@@ -171,6 +171,17 @@ export default function AdminDashboard() {
           grossRevenue: Number(rev?.grossRevenue) || 0,
           adminRevenue: Number(rev?.adminRevenue) || 0,
           revenueChangePct: Number(rev?.revenueChangePct) || 0,
+          bookingRevenue: Number(rev?.bookingRevenue) || 0,
+          membership: {
+            totalRevenue: Number(rev?.membership?.totalRevenue) || 0,
+            totalPurchases: Number(rev?.membership?.totalPurchases) || 0,
+          },
+          coins: {
+            cashbackCoins: Number(rev?.coins?.cashbackCoins) || 0,
+            redeemedCoins: Number(rev?.coins?.redeemedCoins) || 0,
+            walletCoinsBalance: Number(rev?.coins?.walletCoinsBalance) || 0,
+            netCoinsIssued: Number(rev?.coins?.netCoinsIssued) || 0,
+          },
         }
 
         setRevenue(safeRevenue)
@@ -334,7 +345,20 @@ export default function AdminDashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <MetricCard label="Gross Revenue" value={formatMoney(revenue?.grossRevenue)} colorClass="text-blue-600" />
-            <MetricCard label="Admin Revenue (5%)" value={formatMoney(revenue?.adminRevenue)} colorClass="text-green-600" />
+            <MetricCard label="Admin Revenue (20%)" value={formatMoney(revenue?.adminRevenue)} colorClass="text-green-600" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            <MetricCard label="Booking Revenue" value={formatMoney(revenue?.bookingRevenue)} colorClass="text-sky-600" />
+            <MetricCard label="Membership Revenue" value={formatMoney(revenue?.membership?.totalRevenue)} colorClass="text-indigo-600" />
+            <MetricCard label="Membership Purchases" value={revenue?.membership?.totalPurchases ?? 0} colorClass="text-violet-600" />
+            <MetricCard label="Wallet Coins In Circulation" value={Number(revenue?.coins?.walletCoinsBalance || 0).toLocaleString('en-IN')} colorClass="text-amber-600" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <MetricCard label="Cashback Coins Issued" value={Number(revenue?.coins?.cashbackCoins || 0).toLocaleString('en-IN')} colorClass="text-emerald-600" />
+            <MetricCard label="Coins Redeemed" value={Number(revenue?.coins?.redeemedCoins || 0).toLocaleString('en-IN')} colorClass="text-rose-600" />
+            <MetricCard label="Net Coins Issued" value={Number(revenue?.coins?.netCoinsIssued || 0).toLocaleString('en-IN')} colorClass="text-teal-600" />
           </div>
 
           <div className="bg-white rounded-xl shadow-lg p-6">
