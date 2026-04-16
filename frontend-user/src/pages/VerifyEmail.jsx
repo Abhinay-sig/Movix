@@ -26,7 +26,7 @@ export default function VerifyEmail() {
             {!isSuccess ? (
               <Link
                 to="/signup"
-                className="rounded-full border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                className="rounded-full border border-blue-600 bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 hover:border-blue-700"
               >
                 Back to signup
               </Link>

@@ -5,6 +5,7 @@ import { useNotification } from '../NotificationProvider'
 
 const ALL_THEATERS = '__all_theaters__'
 const ALL_HALLS = '__all_halls__'
+const ALL_MULTIPLEXES = '__all_multiplexes__'
 
 export default function AdminBlocking() {
   const { auth } = useAuth()
@@ -13,6 +14,7 @@ export default function AdminBlocking() {
   const [visible, setVisible] = useState(true)
   const [reason, setReason] = useState('policy')
   const [customReason, setCustomReason] = useState('')
+  const [multiplexId, setMultiplexId] = useState(ALL_MULTIPLEXES)
   const [theaterId, setTheaterId] = useState('')
   const [hallId, setHallId] = useState('')
   const [showId, setShowId] = useState('')
@@ -21,25 +23,64 @@ export default function AdminBlocking() {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
 
+  const multiplexes = useMemo(() => {
+    const map = new Map()
+    for (const h of halls) {
+      const owner = h.Theater?.owner
+      const ownerId = h.Theater?.ownerUserId
+      if (!ownerId) continue
+      if (!map.has(ownerId)) {
+        map.set(ownerId, {
+          id: ownerId,
+          name: owner?.name || `Multiplex #${ownerId}`,
+        })
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+  }, [halls])
+
   const theaters = useMemo(() => {
     const map = new Map()
     for (const h of halls) {
       const t = h.Theater
       if (!t?.id) continue
+      if (multiplexId !== ALL_MULTIPLEXES && String(t.ownerUserId) !== String(multiplexId)) continue
       if (!map.has(t.id)) map.set(t.id, t)
     }
     return Array.from(map.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-  }, [halls])
+  }, [halls, multiplexId])
 
   const hallsForTheater = useMemo(
     () => halls.filter((h) => theaterId && theaterId !== ALL_THEATERS && String(h.theaterId) === String(theaterId)),
     [halls, theaterId]
   )
 
-  const showsForHall = useMemo(
-    () => shows.filter((s) => !hallId || String(s.hallId) === String(hallId)),
-    [shows, hallId]
-  )
+  const hallsInScope = useMemo(() => {
+    if (theaterId === ALL_THEATERS) {
+      if (multiplexId !== ALL_MULTIPLEXES) {
+        return halls.filter((h) => String(h.Theater?.ownerUserId) === String(multiplexId))
+      }
+      return halls
+    }
+    if (theaterId) {
+      return halls.filter((h) => String(h.theaterId) === String(theaterId))
+    }
+    return []
+  }, [halls, multiplexId, theaterId])
+
+  const showsInScope = useMemo(() => {
+    let scoped = shows
+    if (multiplexId !== ALL_MULTIPLEXES) {
+      scoped = scoped.filter((s) => String(s.Hall?.Theater?.ownerUserId) === String(multiplexId))
+    }
+    if (theaterId && theaterId !== ALL_THEATERS) {
+      scoped = scoped.filter((s) => String(s.Hall?.theaterId) === String(theaterId))
+    }
+    if (hallId && hallId !== ALL_HALLS) {
+      scoped = scoped.filter((s) => String(s.hallId) === String(hallId))
+    }
+    return scoped
+  }, [shows, multiplexId, theaterId, hallId])
 
   const blockedTheaters = useMemo(() => theaters.filter((t) => t.isBlocked), [theaters])
   const blockedHalls = useMemo(() => halls.filter((h) => h.isBlocked), [halls])
@@ -70,7 +111,7 @@ export default function AdminBlocking() {
     try {
       const [h, p] = await Promise.all([
         api('/admin/halls', { token: auth.token }),
-        api('/admin/approvals/pending', { token: auth.token }),
+        api('/admin/shows', { token: auth.token }),
       ])
       setHalls(h.halls || [])
       setShows(p.shows || [])
@@ -84,6 +125,18 @@ export default function AdminBlocking() {
   useEffect(() => {
     load().catch(() => {})
   }, [auth?.token])
+
+  useEffect(() => {
+    if (multiplexId !== ALL_MULTIPLEXES) {
+      const theaterStillValid =
+        theaterId === ALL_THEATERS || theaters.some((t) => String(t.id) === String(theaterId))
+      if (!theaterStillValid) {
+        setTheaterId('')
+        setHallId('')
+        setShowId('')
+      }
+    }
+  }, [multiplexId, theaterId, theaters])
 
   useEffect(() => {
     if (theaterId === ALL_THEATERS) setHallId(ALL_HALLS)
@@ -104,16 +157,16 @@ export default function AdminBlocking() {
       if (entity === 'theater') {
         targetIds = isAllTheaters ? theaters.map((t) => Number(t.id)) : [Number(theaterId)]
       } else if (entity === 'hall') {
-        if (isAllTheaters) targetIds = halls.map((h) => Number(h.id))
+        if (isAllTheaters) targetIds = hallsInScope.map((h) => Number(h.id))
         else if (isAllHalls) targetIds = hallsForTheater.map((h) => Number(h.id))
         else targetIds = [Number(hallId)]
       } else {
-        if (isAllTheaters) targetIds = shows.map((s) => Number(s.id))
-        else if (isAllHalls) {
-          const theaterHallIds = new Set(hallsForTheater.map((h) => Number(h.id)))
-          targetIds = shows.filter((s) => theaterHallIds.has(Number(s.hallId))).map((s) => Number(s.id))
-        } else if (hallId && hallId !== ALL_HALLS && showId) {
+        if (showId) {
           targetIds = [Number(showId)]
+        } else if (isAllTheaters || isAllHalls) {
+          targetIds = showsInScope.map((s) => Number(s.id))
+        } else if (hallId && hallId !== ALL_HALLS) {
+          targetIds = showsInScope.map((s) => Number(s.id))
         }
       }
 
@@ -162,6 +215,16 @@ export default function AdminBlocking() {
           </div>
 
           <div>
+            <label className="block text-gray-700 font-medium mb-2">Multiplex</label>
+            <select value={multiplexId} onChange={(e) => setMultiplexId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value={ALL_MULTIPLEXES}>All Multiplexes</option>
+              {multiplexes.map((m) => (
+                <option key={m.id} value={m.id}>#{m.id} {m.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className="block text-gray-700 font-medium mb-2">Theater</label>
             <select value={theaterId} onChange={(e) => setTheaterId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Select theater</option>
@@ -185,16 +248,16 @@ export default function AdminBlocking() {
             </div>
           ) : null}
 
-          {entity === 'show' && theaterId && !isAllTheaters && hallId && !isAllHalls ? (
+          {entity === 'show' && theaterId && hallId ? (
             <div className="transition-all duration-200">
               <label className="block text-gray-700 font-medium mb-2">Show</label>
               <select value={showId} onChange={(e) => setShowId(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Select show</option>
-                {showsForHall.map((s) => (
+                <option value="">All shows in selected scope</option>
+                {showsInScope.map((s) => (
                   <option key={s.id} value={s.id}>#{s.id} {s.Movie?.title || 'Movie'} ({new Date(s.startsAt).toLocaleString()})</option>
                 ))}
               </select>
-              <div className="text-xs text-gray-500 mt-1">Show options currently use pending shows list.</div>
+              <div className="text-xs text-gray-500 mt-1">Choose a specific show, or keep All shows to apply bulk action in current scope.</div>
             </div>
           ) : null}
 

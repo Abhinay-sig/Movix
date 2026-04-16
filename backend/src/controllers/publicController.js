@@ -56,13 +56,26 @@ async function getSeatTypePricing(showId) {
 
 async function listMovies(req, res, next) {
   try {
+    const now = new Date();
     const search = String(req.query.search ?? '').trim().toLowerCase();
     const languageFilter = String(req.query.language ?? '').trim().toLowerCase();
     const cityFilter = String(req.query.city ?? '').trim().toLowerCase();
     const durationFilter = String(req.query.duration ?? '').trim().toLowerCase();
 
+    const moviesList = await db.Movie.findAll({
+      where: { isActive: true },
+      include: [{ model: db.MovieLanguage, required: false }],
+      order: [['title', 'ASC']],
+    });
+
     const shows = await db.Show.findAll({
-      where: { status: 'approved', isApproved: true, isBlocked: false, isCancelled: false },
+      where: {
+        status: 'approved',
+        isApproved: true,
+        isBlocked: false,
+        isCancelled: false,
+        startsAt: { [Op.gt]: now },
+      },
       include: [
         {
           model: db.Movie,
@@ -87,23 +100,24 @@ async function listMovies(req, res, next) {
     });
 
     const movieMap = new Map();
+    for (const movie of moviesList) {
+      const baseMovie = serializeMovieWithLanguages(movie);
+      movieMap.set(String(movie.id), {
+        ...baseMovie,
+        languages: [...baseMovie.languages],
+        cities: [],
+        theaterCount: 0,
+        nextShowAt: null,
+      });
+    }
+
     for (const show of shows) {
       const movie = show.Movie;
       const theater = show.Hall?.Theater;
       if (!movie || !theater) continue;
 
-      if (!movieMap.has(String(movie.id))) {
-        const baseMovie = serializeMovieWithLanguages(movie);
-        movieMap.set(String(movie.id), {
-          ...baseMovie,
-          languages: [...baseMovie.languages],
-          cities: [],
-          theaterCount: 0,
-          nextShowAt: null,
-        });
-      }
-
       const entry = movieMap.get(String(movie.id));
+      if (!entry) continue;
       const lang = show.language?.trim();
       const city = theater.city?.trim();
       if (lang && !entry.languages.includes(lang)) entry.languages.push(lang);
@@ -192,6 +206,10 @@ async function listShowsForMovie(req, res, next) {
           model: db.Hall,
           where: { isApproved: true, isBlocked: false },
           include: [{ model: db.Theater, where: { isBlocked: false } }],
+        },
+        {
+          model: db.ShowSeatPrice,
+          required: false,
         },
       ],
       order: [['startsAt', 'ASC']],

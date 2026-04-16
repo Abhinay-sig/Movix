@@ -108,6 +108,7 @@ export default function Payment() {
   const totalAmount = booking?.totalAmount ?? estimate?.total ?? 0
   const subTotalAmount = estimate?.subTotal ?? estimate?.total ?? 0
   const movixCoinsUsed = estimate?.movixCoinsUsed ?? 0
+  const isZeroAmountPayment = Number(totalAmount) <= 0
   const canDownloadTicket = booking?.ticket ? isUpcomingTicket(booking.ticket) : false
   const bookingRef = useRef(booking)
   const seatCodesRef = useRef(seatCodes)
@@ -280,9 +281,44 @@ export default function Payment() {
 
     setErr('')
     setLoading(true)
-    setPaymentStep('Creating Razorpay order...')
+    setPaymentStep(isZeroAmountPayment ? 'Confirming booking...' : 'Creating Razorpay order...')
 
     try {
+      if (isZeroAmountPayment) {
+        const confirmResponse = await api('/bookings/confirm', {
+          method: 'POST',
+          token: auth.token,
+          body: {
+            showId: Number(showId),
+            seatCodes,
+            email: trimmedEmail,
+            sessionToken: seatSessionToken,
+            useMovixCoins,
+          },
+        })
+
+        setBooking({
+          bookingId: confirmResponse.bookingId,
+          totalAmount: confirmResponse.totalAmount,
+          ticket: confirmResponse.ticket || null,
+        })
+
+        if (confirmResponse?.wallet) {
+          setAuth({
+            token: auth.token,
+            user: {
+              ...auth.user,
+              movixCoinsBalance: confirmResponse.wallet.currentBalance,
+              movixCoinsEarnedTotal: confirmResponse.wallet.totalEarned,
+              movixCoinsRedeemedTotal: confirmResponse.wallet.totalRedeemed,
+            },
+          })
+        }
+
+        clearPendingSeatRelease()
+        return
+      }
+
       const orderResponse = await api('/payments/razorpay/order', {
         method: 'POST',
         token: auth.token,
@@ -390,7 +426,7 @@ export default function Payment() {
       <div className="mx-auto max-w-5xl space-y-8 px-4 py-10 md:px-6">
         {showSuccessModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-[2rem] border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
+            <div className="w-full max-w-md rounded-4xl border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-xl font-bold text-emerald-700">
                 M
               </div>
@@ -456,9 +492,10 @@ export default function Payment() {
                 ))}
               </div>
             </div>
+
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+          <div className="rounded-4xl border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
             <div className="text-xs uppercase tracking-[0.22em] text-blue-100/75">Post-booking actions</div>
             <div className="mt-3 text-3xl font-semibold">{formatCurrency(totalAmount)}</div>
             <div className="mt-1 text-sm text-blue-100/80">
@@ -469,7 +506,7 @@ export default function Payment() {
               <button
                 type="button"
                 onClick={() => downloadPaymentSlipPdf(booking.ticket)}
-                className="primary-button w-full bg-white text-slate-950 hover:bg-slate-100"
+                className="w-full rounded-xl border border-blue-900/30 bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-900"
               >
                 Download payment slip
               </button>
@@ -478,7 +515,7 @@ export default function Payment() {
                 type="button"
                 onClick={() => downloadTicketPdf(booking.ticket)}
                 disabled={!canDownloadTicket}
-                className={`secondary-button w-full border-white/20 bg-white/10 text-white hover:bg-white/15 ${
+                className={`w-full rounded-xl border border-blue-900/30 bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-900 ${
                   !canDownloadTicket ? 'cursor-not-allowed opacity-60' : ''
                 }`}
               >
@@ -489,7 +526,7 @@ export default function Payment() {
                 type="button"
                 onClick={() => openCalendarAdd(booking.ticket)}
                 disabled={!canDownloadTicket}
-                className={`secondary-button w-full border-white/20 bg-white/10 text-white hover:bg-white/15 ${
+                className={`w-full rounded-xl border border-blue-900/30 bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-900 ${
                   !canDownloadTicket ? 'cursor-not-allowed opacity-60' : ''
                 }`}
               >
@@ -500,14 +537,14 @@ export default function Payment() {
                 type="button"
                 onClick={() => downloadCalendarInvite(booking.ticket)}
                 disabled={!canDownloadTicket}
-                className={`secondary-button w-full border-white/20 bg-white/10 text-white hover:bg-white/15 ${
+                className={`w-full rounded-xl border border-blue-900/30 bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-900 ${
                   !canDownloadTicket ? 'cursor-not-allowed opacity-60' : ''
                 }`}
               >
                 Download .ics
               </button>
 
-              <Link to="/my-tickets" className="secondary-button block w-full border-white/20 bg-transparent text-center text-white hover:bg-white/10">
+              <Link to="/my-tickets" className="block w-full rounded-xl border border-blue-900/30 bg-blue-800 px-5 py-3 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-900">
                 View all tickets
               </Link>
             </div>
@@ -525,7 +562,7 @@ export default function Payment() {
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-6">
       {showHoldExpiredModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
+          <div className="w-full max-w-md rounded-4xl border border-white/20 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)]">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-red-500">Seat hold expired</div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">Choose seats again</div>
             <p className="mt-3 text-sm leading-6 text-slate-500">{holdExpiredMessage}</p>
@@ -539,18 +576,20 @@ export default function Payment() {
       <section className="page-panel px-6 py-8 md:px-10">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
-            <div className="hero-chip">Razorpay Checkout</div>
-            <h2 className="section-title max-w-3xl">Secure your seats before the hold ends</h2>
+            <div className="hero-chip">{isZeroAmountPayment ? 'Instant Confirmation' : 'Razorpay Checkout'}</div>
+            <h2 className="section-title max-w-3xl">Complete your booking before your seats are released</h2>
             <p className="section-copy max-w-2xl">
-              We’ll create a Razorpay order for your held seats, open the hosted checkout, then verify the payment before issuing the ticket.
+              {isZeroAmountPayment
+                ? 'Your full amount has been covered, so you can confirm your booking right away.'
+                : 'Review your booking details, complete payment securely, and get your ticket in just a few moments.'}
             </p>
           </div>
 
           <div className="rounded-[1.75rem] border border-amber-100 bg-amber-50 px-5 py-4 shadow-sm">
-            <div className="text-xs uppercase tracking-[0.18em] text-amber-600">Seat hold</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-amber-600">Time left</div>
             <div className="mt-2 text-3xl font-semibold text-amber-950">{formattedHoldTime}</div>
             <div className="mt-1 text-xs text-amber-700">
-              {configuredHoldMinutes ? `Hold window ${configuredHoldMinutes} minute(s)` : 'Your hold is active'}
+              {configuredHoldMinutes ? `Your seats are reserved for ${configuredHoldMinutes} minute(s)` : 'Your seats are temporarily reserved'}
             </div>
           </div>
         </div>
@@ -564,43 +603,45 @@ export default function Payment() {
 
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="page-panel px-6 py-7 md:px-8">
-          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Payer details</div>
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Contact details</div>
           <div className="mt-4 rounded-[1.75rem] border border-slate-200 bg-white/90 p-5 shadow-sm">
             <label className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Registered email</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Email address</div>
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="Enter your registered email"
+                placeholder="Enter your email address"
                 className="field-input"
               />
             </label>
 
             <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-700">
-              Razorpay will handle UPI, cards, wallets, and netbanking inside the hosted checkout window. The email above must match your Movix account.
+              {isZeroAmountPayment
+                ? 'No payment step is needed. Confirm once and your ticket will be ready instantly.'
+                : 'You can pay using UPI, cards, wallets, or net banking in the secure checkout screen.'}
             </div>
           </div>
 
           <div className="mt-6 rounded-[1.75rem] border border-slate-200 bg-white/90 p-5 shadow-sm">
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">What happens next</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">How it works</div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-900">1. Create order</div>
-                <div className="mt-1 text-xs text-slate-500">Movix locks your amount and requests a Razorpay order.</div>
+                <div className="text-sm font-semibold text-slate-900">1. Review</div>
+                <div className="mt-1 text-xs text-slate-500">Check your seats, showtime, and total amount before you continue.</div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-900">2. Pay securely</div>
-                <div className="mt-1 text-xs text-slate-500">Razorpay Checkout collects the actual payment details.</div>
+                <div className="text-sm font-semibold text-slate-900">2. Pay</div>
+                <div className="mt-1 text-xs text-slate-500">Complete your payment securely using your preferred payment method.</div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-900">3. Verify booking</div>
-                <div className="mt-1 text-xs text-slate-500">We verify the signature, confirm seats, and issue your receipt.</div>
+                <div className="text-sm font-semibold text-slate-900">3. Get your ticket</div>
+                <div className="mt-1 text-xs text-slate-500">Your booking will be confirmed and your ticket will be ready right away.</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+        <div className="rounded-4xl border border-slate-200 bg-[linear-gradient(160deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96),rgba(37,99,235,0.88))] p-6 text-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
           <div className="text-xs uppercase tracking-[0.22em] text-blue-100/75">Booking summary</div>
           <div className="mt-3 text-3xl font-semibold">{formatCurrency(totalAmount)}</div>
           <div className="mt-1 text-sm text-blue-100/80">{seatCodes.length} seat(s) reserved</div>
@@ -650,14 +691,18 @@ export default function Payment() {
               disabled={loading || holdSecondsLeft <= 0}
               className="primary-button w-full bg-white text-slate-950 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? paymentStep || 'Opening Razorpay...' : `Pay ${formatCurrency(totalAmount)}`}
+              {loading
+                ? paymentStep || (isZeroAmountPayment ? 'Confirming booking...' : 'Opening Razorpay...')
+                : isZeroAmountPayment
+                  ? 'Confirm booking'
+                  : `Pay ${formatCurrency(totalAmount)}`}
             </button>
 
             <button
               type="button"
               onClick={goBackToSeatSelection}
               disabled={loading}
-              className="secondary-button w-full border-white/20 bg-transparent text-white hover:bg-white/10"
+              className="w-full rounded-xl border border-blue-900/30 bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Change seats
             </button>

@@ -1,4 +1,5 @@
 import { formatDateTimeTo12Hour } from './time'
+import { getTicketQrMatrix } from './ticketQr'
 
 function escapePdfText(value) {
   return String(value ?? '')
@@ -24,6 +25,10 @@ function lineCommand(x1, y1, x2, y2) {
   return `${pad(x1)} ${pad(y1)} m ${pad(x2)} ${pad(y2)} l S`
 }
 
+function fillRectCommand(x, y, width, height) {
+  return `${pad(x)} ${pad(y)} ${pad(width)} ${pad(height)} re f`
+}
+
 function colorFill(r, g, b) {
   return `${r} ${g} ${b} rg`
 }
@@ -34,6 +39,27 @@ function colorStroke(r, g, b) {
 
 function isFiniteTime(value) {
   return Number.isFinite(new Date(value).getTime())
+}
+
+function qrCommands(ticket, originX, originY, boxSize) {
+  const matrix = getTicketQrMatrix(ticket)
+  const moduleSize = boxSize / matrix.size
+  const commands = [
+    colorFill(1, 1, 1),
+    rectCommand(originX, originY, boxSize, boxSize, false, true),
+    colorFill(0.05, 0.1, 0.16),
+  ]
+
+  for (let row = 0; row < matrix.size; row += 1) {
+    for (let col = 0; col < matrix.size; col += 1) {
+      if (!matrix.data[row * matrix.size + col]) continue
+      const x = originX + col * moduleSize
+      const y = originY + (matrix.size - row - 1) * moduleSize
+      commands.push(fillRectCommand(x, y, moduleSize, moduleSize))
+    }
+  }
+
+  return commands
 }
 
 export function isUpcomingTicket(ticket) {
@@ -62,6 +88,7 @@ export function downloadTicketPdf(ticket) {
   const paymentMethod = String(ticket.payment?.method || 'online').toUpperCase()
   const paymentId = ticket.payment?.paymentId || 'Unavailable'
   const receiptNumber = ticket.payment?.receiptNumber || `MOVIX-${ticket.bookingId}`
+  const qrBoxSize = 116
 
   const commands = [
     '1 w',
@@ -106,7 +133,10 @@ export function downloadTicketPdf(ticket) {
     textCommand(64, 438, 11, `Seats: ${seatList}`),
     textCommand(64, 416, 11, `Seat Types: ${seatTypes || 'N/A'}`),
     textCommand(64, 394, 11, `Ticket Count: ${(ticket.seats || []).length}`),
-    textCommand(64, 300, 11, 'Present this ticket PDF or the booking ID at entry.'),
+    textCommand(64, 330, 11, 'ENTRY QR'),
+    textCommand(64, 314, 10, 'Present this QR to the guard for entry scanning.'),
+    ...qrCommands(ticket, 392, 242, qrBoxSize),
+    textCommand(64, 300, 11, 'Present this ticket PDF or the booking QR at entry.'),
     textCommand(64, 278, 11, `Razorpay Payment ID: ${paymentId}`),
     textCommand(64, 256, 11, 'Seat allocation and show access remain subject to theater policies.'),
     textCommand(64, 234, 11, 'For support, refer to the booked ticket in your Movix dashboard.'),

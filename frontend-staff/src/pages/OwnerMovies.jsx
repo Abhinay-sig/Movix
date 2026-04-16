@@ -65,32 +65,32 @@ export default function OwnerMovies() {
   return (
     <div className="space-y-8">
       <section className="overflow-hidden rounded-xl bg-white shadow-lg">
-        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 px-8 py-8">
+        <div className="bg-gradient-to-r from-blue-100 via-blue-50 to-sky-100 px-8 py-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
-              <div className="inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
+              <div className="inline-flex rounded-full border border-blue-200 bg-blue-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-blue-800">
                 Owner Workspace
               </div>
-              <h2 className="text-4xl font-bold text-white">Movie catalog</h2>
-              <p className="max-w-2xl text-sm text-slate-300">
+              <h2 className="text-4xl font-bold text-slate-900">Movie catalog</h2>
+              <p className="max-w-2xl text-sm text-slate-600">
                 Browse admin-managed movies, review availability, and prepare titles for show scheduling.
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-300">
+              <div className="rounded-xl border border-blue-200 bg-blue-50/95 p-4 backdrop-blur-sm">
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-blue-700">
                   Total Movies
                 </div>
-                <div className="mt-2 text-3xl font-bold text-white">
+                <div className="mt-2 text-3xl font-bold text-slate-900">
                   {pagination?.total ?? movies.length}
                 </div>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-300">
+              <div className="rounded-xl border border-blue-200 bg-blue-50/95 p-4 backdrop-blur-sm">
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-blue-700">
                   Current Page
                 </div>
-                <div className="mt-2 text-3xl font-bold text-white">
+                <div className="mt-2 text-3xl font-bold text-slate-900">
                   {pagination?.page ?? page}
                 </div>
               </div>

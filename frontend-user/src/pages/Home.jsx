@@ -45,67 +45,27 @@ export default function Home() {
   return (
     <div className="space-y-8">
       <section className="page-panel fade-up overflow-hidden px-6 py-8 md:px-10 md:py-12">
-        <div className="grid items-center gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-5">
+        <div className="grid items-center gap-8">
+          <div className="space-y-6">
             <div className="hero-chip">Now Showing</div>
-            <div className="space-y-3">
-              <h2 className="section-title max-w-2xl">
-                Find movies and book your seats.
+            <div className="space-y-4">
+              <h2 className="section-title max-w-3xl leading-tight">
+                Pick tonight&apos;s movie, grab the best seats, and book in minutes.
               </h2>
-              <p className="section-copy max-w-xl">
-                Browse current movies, compare showtimes, and reserve your seats in a few steps.
+              <p className="max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
+                Explore movies playing near you, compare showtimes at a glance, and lock in seats for the show that fits your plan best.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3 text-sm text-slate-500">
-              <div className="rounded-full border border-blue-100 bg-blue-50/90 px-4 py-2 shadow-sm">
-                Smooth seat selection
+            <div className="flex flex-wrap gap-3 text-sm font-medium text-slate-700">
+              <div className="inline-flex items-center rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-sky-100 px-4 py-3 shadow-sm shadow-blue-100/70">
+                Easy seat picking
               </div>
-              <div className="rounded-full border border-violet-100 bg-violet-50/90 px-4 py-2 shadow-sm">
-                Quick checkout
+              <div className="inline-flex items-center rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-cyan-100 px-4 py-3 shadow-sm shadow-blue-100/70">
+                Fast, simple checkout
               </div>
-              <div className="rounded-full border border-amber-100 bg-amber-50/90 px-4 py-2 shadow-sm">
-                Live show listings
-              </div>
-            </div>
-          </div>
-
-          <div className="fade-up-delay relative">
-            <div className="absolute inset-x-10 top-8 h-32 rounded-full bg-gradient-to-r from-sky-200/60 via-fuchsia-200/50 to-amber-200/60 blur-3xl" />
-            <div className="soft-card relative overflow-hidden p-6">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-violet-50" />
-              <div className="relative space-y-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                      Featured
-                    </div>
-                    <div className="mt-2 text-xl font-semibold text-slate-950">
-                      Book your show
-                    </div>
-                  </div>
-                  <div className="h-12 w-12 rounded-2xl bg-slate-950 shadow-lg shadow-slate-300/70" />
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {['Browse', 'Select', 'Book'].map((label, index) => (
-                    <div
-                      key={label}
-                      className="rounded-2xl border border-white/70 bg-gradient-to-br from-white to-blue-50 p-4 shadow-sm"
-                    >
-                      <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                        0{index + 1}
-                      </div>
-                      <div className="mt-3 text-sm font-semibold text-slate-900">
-                        {label}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                  <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-slate-950 via-blue-500 to-sky-300" />
-                </div>
+              <div className="inline-flex items-center rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-100 px-4 py-3 shadow-sm shadow-blue-100/70">
+                Up-to-date showtimes
               </div>
             </div>
           </div>
@@ -237,22 +197,28 @@ export default function Home() {
                   </h3>
                 </div>
 
-                <p className="text-sm leading-6 text-slate-500">
+                <p className="text-sm leading-6 text-slate-600">
                   {movie.description || 'Pick a showtime, choose your seats, and complete your booking.'}
                 </p>
 
-                <div className="space-y-2 text-sm text-slate-500">
-                  <div>
-                    <span className="font-medium text-slate-700">Languages:</span>{' '}
-                    {(movie.languages || []).join(', ') || 'TBA'}
+                <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-600">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">Languages</span>
+                    <span className="text-right font-medium text-slate-800">
+                      {(movie.languages || []).join(', ') || 'TBA'}
+                    </span>
                   </div>
-                  <div>
-                    <span className="font-medium text-slate-700">Cities:</span>{' '}
-                    {(movie.cities || []).join(', ') || 'TBA'}
+                  <div className="flex items-start justify-between gap-3 border-t border-blue-100 pt-3">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">Cities</span>
+                    <span className="text-right font-medium text-slate-800">
+                      {(movie.cities || []).join(', ') || 'TBA'}
+                    </span>
                   </div>
-                  <div>
-                    <span className="font-medium text-slate-700">Next show:</span>{' '}
-                    {movie.nextShowAt ? formatDateTimeTo12Hour(movie.nextShowAt) : 'Coming soon'}
+                  <div className="flex items-start justify-between gap-3 border-t border-blue-100 pt-3">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">Next show</span>
+                    <span className="text-right font-semibold text-slate-900">
+                      {movie.nextShowAt ? formatDateTimeTo12Hour(movie.nextShowAt) : 'Showtime will be announced'}
+                    </span>
                   </div>
                 </div>
 
