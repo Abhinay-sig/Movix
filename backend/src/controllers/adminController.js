@@ -324,6 +324,18 @@ function relativeTimeFrom(dateValue) {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
+function resolveBookingRevenue(booking) {
+  const seats = Array.isArray(booking?.BookingSeats) ? booking.BookingSeats : [];
+  const seatTotal = seats.reduce((sum, seat) => sum + Number(seat?.price || 0), 0);
+  return seatTotal > 0 ? seatTotal : Number(booking?.totalAmount || 0);
+}
+
+function sumBookingRevenue(bookings) {
+  return (Array.isArray(bookings) ? bookings : []).reduce((sum, booking) => {
+    return sum + resolveBookingRevenue(booking);
+  }, 0);
+}
+
 function calcPctChange(current, previous) {
   const c = Number(current) || 0;
   const p = Number(previous) || 0;
@@ -1090,25 +1102,19 @@ async function setSeatTypeCap(req, res, next) {
 
 async function revenueDashboard(req, res, next) {
   try {
-    const totalAmountField = db.Booking.rawAttributes.totalAmount?.field || 'total_amount';
     const now = new Date();
     const currentStart = new Date(now);
     currentStart.setDate(now.getDate() - 7);
     const previousStart = new Date(now);
     previousStart.setDate(now.getDate() - 14);
-    const totalRevenueResult = await db.Booking.findOne({
-      attributes: [[db.sequelize.fn('SUM', db.sequelize.col(totalAmountField)), 'totalRevenue']],
-      where: { status: db.BOOKING_STATUS.CONFIRMED },
-      raw: true,
-    });
-    const grossRevenue = Number(totalRevenueResult?.totalRevenue) || 0;
-    const adminRevenue = Number((grossRevenue * 0.05).toFixed(2));
 
     const bookings = await db.Booking.findAll({
       where: { status: db.BOOKING_STATUS.CONFIRMED },
-      attributes: ['showId', 'totalAmount'],
-      raw: true,
+      attributes: ['id', 'showId', 'totalAmount', 'createdAt'],
+      include: [{ model: db.BookingSeat, attributes: ['price'] }],
     });
+
+    const bookingRevenue = Number(sumBookingRevenue(bookings).toFixed(2));
 
     const shows = await db.Show.findAll({ include: [{ model: db.Hall, include: [{ model: db.Theater }] }] });
     const showToTheater = new Map(
@@ -1121,7 +1127,7 @@ async function revenueDashboard(req, res, next) {
     for (const booking of bookings) {
       const theaterId = showToTheater.get(String(booking.showId));
       if (!theaterId) continue;
-      totalsByTheater.set(theaterId, (totalsByTheater.get(theaterId) ?? 0) + Number(booking.totalAmount));
+      totalsByTheater.set(theaterId, (totalsByTheater.get(theaterId) ?? 0) + resolveBookingRevenue(booking));
     }
 
     const theaters = await db.Theater.findAll();
@@ -1137,31 +1143,107 @@ async function revenueDashboard(req, res, next) {
 
     const top5 = ranked.slice(0, 5).map((x) => ({
       ...x,
-      contributionPct: grossRevenue > 0 ? (x.total / grossRevenue) * 100 : 0,
+      contributionPct: bookingRevenue > 0 ? (x.total / bookingRevenue) * 100 : 0,
     }));
-    const [currentWindow, previousWindow] = await Promise.all([
-      db.Booking.findOne({
-        attributes: [[db.sequelize.fn('SUM', db.sequelize.col(totalAmountField)), 'totalRevenue']],
-        where: {
-          status: db.BOOKING_STATUS.CONFIRMED,
-          createdAt: { [Op.gte]: currentStart, [Op.lte]: now },
-        },
+    const currentRevenue = Number(
+      sumBookingRevenue(bookings.filter((booking) => booking.createdAt >= currentStart && booking.createdAt <= now)).toFixed(2)
+    );
+    const previousRevenue = Number(
+      sumBookingRevenue(bookings.filter((booking) => booking.createdAt >= previousStart && booking.createdAt < currentStart)).toFixed(2)
+    );
+    const membershipWhere = {
+      createdAt: { [Op.lte]: now },
+      paymentStatus: { [Op.in]: ['captured', 'authorized'] },
+    };
+    const [membershipRows, currentMembershipRows, previousMembershipRows] = await Promise.all([
+      db.ProMembershipPurchase.findAll({
+        where: membershipWhere,
+        attributes: ['amountRs'],
         raw: true,
       }),
-      db.Booking.findOne({
-        attributes: [[db.sequelize.fn('SUM', db.sequelize.col(totalAmountField)), 'totalRevenue']],
+      db.ProMembershipPurchase.findAll({
         where: {
-          status: db.BOOKING_STATUS.CONFIRMED,
+          ...membershipWhere,
+          createdAt: { [Op.gte]: currentStart, [Op.lte]: now },
+        },
+        attributes: ['amountRs'],
+        raw: true,
+      }),
+      db.ProMembershipPurchase.findAll({
+        where: {
+          ...membershipWhere,
           createdAt: { [Op.gte]: previousStart, [Op.lt]: currentStart },
         },
+        attributes: ['amountRs'],
         raw: true,
       }),
     ]);
-    const currentRevenue = Number(currentWindow?.totalRevenue) || 0;
-    const previousRevenue = Number(previousWindow?.totalRevenue) || 0;
-    const revenueChangePct = calcPctChange(currentRevenue, previousRevenue);
 
-    res.json({ grossRevenue, adminRevenue, revenueChangePct, top5 });
+    const membershipRevenue = Number(
+      membershipRows.reduce((sum, row) => sum + Number(row.amountRs || 0), 0).toFixed(2)
+    );
+    const currentMembershipRevenue = Number(
+      currentMembershipRows.reduce((sum, row) => sum + Number(row.amountRs || 0), 0).toFixed(2)
+    );
+    const previousMembershipRevenue = Number(
+      previousMembershipRows.reduce((sum, row) => sum + Number(row.amountRs || 0), 0).toFixed(2)
+    );
+
+    const grossRevenue = Number((bookingRevenue + membershipRevenue).toFixed(2));
+    const adminRevenue = Number((grossRevenue * 0.2).toFixed(2));
+
+    const revenueChangePct = calcPctChange(
+      Number((currentRevenue + currentMembershipRevenue).toFixed(2)),
+      Number((previousRevenue + previousMembershipRevenue).toFixed(2))
+    );
+
+    const coinRows = await db.MovixCoinTransaction.findAll({
+      attributes: [
+        'type',
+        [db.sequelize.fn('SUM', db.sequelize.col('coins')), 'coinsTotal'],
+        [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'txCount'],
+      ],
+      group: ['type'],
+      raw: true,
+    });
+
+    const coinByType = new Map(coinRows.map((row) => [row.type, row]));
+    const cashbackRow = coinByType.get(db.MOVIX_COIN_TX_TYPES.CASHBACK_CREDIT);
+    const debitRow = coinByType.get(db.MOVIX_COIN_TX_TYPES.BOOKING_DEBIT);
+    const cashbackCoins = Number(cashbackRow?.coinsTotal || 0);
+    const redeemedCoins = Math.abs(Number(debitRow?.coinsTotal || 0));
+    const cashbackTxCount = Number(cashbackRow?.txCount || 0);
+    const redeemTxCount = Number(debitRow?.txCount || 0);
+
+    const walletBalanceResult = await db.User.findOne({
+      attributes: [[db.sequelize.fn('SUM', db.sequelize.col('movix_coins_balance')), 'walletCoinsBalance']],
+      raw: true,
+    });
+    const walletCoinsBalance = Number(walletBalanceResult?.walletCoinsBalance || 0);
+
+    res.json({
+      grossRevenue,
+      adminRevenue,
+      revenueChangePct,
+      top5,
+      bookingRevenue,
+      membership: {
+        totalRevenue: membershipRevenue,
+        totalPurchases: membershipRows.length,
+        currentWindowRevenue: currentMembershipRevenue,
+        previousWindowRevenue: previousMembershipRevenue,
+      },
+      coins: {
+        cashbackCoins,
+        redeemedCoins,
+        cashbackValueRs: cashbackCoins,
+        redeemedValueRs: redeemedCoins,
+        cashbackTxCount,
+        redeemTxCount,
+        walletCoinsBalance,
+        netCoinsIssued: cashbackCoins - redeemedCoins,
+      },
+    });
   } catch (e) {
     next(e);
   }
@@ -1170,30 +1252,53 @@ async function revenueDashboard(req, res, next) {
 async function revenueTrend(req, res, next) {
   try {
     const days = [7, 30].includes(Number(req.query?.days)) ? Number(req.query.days) : 30;
-    const createdAtField = db.Booking.rawAttributes.createdAt?.field || 'created_at';
-    const totalAmountField = db.Booking.rawAttributes.totalAmount?.field || 'total_amount';
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days + 1);
-    const rows = await db.Booking.findAll({
+
+    const bookings = await db.Booking.findAll({
       where: {
         status: db.BOOKING_STATUS.CONFIRMED,
         createdAt: { [Op.gte]: fromDate },
       },
-      attributes: [
-        [db.sequelize.fn('DATE', db.sequelize.col(createdAtField)), 'date'],
-        [db.sequelize.fn('SUM', db.sequelize.col(totalAmountField)), 'revenue'],
-        [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'bookings'],
-      ],
-      group: [db.sequelize.fn('DATE', db.sequelize.col(createdAtField))],
-      order: [[db.sequelize.literal('date'), 'ASC']],
+      attributes: ['id', 'createdAt', 'totalAmount'],
+      include: [{ model: db.BookingSeat, attributes: ['price'] }],
+      order: [['createdAt', 'ASC']],
+    });
+
+    const grouped = new Map();
+    for (const booking of bookings) {
+      const key = new Date(booking.createdAt).toISOString().slice(0, 10);
+      const prev = grouped.get(key) || { revenue: 0, bookings: 0 };
+      prev.revenue += resolveBookingRevenue(booking);
+      prev.bookings += 1;
+      grouped.set(key, prev);
+    }
+
+    const membershipPurchases = await db.ProMembershipPurchase.findAll({
+      where: {
+        createdAt: { [Op.gte]: fromDate },
+        paymentStatus: { [Op.in]: ['captured', 'authorized'] },
+      },
+      attributes: ['createdAt', 'amountRs'],
+      order: [['createdAt', 'ASC']],
       raw: true,
     });
 
-    const trend = rows.map((r) => ({
-      date: String(r.date),
-      revenue: Number(r.revenue || 0),
-      bookings: Number(r.bookings || 0),
-    }));
+    for (const purchase of membershipPurchases) {
+      const key = new Date(purchase.createdAt).toISOString().slice(0, 10);
+      const prev = grouped.get(key) || { revenue: 0, bookings: 0 };
+      prev.revenue += Number(purchase.amountRs || 0);
+      grouped.set(key, prev);
+    }
+
+    const trend = Array.from(grouped.entries())
+      .map(([date, value]) => ({
+        date,
+        revenue: Number(value.revenue.toFixed(2)),
+        bookings: value.bookings,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
     res.json(trend);
   } catch (e) {
     next(e);
@@ -1371,7 +1476,7 @@ async function revenueReport(req, res, next) {
     const { bookingWhere, theaterId } = parseReportQuery(req);
     const bookings = await db.Booking.findAll({
       where: bookingWhere,
-      include: [
+      include: [{ model: db.BookingSeat, attributes: ['price'] },
         {
           model: db.Show,
           include: [
@@ -1395,7 +1500,7 @@ async function revenueReport(req, res, next) {
       const date = new Date(b.createdAt).toISOString().slice(0, 10);
       const theater = b.Show?.Hall?.Theater?.name || 'Unknown';
       const key = `${date}__${theater}`;
-      grouped.set(key, (grouped.get(key) ?? 0) + Number(b.totalAmount));
+      grouped.set(key, (grouped.get(key) ?? 0) + resolveBookingRevenue(b));
     }
 
     const rows = Array.from(grouped.entries())
@@ -1419,7 +1524,7 @@ async function bookingReport(req, res, next) {
       where: bookingWhere,
       include: [
         { model: db.User, attributes: ['name'] },
-        { model: db.BookingSeat, attributes: ['seatCode'] },
+        { model: db.BookingSeat, attributes: ['seatCode', 'price'] },
         {
           model: db.Show,
           include: [
@@ -1441,7 +1546,7 @@ async function bookingReport(req, res, next) {
       user: b.User?.name || 'Unknown',
       movie: b.Show?.Movie?.title || 'Unknown',
       seats: (b.BookingSeats || []).map((s) => s.seatCode),
-      amount: Number(b.totalAmount),
+      amount: Number(resolveBookingRevenue(b).toFixed(2)),
       date: new Date(b.createdAt).toISOString().slice(0, 10),
       theater: b.Show?.Hall?.Theater?.name || 'Unknown',
     }));
@@ -1459,6 +1564,7 @@ async function theaterPerformanceReport(req, res, next) {
     const bookings = await db.Booking.findAll({
       where: bookingWhere,
       include: [
+        { model: db.BookingSeat, attributes: ['price'] },
         {
           model: db.Show,
           include: [{ model: db.Hall, include: [{ model: db.Theater, ...(theaterId ? { where: { id: theaterId } } : {}) }] }],
@@ -1472,7 +1578,7 @@ async function theaterPerformanceReport(req, res, next) {
       if (!theater) continue;
       const key = String(theater.id);
       const prev = byTheater.get(key) || { theater: theater.name, totalRevenue: 0, totalBookings: 0 };
-      prev.totalRevenue += Number(b.totalAmount);
+      prev.totalRevenue += resolveBookingRevenue(b);
       prev.totalBookings += 1;
       byTheater.set(key, prev);
     }
@@ -1542,8 +1648,12 @@ async function cancelShow(req, res, next) {
 
 async function listTheatersWithContribution(req, res, next) {
   try {
-    const bookings = await db.Booking.findAll({ where: { status: db.BOOKING_STATUS.CONFIRMED } });
-    const gross = bookings.reduce((sum, booking) => sum + Number(booking.totalAmount), 0);
+    const bookings = await db.Booking.findAll({
+      where: { status: db.BOOKING_STATUS.CONFIRMED },
+      attributes: ['showId', 'totalAmount'],
+      include: [{ model: db.BookingSeat, attributes: ['price'] }],
+    });
+    const gross = Number(sumBookingRevenue(bookings).toFixed(2));
     const shows = await db.Show.findAll({
       include: [{ model: db.Hall, include: [{ model: db.Theater }] }],
     });
@@ -1553,7 +1663,7 @@ async function listTheatersWithContribution(req, res, next) {
     for (const booking of bookings) {
       const theaterId = showToTheater.get(String(booking.showId));
       if (!theaterId) continue;
-      totalsByTheater.set(theaterId, (totalsByTheater.get(theaterId) ?? 0) + Number(booking.totalAmount));
+      totalsByTheater.set(theaterId, (totalsByTheater.get(theaterId) ?? 0) + resolveBookingRevenue(booking));
     }
 
     const theaters = await db.Theater.findAll();
@@ -1581,7 +1691,7 @@ async function revenueByTheater(req, res, next) {
     const bookings = await db.Booking.findAll({
       where: bookingWhere,
       include: [
-        { model: db.BookingSeat, attributes: ['id'] },
+        { model: db.BookingSeat, attributes: ['id', 'price'] },
         {
           model: db.Show,
           where: Object.keys(showWhere).length ? showWhere : undefined,
@@ -1613,7 +1723,7 @@ async function revenueByTheater(req, res, next) {
         ticketsSold: 0,
         seatInventory: 0,
       };
-      prev.totalRevenue += Number(booking.totalAmount || 0);
+      prev.totalRevenue += resolveBookingRevenue(booking);
       prev.totalBookings += 1;
       prev.ticketsSold += Array.isArray(booking.BookingSeats) ? booking.BookingSeats.length : 0;
 

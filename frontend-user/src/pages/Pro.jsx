@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { api } from '../lib/api'
+import { loadRazorpayCheckout, openRazorpayCheckout } from '../lib/razorpay'
 import { useAuth } from '../useAuth'
 
 function formatDate(value) {
@@ -25,6 +26,12 @@ export default function Pro() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [data, setData] = useState(null)
+  const [activatingPlanCode, setActivatingPlanCode] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+
+  useEffect(() => {
+    loadRazorpayCheckout().catch(() => {})
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -85,12 +92,79 @@ export default function Pro() {
     return `${subscription.proDaysLeft} day(s) left`
   }, [subscription])
 
-  if (loading) {
-    return <div className="py-10 text-center text-slate-500">Loading Movix Pro...</div>
+  async function handleActivate(planCode) {
+    setErr('')
+    setSuccessMessage('')
+    setActivatingPlanCode(planCode)
+
+    try {
+      const trimmedEmail = String(auth.user?.email || '').trim()
+      if (!trimmedEmail) {
+        throw new Error('Your account email is missing. Please login again and retry.')
+      }
+
+      const orderResponse = await api('/pro/order/create', {
+        method: 'POST',
+        token: auth.token,
+        body: {
+          plan: planCode,
+          email: trimmedEmail,
+        },
+      })
+
+      const checkoutResult = await openRazorpayCheckout({
+        key: orderResponse.checkout.key,
+        amount: orderResponse.order.amount,
+        currency: orderResponse.order.currency,
+        name: orderResponse.checkout.name,
+        description: orderResponse.checkout.description,
+        order_id: orderResponse.order.id,
+        prefill: {
+          email: orderResponse.checkout.email || trimmedEmail,
+        },
+      })
+
+      const verifyResponse = await api('/pro/order/verify', {
+        method: 'POST',
+        token: auth.token,
+        body: {
+          plan: planCode,
+          email: trimmedEmail,
+          razorpayOrderId: checkoutResult.razorpay_order_id,
+          razorpayPaymentId: checkoutResult.razorpay_payment_id,
+          razorpaySignature: checkoutResult.razorpay_signature,
+        },
+      })
+
+      if (verifyResponse?.user) {
+        setAuth({ token: auth.token, user: verifyResponse.user })
+      }
+
+      setSuccessMessage(verifyResponse?.message || 'Movix Pro activated successfully.')
+
+      const refreshed = await api(`/pro/me?page=${page}`, { token: auth.token })
+      setData(refreshed)
+    } catch (e) {
+      if (e.status === 401) {
+        logout()
+        return
+      }
+      if (String(e?.message || '').includes('Razorpay checkout was closed before payment completed')) {
+        setErr('Payment was cancelled. You can try again anytime.')
+      } else if (String(e?.message || '').includes('Razorpay checkout failed to load')) {
+        setErr('Razorpay Checkout did not finish loading. Refresh the page and try again.')
+      } else if (String(e?.message || '').includes('returned HTML instead of JSON')) {
+        setErr('Movix could not reach the payment server. Make sure the backend is running and try again.')
+      } else {
+        setErr(e.message)
+      }
+    } finally {
+      setActivatingPlanCode('')
+    }
   }
 
-  if (err) {
-    return <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{err}</div>
+  if (loading) {
+    return <div className="py-10 text-center text-slate-500">Loading Movix Pro...</div>
   }
 
   return (
@@ -110,10 +184,13 @@ export default function Pro() {
             <div className="text-xs text-slate-500">Valid till: {formatDate(subscription.proExpiresAt)}</div>
           </div>
         </div>
-        {location.state?.success ? (
+        {location.state?.success || successMessage ? (
           <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {location.state.success}
+            {successMessage || location.state.success}
           </div>
+        ) : null}
+        {err ? (
+          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{err}</div>
         ) : null}
       </section>
 
@@ -221,9 +298,14 @@ export default function Pro() {
             <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{plan.label} plan</div>
             <div className="mt-2 text-3xl font-semibold text-slate-900">₹{plan.amountRs}</div>
             <div className="mt-1 text-sm text-slate-500">Validity: {plan.durationDays} days</div>
-            <Link to={`/pro/checkout?plan=${plan.code}`} className="primary-button mt-5 w-full">
-              Activate now
-            </Link>
+            <button
+              type="button"
+              onClick={() => handleActivate(plan.code)}
+              disabled={Boolean(activatingPlanCode)}
+              className="primary-button mt-5 w-full disabled:opacity-60"
+            >
+              {activatingPlanCode === plan.code ? 'Processing...' : 'Activate now'}
+            </button>
           </article>
         ))}
       </section>
