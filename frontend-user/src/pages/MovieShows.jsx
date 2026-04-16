@@ -362,7 +362,7 @@ export default function MovieShows() {
                       <Link
                         key={show.id}
                         to={`/shows/${show.id}/seats`}
-                        className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition-all duration-200 hover:border-slate-900 hover:bg-slate-900 hover:text-white"
+                        className="rounded-full border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700 hover:border-blue-700"
                       >
                         {formatTo12Hour(new Date(show.startsAt).toISOString().slice(11, 16))} • {show.language}
                       </Link>

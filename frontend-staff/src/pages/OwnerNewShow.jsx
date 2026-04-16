@@ -402,13 +402,14 @@ export default function OwnerNewShow() {
 
   const fieldClass =
     'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100'
+  const selectClass = withFieldError('staff-select', false)
 
   const panelClass =
     'rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8'
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-2">
+      <div className="mx-auto flex max-w-5xl flex-col gap-2 text-center">
         <h2 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
           Create showtime
         </h2>
@@ -417,7 +418,7 @@ export default function OwnerNewShow() {
         </p>
       </div>
 
-      <div className={`max-w-5xl ${panelClass}`}>
+      <div className={`mx-auto max-w-5xl ${panelClass}`}>
         <form onSubmit={submit} className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
@@ -432,7 +433,7 @@ export default function OwnerNewShow() {
                   setSchedule(null)
                   setFieldErrors((prev) => ({ ...prev, theaterId: '' }))
                 }}
-                className={withFieldError(fieldClass, Boolean(fieldErrors.theaterId))}
+                className={withFieldError(selectClass, Boolean(fieldErrors.theaterId))}
               >
                 <option value="">Choose a theater…</option>
                 {theaters.map((theater) => (
@@ -453,7 +454,7 @@ export default function OwnerNewShow() {
                   setHallId(e.target.value)
                   setFieldErrors((prev) => ({ ...prev, hallId: '' }))
                 }}
-                className={withFieldError(fieldClass, Boolean(fieldErrors.hallId))}
+                className={withFieldError(selectClass, Boolean(fieldErrors.hallId))}
                 disabled={!theaterId}
               >
                 <option value="">
@@ -478,7 +479,7 @@ export default function OwnerNewShow() {
                 setMovieId(e.target.value)
                 setFieldErrors((prev) => ({ ...prev, movieId: '' }))
               }}
-              className={withFieldError(fieldClass, Boolean(fieldErrors.movieId))}
+              className={withFieldError(selectClass, Boolean(fieldErrors.movieId))}
             >
               <option value="">Choose a title…</option>
               {movies.map((movie) => (
@@ -552,7 +553,7 @@ export default function OwnerNewShow() {
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              className={fieldClass}
+              className={selectClass}
               required
             >
               {availableLanguages.map((option) => (
@@ -694,7 +695,7 @@ export default function OwnerNewShow() {
                   setViewTheaterId(e.target.value)
                   setViewHallId('')
                 }}
-                className={fieldClass}
+                className={selectClass}
               >
                 <option value="">All theaters</option>
                 {theaters.map((theater) => (
@@ -711,7 +712,7 @@ export default function OwnerNewShow() {
                 value={viewHallId}
                 onChange={(e) => setViewHallId(e.target.value)}
                 disabled={!viewTheaterId}
-                className={fieldClass}
+                className={selectClass}
               >
                 <option value="">
                   {!viewTheaterId ? 'Select theater first' : 'All halls'}
@@ -729,7 +730,7 @@ export default function OwnerNewShow() {
               <select
                 value={viewMovieId}
                 onChange={(e) => setViewMovieId(e.target.value)}
-                className={fieldClass}
+                className={selectClass}
               >
                 <option value="">All movies</option>
                 {movies.map((movie) => (
@@ -745,7 +746,7 @@ export default function OwnerNewShow() {
               <select
                 value={viewStatus}
                 onChange={(e) => setViewStatus(e.target.value)}
-                className={fieldClass}
+                className={selectClass}
               >
                 <option value="all">All statuses</option>
                 <option value="approved">Approved</option>
@@ -759,7 +760,7 @@ export default function OwnerNewShow() {
               <select
                 value={viewTimeSlot}
                 onChange={(e) => setViewTimeSlot(e.target.value)}
-                className={fieldClass}
+                className={selectClass}
               >
                 <option value="all">All time slots</option>
                 <option value="morning">Morning (6AM - 12PM)</option>

@@ -6,16 +6,16 @@
   --color-brand-200: #bfdbfe;
   --color-brand-500: #60a5fa;
   --color-brand-600: #3b82f6;
-  --color-lilac-50: #f5f3ff;
-  --color-lilac-100: #ede9fe;
-  --color-mint-50: #ecfdf5;
-  --color-mint-100: #d1fae5;
-  --color-peach-50: #fff7ed;
-  --color-peach-100: #ffedd5;
-  --color-rose-50: #fff1f2;
-  --color-rose-100: #ffe4e6;
-  --color-surface: #ffffff;
-  --color-page: #f4f7fb;
+  --color-lilac-50: #eff6ff;
+  --color-lilac-100: #dbeafe;
+  --color-mint-50: #eff6ff;
+  --color-mint-100: #dbeafe;
+  --color-peach-50: #eff6ff;
+  --color-peach-100: #dbeafe;
+  --color-rose-50: #eff6ff;
+  --color-rose-100: #dbeafe;
+  --color-surface: #f8fbff;
+  --color-page: #edf5ff;
   --color-ink: #0f172a;
   --color-muted: #64748b;
 }
@@ -78,7 +78,7 @@
   }
 
   .secondary-button {
-    @apply inline-flex items-center justify-center rounded-2xl border border-pink-100 bg-linear-to-r from-white via-blue-50 to-orange-50 px-6 py-3.5 text-sm font-semibold text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-fuchsia-200 hover:from-blue-50 hover:via-lilac-50 hover:to-peach-50 hover:text-slate-950;
+    @apply inline-flex items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.18)] transition-all duration-300 hover:bg-blue-700 hover:border-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .field-input {
@@ -104,6 +104,54 @@
 
   .pulse-ring {
     animation: pulse-ring 2.6s ease-in-out infinite;
+  }
+}
+
+@layer base {
+  [class*="bg-white"] {
+    background-color: #f8fbff !important;
+  }
+
+  [class*="bg-slate-50"],
+  [class*="bg-zinc-50"],
+  [class*="bg-gray-50"],
+  [class*="bg-neutral-50"],
+  [class*="bg-stone-50"] {
+    background-color: #eff6ff !important;
+  }
+
+  [class*="bg-slate-100"],
+  [class*="bg-zinc-100"],
+  [class*="bg-gray-100"],
+  [class*="bg-neutral-100"],
+  [class*="bg-stone-100"] {
+    background-color: #dbeafe !important;
+  }
+
+  [class*="bg-slate-200"],
+  [class*="bg-zinc-200"],
+  [class*="bg-gray-200"],
+  [class*="bg-neutral-200"],
+  [class*="bg-stone-200"] {
+    background-color: #bfdbfe !important;
+  }
+
+  [class*="bg-red-"],
+  [class*="bg-rose-"],
+  [class*="bg-orange-"],
+  [class*="bg-amber-"],
+  [class*="bg-yellow-"],
+  [class*="bg-lime-"],
+  [class*="bg-green-"],
+  [class*="bg-emerald-"],
+  [class*="bg-teal-"],
+  [class*="bg-cyan-"],
+  [class*="bg-violet-"],
+  [class*="bg-purple-"],
+  [class*="bg-fuchsia-"],
+  [class*="bg-pink-"] {
+    background-color: #dbeafe !important;
+    background-image: none !important;
   }
 }
 

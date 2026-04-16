@@ -128,7 +128,7 @@ export default function OwnerSignup() {
                   type="button"
                   onClick={resendVerification}
                   disabled={remainingSeconds > 0 || resending}
-                  className="rounded-full border border-amber-300 px-4 py-2 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-full border border-blue-600 bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-700 hover:border-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {resending ? 'Sending…' : 'Resend verification link'}
                 </button>
@@ -136,7 +136,7 @@ export default function OwnerSignup() {
                 <button
                   type="button"
                   onClick={() => setVerification(null)}
-                  className="rounded-full border border-slate-200 px-4 py-2 font-semibold text-slate-700 transition-colors hover:bg-white"
+                  className="rounded-full border border-blue-600 bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-700 hover:border-blue-700"
                 >
                   Use a different email
                 </button>
@@ -147,7 +147,7 @@ export default function OwnerSignup() {
               <button
                 type="button"
                 onClick={startGoogleAuth}
-                className="flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                className="flex w-full items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 hover:border-blue-700"
               >
                 Continue with Google
               </button>

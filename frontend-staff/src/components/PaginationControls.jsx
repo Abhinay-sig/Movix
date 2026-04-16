@@ -26,7 +26,7 @@ export default function PaginationControls({ pagination, onPageChange }) {
           type="button"
           onClick={() => onPageChange(pagination.page - 1)}
           disabled={!pagination.hasPrevPage}
-          className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-all duration-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center justify-center rounded-2xl border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 hover:border-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Previous
         </button>
@@ -38,8 +38,8 @@ export default function PaginationControls({ pagination, onPageChange }) {
             onClick={() => onPageChange(page)}
             className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border text-sm font-medium transition-all duration-200 ${
               page === pagination.page
-                ? 'border-slate-900 bg-slate-900 text-white'
-                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'border-blue-800 bg-blue-800 text-white'
+                : 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700 hover:border-blue-700'
             }`}
           >
             {page}
@@ -50,7 +50,7 @@ export default function PaginationControls({ pagination, onPageChange }) {
           type="button"
           onClick={() => onPageChange(pagination.page + 1)}
           disabled={!pagination.hasNextPage}
-          className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-all duration-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center justify-center rounded-2xl border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 hover:border-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Next
         </button>

@@ -105,8 +105,8 @@ export default function Login() {
   const tabClass = (active) =>
     `flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-300 ${
       active
-        ? 'bg-blue-600 text-white shadow-sm'
-        : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+        ? 'border border-blue-700 bg-blue-700 text-white shadow-sm'
+        : 'border border-blue-600 bg-blue-600 text-white hover:bg-blue-700 hover:border-blue-700'
     }`
 
   return (
@@ -144,7 +144,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={startGoogleAuth}
-                className="flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                className="flex w-full items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 hover:border-blue-700"
               >
                 Continue with Google
               </button>
@@ -233,7 +233,7 @@ export default function Login() {
               type="button"
               onClick={resendVerification}
               disabled={remainingSeconds > 0 || resending}
-              className="mt-4 rounded-full border border-amber-300 px-4 py-2 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-4 rounded-full border border-blue-600 bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-700 hover:border-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {resending ? 'Sending…' : 'Resend verification'}
             </button>

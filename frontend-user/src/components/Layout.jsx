@@ -7,36 +7,36 @@ export default function Layout() {
 
   return (
     <div className="app-shell bg-slate-50 text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
-          <div className="flex items-center gap-8">
+      <header className="sticky top-0 z-50 px-3 pt-3 text-white">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-[1.75rem] border border-blue-300/70 bg-gradient-to-r from-blue-700 via-blue-600 to-sky-600 px-4 py-4 shadow-[0_18px_40px_rgba(37,99,235,0.22)] backdrop-blur md:px-6 md:py-5">
+          <div className="flex items-center gap-6 lg:gap-10">
             <Link
               to="/"
-              className="group flex items-center gap-3 transition-opacity duration-300 hover:opacity-85"
+              className="group flex items-center gap-3.5 transition-opacity duration-300 hover:opacity-90"
             >
               {/* <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-sm font-bold text-white">
                 M
               </div> */}
               <img src="../../public/movix.svg" alt=""  className="h-10 w-10" />
               <span>
-                <span className="block text-lg font-semibold tracking-[0.01em] text-slate-900 md:text-xl">
+                <span className="block text-lg font-semibold tracking-[0.01em] text-white md:text-xl">
                   Movix
                 </span>
-                <span className="block text-xs tracking-[0.16em] text-slate-500 uppercase">
+                <span className="block text-xs uppercase tracking-[0.16em] text-white/90">
                   Movie tickets
                 </span>
               </span>
             </Link>
 
-            <nav className="hidden items-center gap-5 text-sm font-medium text-slate-600 md:flex">
-              <Link to="/" className="transition-colors hover:text-blue-600">
+            <nav className="hidden items-center gap-3 text-sm font-medium text-blue-50 md:flex">
+              <Link to="/" className="inline-flex min-h-11 items-center justify-center rounded-full border border-blue-900/20 bg-blue-800 px-4 py-2 text-white shadow-sm transition-colors hover:bg-blue-900">
                 Home
               </Link>
               {/* <Link to="/" className="transition-colors hover:text-blue-600">
                 Movies
               </Link> */}
               {auth ? (
-                <Link to="/my-tickets" className="transition-colors hover:text-blue-600">
+                <Link to="/my-tickets" className="inline-flex min-h-11 items-center justify-center rounded-full border border-blue-900/20 bg-blue-800 px-4 py-2 text-white shadow-sm transition-colors hover:bg-blue-900">
                   My Tickets
                 </Link>
               ) : null}
@@ -44,29 +44,25 @@ export default function Layout() {
           </div>
 
           {auth ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 sm:gap-4">
               <Link
                 to="/pro"
-                className={`inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition-colors ${
-                  isProActive
-                    ? 'border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    : 'border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                }`}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-900/20 bg-blue-800 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] text-white shadow-sm transition-colors hover:bg-blue-900"
               >
                 Movix Pro
               </Link>
-              <div className="hidden text-right sm:block">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Signed in</div>
-                <div className={`rounded-lg px-3 py-1.5 ${isProActive ? 'border border-amber-200 bg-amber-50' : ''}`}>
-                  <div className="text-sm font-medium text-slate-900">{auth.user?.name}</div>
+              <div className="hidden min-h-11 rounded-xl border border-blue-900/20 bg-blue-800 px-4 py-2.5 text-center shadow-sm sm:flex sm:min-w-44 sm:flex-col sm:items-center sm:justify-center">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-blue-100">Signed in</div>
+                <div className={`mt-0.5 rounded-md ${isProActive ? 'text-white' : ''}`}>
+                  <div className="text-sm font-medium leading-4 text-white">{auth.user?.name}</div>
                   {isProActive ? (
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-600">Pro</div>
+                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-100">Pro</div>
                   ) : null}
                 </div>
               </div>
               <button
                 onClick={logout}
-                className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-900/20 bg-blue-800 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-900"
               >
                 Logout
               </button>
@@ -74,7 +70,7 @@ export default function Layout() {
           ) : (
             <Link
               to="/login"
-              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-900/20 bg-blue-800 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-900"
             >
               Login
             </Link>
