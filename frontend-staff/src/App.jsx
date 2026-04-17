@@ -11,6 +11,7 @@ import OwnerNewHall from './pages/OwnerNewHall'
 import OwnerNewShow from './pages/OwnerNewShow'
 import OwnerRevenue from './pages/OwnerRevenue'
 import AdminDashboard from './pages/AdminDashboard'
+import AdminOwners from './pages/AdminOwners'
 import AdminAddMovie from './pages/AdminAddMovie'
 import AdminMovies from './pages/AdminMovies'
 import AdminApprovals from './pages/AdminApprovals'
@@ -61,6 +62,7 @@ export default function App() {
 
         <Route element={<ProtectedRoute><RequireRole role="admin" /></ProtectedRoute>}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/multiplexes" element={<AdminOwners />} />
           <Route path="/admin/movies" element={<AdminMovies />} />
           <Route path="/admin/movies/new" element={<AdminAddMovie />} />
           <Route path="/admin/movies/:id/edit" element={<AdminAddMovie />} />

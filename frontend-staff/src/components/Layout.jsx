@@ -13,9 +13,6 @@ export default function Layout() {
               to="/"
               className="group flex items-center gap-3 transition-opacity duration-300 hover:opacity-85"
             >
-              {/* <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-sm font-bold text-white">
-                M
-              </div> */}
               <img src="../../public/movix.svg" alt="" className="h-10 w-10" />
               <span>
                 <span className="block text-xl font-semibold tracking-[0.01em] text-slate-900">
@@ -41,6 +38,7 @@ export default function Layout() {
               {auth?.user?.role === 'admin' ? (
                 <>
                   <Link to="/admin/dashboard" className="nav-link">Dashboard</Link>
+                  <Link to="/admin/multiplexes" className="nav-link">Multiplexes</Link>
                   <Link to="/admin/approvals" className="nav-link">Approvals</Link>
                   <Link to="/admin/movies" className="nav-link">Movies</Link>
                   <Link to="/admin/caps" className="nav-link">Pricing</Link>
@@ -96,6 +94,7 @@ export default function Layout() {
             {auth?.user?.role === 'admin' ? (
               <>
                 <Link to="/admin/dashboard" className="nav-chip">Dashboard</Link>
+                <Link to="/admin/multiplexes" className="nav-chip">Multiplexes</Link>
                 <Link to="/admin/approvals" className="nav-chip">Approvals</Link>
                 <Link to="/admin/movies" className="nav-chip">Movies</Link>
                 <Link to="/admin/caps" className="nav-chip">Pricing</Link>
