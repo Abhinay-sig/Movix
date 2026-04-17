@@ -51,7 +51,7 @@
 
 @layer components {
   .staff-shell {
-    @apply relative min-h-screen overflow-hidden;
+    @apply relative min-h-screen overflow-x-hidden;
   }
 
   .staff-shell::before {

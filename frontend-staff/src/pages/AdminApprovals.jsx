@@ -5,6 +5,7 @@ import { useAuth } from '../useAuth'
 import SeatCapModal from '../components/SeatCapModal'
 import RejectModal from '../components/RejectModal'
 import { formatDateTimeTo12Hour } from '../lib/time'
+import { useNotification } from '../NotificationProvider'
 
 function timeAgo(value) {
   if (!value) return 'just now'
@@ -67,6 +68,7 @@ function priorityForShow(show) {
 
 export default function AdminApprovals() {
   const { auth } = useAuth()
+  const { showNotification } = useNotification()
   const [data, setData] = useState(null)
   const [err, setErr] = useState('')
   const [capModalHallId, setCapModalHallId] = useState(null)
@@ -77,7 +79,6 @@ export default function AdminApprovals() {
   const [entityType, setEntityType] = useState(null)
   const [rejectSubmitting, setRejectSubmitting] = useState(false)
   const [rejectError, setRejectError] = useState('')
-  const [toast, setToast] = useState('')
 
   async function load() {
     if (!auth?.token) return
@@ -97,6 +98,11 @@ export default function AdminApprovals() {
       body: { theaterId, approve },
     })
     await load()
+    showNotification({
+      title: approve ? 'Theater approved' : 'Theater rejected',
+      message: approve ? 'The theater is now approved and live for management.' : 'The theater request has been rejected.',
+      type: approve ? 'success' : 'error',
+    })
   }
 
   async function actHall(hallId, approve) {
@@ -106,6 +112,11 @@ export default function AdminApprovals() {
       body: { hallId, approve },
     })
     await load()
+    showNotification({
+      title: approve ? 'Hall approved' : 'Hall rejected',
+      message: approve ? 'The hall was approved successfully.' : 'The hall request has been rejected.',
+      type: approve ? 'success' : 'error',
+    })
   }
 
   async function actShow(showId, approve) {
@@ -115,6 +126,11 @@ export default function AdminApprovals() {
       body: { showId, approve },
     })
     await load()
+    showNotification({
+      title: approve ? 'Show approved' : 'Show rejected',
+      message: approve ? 'The showtime is now approved.' : 'The showtime request has been rejected.',
+      type: approve ? 'success' : 'error',
+    })
   }
 
   function openRejectModal(e, entity, item) {
@@ -148,20 +164,18 @@ export default function AdminApprovals() {
       setRejectModalOpen(false)
       setSelectedItem(null)
       setEntityType(null)
-      setToast(`${entityType === 'hall' ? 'Hall' : 'Show'} rejected successfully`)
       await load()
+      showNotification({
+        title: `${entityType === 'hall' ? 'Hall' : 'Show'} rejected`,
+        message: `${entityType === 'hall' ? 'Hall' : 'Show'} was rejected successfully.`,
+        type: 'error',
+      })
     } catch (e) {
       setRejectError(e.message || 'Failed to reject')
     } finally {
       setRejectSubmitting(false)
     }
   }
-
-  useEffect(() => {
-    if (!toast) return
-    const timer = setTimeout(() => setToast(''), 2500)
-    return () => clearTimeout(timer)
-  }, [toast])
 
   const sortedHalls = useMemo(() => {
     const halls = [...(data?.halls || [])]
@@ -187,9 +201,6 @@ export default function AdminApprovals() {
     <div>
       <h2 className="text-4xl font-bold text-black">Approvals</h2>
       {err ? <div className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-900 mb-6">{err}</div> : null}
-      {toast ? (
-        <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg">{toast}</div>
-      ) : null}
 
       {!data ? (
         <div className="text-gray-300 text-lg">Loading…</div>
@@ -224,9 +235,9 @@ export default function AdminApprovals() {
                 Shows ({data.shows.length})
               </button>
             </div>
-            <div className="flex items-center gap-2 text-white">
-              <label className="text-sm font-medium whitespace-nowrap">Sort:</label>
-              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="h-[52px] px-4 border border-gray-300 rounded-xl bg-white text-gray-700 min-w-[180px]">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium whitespace-nowrap text-slate-700">Sort:</label>
+              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="h-[52px] min-w-[180px] rounded-xl border border-slate-300 bg-white px-4 text-slate-700 shadow-sm">
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
               </select>
@@ -244,9 +255,24 @@ export default function AdminApprovals() {
                     <div className="text-sm text-gray-400 mb-2">Submitted {timeAgo(h.createdAt)}</div>
                     <div className="mb-4"><span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700">{h.screenType || 'Not specified'}</span></div>
                     <div className="flex flex-wrap gap-3">
-                      <button type="button" onClick={() => setCapModalHallId(h.id)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">Approve</button>
-                      <Link to={`/admin/approvals/${h.id}`} className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300">View details</Link>
-                      <button type="button" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => openRejectModal(e, 'hall', h)} className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200">Reject</button>
+                      <button
+                        type="button"
+                        onClick={() => setCapModalHallId(h.id)}
+                        className="px-6 py-2 text-white font-medium rounded-lg transition-colors hover:opacity-95"
+                        style={{ background: '#16a34a', color: '#ffffff' }}
+                      >
+                        Approve
+                      </button>
+                      <Link to={`/admin/approvals/${h.id}`} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors border border-blue-700">View details</Link>
+                      <button
+                        type="button"
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+                        onClick={(e) => openRejectModal(e, 'hall', h)}
+                        className="px-6 py-2 text-white font-medium rounded-lg transition-colors hover:opacity-95"
+                        style={{ background: '#dc2626', color: '#ffffff' }}
+                      >
+                        Reject
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -284,9 +310,24 @@ export default function AdminApprovals() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-3">
-                      <button type="button" onClick={() => actShow(show.id, true)} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">Approve</button>
-                      <Link to={`/admin/shows/${show.id}`} className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors border border-slate-300">View details</Link>
-                      <button type="button" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => openRejectModal(e, 'show', show)} className="px-6 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition-colors border border-red-200">Reject</button>
+                      <button
+                        type="button"
+                        onClick={() => actShow(show.id, true)}
+                        className="px-6 py-2 text-white font-medium rounded-lg transition-colors hover:opacity-95"
+                        style={{ background: '#16a34a', color: '#ffffff' }}
+                      >
+                        Approve
+                      </button>
+                      <Link to={`/admin/shows/${show.id}`} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors border border-blue-700">View details</Link>
+                      <button
+                        type="button"
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+                        onClick={(e) => openRejectModal(e, 'show', show)}
+                        className="px-6 py-2 text-white font-medium rounded-lg transition-colors hover:opacity-95"
+                        style={{ background: '#dc2626', color: '#ffffff' }}
+                      >
+                        Reject
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -302,7 +343,14 @@ export default function AdminApprovals() {
         hallId={capModalHallId}
         token={auth?.token}
         onClose={() => setCapModalHallId(null)}
-        onApproved={() => load().catch(() => {})}
+        onApproved={() => {
+          load().catch(() => {})
+          showNotification({
+            title: 'Hall approved',
+            message: 'The hall and its seat caps were approved successfully.',
+            type: 'success',
+          })
+        }}
       />
 
       <RejectModal

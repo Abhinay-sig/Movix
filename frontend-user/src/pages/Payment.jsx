@@ -218,6 +218,33 @@ export default function Payment() {
     })
   }, [nav, releaseHeldSeats, seatSessionToken, showId])
 
+  const handlePaymentFailure = useCallback(
+    async (message) => {
+      const failedSessionToken = seatSessionToken
+      const failedSeatCodes = [...seatCodesRef.current]
+
+      savePendingSeatRelease({
+        showId: Number(showId),
+        seatCodes: failedSeatCodes,
+        sessionToken: failedSessionToken,
+      })
+      await releaseHeldSeats()
+      resetSeatSessionToken()
+      nav(`/shows/${showId}/seats`, {
+        replace: true,
+        state: {
+          releaseHold: {
+            seatCodes: failedSeatCodes,
+            sessionToken: failedSessionToken,
+          },
+          paymentFailureNotice:
+            message || 'Payment failed due to an error. Please select your seats again.',
+        },
+      })
+    },
+    [nav, releaseHeldSeats, seatSessionToken, showId]
+  )
+
   useEffect(() => {
     if (!seatCodes.length) return
 
@@ -316,6 +343,11 @@ export default function Payment() {
         }
 
         clearPendingSeatRelease()
+        showNotification({
+          title: 'Booking confirmed',
+          message: 'Your seats are booked and your receipt is ready.',
+          type: 'success',
+        })
         return
       }
 
@@ -401,7 +433,10 @@ export default function Payment() {
         openHoldExpiredPopup(error.message || 'Your seat hold expired. Please choose your seats again.')
         return
       }
-      setErr(normalizeErrorMessage(error))
+      await handlePaymentFailure(
+        normalizeErrorMessage(error) || 'Payment failed due to an error. Please select your seats again.'
+      )
+      return
     } finally {
       setLoading(false)
       setPaymentStep('')
@@ -437,7 +472,17 @@ export default function Payment() {
                   Razorpay confirmed your payment and Movix issued the booking instantly.
                 </p>
               </div>
-              <button type="button" onClick={() => setShowSuccessModal(false)} className="primary-button mt-6 w-full">
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className="mt-6 w-full rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:opacity-95"
+                style={{
+                  background: '#16a34a',
+                  backgroundImage: 'none',
+                  color: '#ffffff',
+                  border: '1px solid #15803d',
+                }}
+              >
                 Continue
               </button>
             </div>
@@ -567,7 +612,12 @@ export default function Payment() {
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-red-500">Seat hold expired</div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">Choose seats again</div>
             <p className="mt-3 text-sm leading-6 text-slate-500">{holdExpiredMessage}</p>
-            <button type="button" onClick={goBackToSeatSelection} className="primary-button mt-6 w-full">
+            <button
+              type="button"
+              onClick={goBackToSeatSelection}
+              className="mt-6 w-full rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
+              style={{ backgroundColor: '#dc2626', color: '#ffffff' }}
+            >
               Return to seat selection
             </button>
           </div>

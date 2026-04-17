@@ -55,7 +55,7 @@
 
 @layer components {
   .app-shell {
-    @apply relative min-h-screen overflow-hidden;
+    @apply relative min-h-screen overflow-x-hidden;
   }
 
   .app-shell::before {

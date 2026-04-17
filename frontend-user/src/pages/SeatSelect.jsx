@@ -112,7 +112,16 @@ export default function SeatSelect() {
 
   useEffect(() => {
     const releaseHold = location.state?.releaseHold || getPendingSeatRelease()
+    const paymentFailureNotice = location.state?.paymentFailureNotice
     if (!releaseHold?.sessionToken || !Array.isArray(releaseHold.seatCodes) || !releaseHold.seatCodes.length) {
+      if (paymentFailureNotice) {
+        showNotification({
+          title: 'Payment failed',
+          message: paymentFailureNotice,
+          type: 'error',
+        })
+        nav(location.pathname, { replace: true, state: null })
+      }
       return
     }
 
@@ -135,6 +144,13 @@ export default function SeatSelect() {
         if (!alive) return
         clearPendingSeatRelease()
         await refreshSeatMap(true).catch(() => {})
+        if (paymentFailureNotice) {
+          showNotification({
+            title: 'Payment failed',
+            message: paymentFailureNotice,
+            type: 'error',
+          })
+        }
         nav(location.pathname, { replace: true, state: null })
       }
     }
@@ -144,7 +160,7 @@ export default function SeatSelect() {
     return () => {
       alive = false
     }
-  }, [auth.token, location.pathname, location.state, nav, refreshSeatMap, showId])
+  }, [auth.token, location.pathname, location.state, nav, refreshSeatMap, showId, showNotification])
 
   useEffect(() => {
     let alive = true

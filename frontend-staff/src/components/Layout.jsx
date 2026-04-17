@@ -6,7 +6,7 @@ export default function Layout() {
 
   return (
     <div className="staff-shell text-slate-900">
-      <header className="sticky top-0 z-50 px-3 pt-3 text-white">
+      <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 text-white">
         <div className="mx-auto max-w-7xl rounded-[1.75rem] border border-blue-300/70 bg-gradient-to-r from-blue-700 via-blue-600 to-sky-600 px-4 py-4 shadow-[0_18px_40px_rgba(37,99,235,0.22)] backdrop-blur sm:px-6 lg:px-8 lg:py-5">
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
             <Link
@@ -107,7 +107,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-6 pt-36 sm:px-6 lg:px-8 lg:pb-10 lg:pt-40">
         <div className="staff-panel fade-up border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)]">
           <div className="p-4 sm:p-6 lg:p-8">
             <Outlet />
