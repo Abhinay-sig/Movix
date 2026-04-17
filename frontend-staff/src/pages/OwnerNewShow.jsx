@@ -636,7 +636,7 @@ export default function OwnerNewShow() {
 
           <button
             type="submit"
-            disabled={submitting || hasConflict}
+            disabled={submitting}
             className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-600 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? 'Submitting…' : 'Publish showtime'}
