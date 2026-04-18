@@ -877,6 +877,14 @@ async function hallCapsDetails(req, res, next) {
       screenType: hallJson.screenType ?? inferScreenType(hallJson.name),
       theaterName: hallJson.Theater?.name ?? null,
       totalSeats,
+      seatLayout: hallJson.HallLayout
+        ? {
+            rows: hallJson.HallLayout.rows,
+            cols: hallJson.HallLayout.cols,
+            segmentsByRow: hallJson.HallLayout.segmentsByRow,
+            typedSegmentsByRow: hallJson.HallLayout.typedSegmentsByRow,
+          }
+        : null,
       seatTypes,
     });
   } catch (e) {
