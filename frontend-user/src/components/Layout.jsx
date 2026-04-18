@@ -16,9 +16,6 @@ export default function Layout() {
               to="/"
               className="group flex items-center gap-3 transition-opacity duration-300 hover:opacity-85"
             >
-              {/* <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-sm font-bold text-white">
-                M
-              </div> */}
               <img src="../../public/movix.svg" alt=""  className="h-10 w-10" />
               <span>
                 <span className="block text-lg font-semibold tracking-[0.01em] text-slate-900 md:text-xl">
@@ -78,9 +75,9 @@ export default function Layout() {
                 <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Signed in</div>
                 <div className={`rounded-lg px-3 py-1.5 ${isProActive ? 'border border-amber-200 bg-amber-50' : ''}`}>
                   <div className="text-sm font-medium text-slate-900">{auth.user?.name}</div>
-                  {isProActive ? (
+                  {/* {isProActive ? (
                     <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-600">Pro</div>
-                  ) : null}
+                  ) : null} */}
                 </div>
               </div>
               <button

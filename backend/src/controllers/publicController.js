@@ -61,8 +61,9 @@ async function listMovies(req, res, next) {
     const cityFilter = String(req.query.city ?? '').trim().toLowerCase();
     const durationFilter = String(req.query.duration ?? '').trim().toLowerCase();
 
+    const now = new Date();
     const shows = await db.Show.findAll({
-      where: { status: 'approved', isApproved: true, isBlocked: false, isCancelled: false },
+      where: { status: 'approved', isApproved: true, isBlocked: false, isCancelled: false, startsAt: { [Op.gt]: now } },
       include: [
         {
           model: db.Movie,
