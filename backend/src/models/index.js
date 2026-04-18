@@ -4,6 +4,7 @@ const { defineUser, USER_ROLES, AUTH_PROVIDERS } = require('./User');
 const { defineTheater } = require('./Theater');
 const { defineHall } = require('./Hall');
 const { defineHallLayout } = require('./HallLayout');
+const { defineAdminRejection } = require('./AdminRejection');
 const { defineMovie } = require('./Movie');
 const { defineMovieLanguage } = require('./MovieLanguage');
 const { defineOwnerMovie } = require('./OwnerMovie');
@@ -29,6 +30,7 @@ db.AUTH_PROVIDERS = AUTH_PROVIDERS;
 db.Theater = defineTheater(sequelize);
 db.Hall = defineHall(sequelize);
 db.HallLayout = defineHallLayout(sequelize);
+db.AdminRejection = defineAdminRejection(sequelize);
 
 db.Movie = defineMovie(sequelize);
 db.MovieLanguage = defineMovieLanguage(sequelize);

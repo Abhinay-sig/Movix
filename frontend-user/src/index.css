@@ -105,6 +105,10 @@
   .pulse-ring {
     animation: pulse-ring 2.6s ease-in-out infinite;
   }
+
+  .nav-link {
+    @apply rounded-full border border-transparent px-5 py-2.5 text-sm font-medium text-slate-600 transition-all duration-300 hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm;
+  }
 }
 
 @keyframes fade-up {

@@ -271,9 +271,9 @@ export default function AdminDashboard() {
                 <h4 className="text-lg font-bold text-emerald-900">Update Seat Caps</h4>
                 <p className="text-sm text-emerald-800 mt-2">Manage pricing limits for seat types</p>
               </button>
-              <button onClick={() => nav('/admin/reports')} className="text-left bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all">
-                <h4 className="text-lg font-bold text-slate-900">View Reports</h4>
-                <p className="text-sm text-slate-700 mt-2">Analyze revenue and booking data</p>
+              <button onClick={() => nav('/admin/multiplexes')} className="text-left bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all">
+                <h4 className="text-lg font-bold text-slate-900">View Muliplexes</h4>
+                <p className="text-sm text-slate-700 mt-2">Manage and view all multiplexes</p>
               </button>
               <button onClick={() => nav('/admin/blocking')} className="text-left bg-rose-50 border border-rose-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all">
                 <h4 className="text-lg font-bold text-rose-900">Manage Visibility</h4>

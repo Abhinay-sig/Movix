@@ -203,12 +203,98 @@ async function createTheater(req, res, next) {
 
 async function listMyTheaters(req, res, next) {
   try {
-    const where = buildTheaterFilters(req.query, req.user.id);
+    let where = buildTheaterFilters(req.query, req.user.id);
     const { page, limit, offset, hasPagination } = parsePagination(req.query, {
       defaultLimit: 5,
       maxLimit: 20,
     });
 
+    // Special-case: for owner listing, when status=rejected, return theaters that have
+    // an admin rejection entry recorded. buildTheaterFilters currently cannot express
+    // this directly using simple columns, so resolve rejected ids here.
+    if (String(req.query?.status || '').trim().toLowerCase() === 'rejected') {
+      // For rejected theaters the record may have been deleted; return entries from AdminRejection.details
+      const allRejected = await db.AdminRejection.findAll({ where: { entityType: 'theater' }, order: [['created_at', 'DESC']] });
+      const ownerId = Number(req.user.id);
+      const myRejected = (allRejected || []).map((r) => ({ id: r.entityId, details: r.details || null, createdAt: r.createdAt })).filter((r) => r.details && Number(r.details.ownerUserId) === ownerId);
+
+      const total = myRejected.length;
+      const start = offset;
+      const end = offset + limit;
+      const pageItems = myRejected.slice(start, end).map((r) => {
+        const d = r.details || {};
+        return {
+          id: r.id,
+          ownerUserId: d.ownerUserId,
+          name: d.name,
+          address: d.address,
+          city: d.city,
+          isBlocked: d.isBlocked ?? true,
+          createdAt: d.createdAt || r.createdAt,
+          // attach rejection metadata
+          rejected: true,
+          rejectionReason: d.rejectionReason || null,
+        };
+      });
+
+      res.json({ theaters: pageItems, pagination: buildPaginationMeta(total, { page, limit, hasPagination }) });
+      return;
+    }
+
+    const statusParam = String(req.query?.status || '').trim().toLowerCase();
+
+    // For 'all' (or unspecified) we merge live theaters and rejected theater entries.
+    if (!statusParam || statusParam === 'all') {
+      // fetch live theaters (matching filters)
+      const liveTheaters = await db.Theater.findAll({ where, order: [['createdAt', 'DESC']] });
+
+      // fetch rejected entries and filter to this owner
+      const allRejected = await db.AdminRejection.findAll({ where: { entityType: 'theater' }, order: [['created_at', 'DESC']] });
+      const ownerId = Number(req.user.id);
+      let rejectedList = (allRejected || []).map((r) => ({ id: r.entityId, details: r.details || null, createdAt: r.createdAt })).filter((r) => r.details && Number(r.details.ownerUserId) === ownerId);
+
+      // apply simple text filters to rejected details if present
+      const nameFilter = String(req.query?.name || '').trim().toLowerCase();
+      const cityFilter = String(req.query?.city || '').trim().toLowerCase();
+      const stateFilter = String(req.query?.state || '').trim().toLowerCase();
+      const pincodeFilter = String(req.query?.pincode || '').trim().toLowerCase();
+
+      if (nameFilter) rejectedList = rejectedList.filter((r) => String(r.details.name || '').toLowerCase().includes(nameFilter));
+      if (cityFilter) rejectedList = rejectedList.filter((r) => String(r.details.city || '').toLowerCase().includes(cityFilter));
+      if (stateFilter) rejectedList = rejectedList.filter((r) => String(r.details.address || '').toLowerCase().includes(stateFilter));
+      if (pincodeFilter) rejectedList = rejectedList.filter((r) => String(r.details.address || '').toLowerCase().includes(pincodeFilter));
+
+      const mappedLive = (liveTheaters || []).map((t) => ({ ...t.toJSON(), rejected: false }));
+      const mappedRejected = rejectedList.map((r) => {
+        const d = r.details || {};
+        return {
+          id: r.id,
+          ownerUserId: d.ownerUserId,
+          name: d.name,
+          address: d.address,
+          city: d.city,
+          isBlocked: d.isBlocked ?? true,
+          createdAt: d.createdAt || r.createdAt,
+          rejected: true,
+          rejectionReason: d.rejectionReason || null,
+        };
+      });
+
+      // combine and sort by createdAt desc
+      const combined = mappedLive.concat(mappedRejected).sort((a, b) => {
+        const ta = new Date(a.createdAt).getTime() || 0;
+        const tb = new Date(b.createdAt).getTime() || 0;
+        return tb - ta;
+      });
+
+      const totalCombined = combined.length;
+      const pageItems = hasPagination ? combined.slice(offset, offset + limit) : combined;
+
+      res.json({ theaters: pageItems, pagination: buildPaginationMeta(totalCombined, { page, limit, hasPagination }) });
+      return;
+    }
+
+    // other statuses handled by DB query
     const total = await db.Theater.count({ where });
     const options = {
       where,
@@ -221,10 +307,7 @@ async function listMyTheaters(req, res, next) {
     }
 
     const theaters = await db.Theater.findAll(options);
-    res.json({
-      theaters,
-      pagination: buildPaginationMeta(total, { page, limit, hasPagination }),
-    });
+    res.json({ theaters, pagination: buildPaginationMeta(total, { page, limit, hasPagination }) });
   } catch (e) {
     next(e);
   }
