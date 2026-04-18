@@ -201,6 +201,22 @@ async function approveTheater(req, res, next) {
     if (body.approve) {
       await theater.update({ isBlocked: false }, { transaction: t });
     } else {
+      const theaterJson = theater.toJSON();
+      try {
+        await db.AdminRejection.create(
+          {
+            entityType: 'theater',
+            entityId: theater.id,
+            details: theaterJson,
+            reason: 'Rejected by admin',
+            rejectedBy: req.user?.id ?? null,
+          },
+          { transaction: t }
+        );
+      } catch (ignore) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to record theater rejection', ignore);
+      }
       await theater.destroy({ transaction: t });
     }
 
@@ -636,10 +652,28 @@ async function rejectHall(req, res, next) {
     ]
       .filter(Boolean)
       .join(' | ');
+    const hallJson = hall.toJSON();
     await hall.update(
       { isApproved: false, approvedAt: null, status: 'rejected', rejectionReason: finalReason || 'Rejected by admin' },
       { transaction: t }
     );
+    // record rejection
+    try {
+      await db.AdminRejection.create(
+        {
+          entityType: 'hall',
+          entityId: hallId,
+          details: hallJson,
+          reason: finalReason || 'Rejected by admin',
+          rejectedBy: req.user?.id ?? null,
+        },
+        { transaction: t }
+      );
+    } catch (ignore) {
+      // don't fail the whole flow if logging rejection fails
+      // eslint-disable-next-line no-console
+      console.error('Failed to record hall rejection', ignore);
+    }
     await t.commit();
     res.json({ ok: true, entity: 'hall', id: hallId, reason: finalReason || body.reasonType || body.reason });
   } catch (e) {
@@ -1056,10 +1090,26 @@ async function rejectShow(req, res, next) {
     ]
       .filter(Boolean)
       .join(' | ');
+    const showJson = show.toJSON();
     await show.update(
       { isApproved: false, approvedAt: null, status: 'rejected', rejectionReason: finalReason || 'Rejected by admin' },
       { transaction: t }
     );
+    try {
+      await db.AdminRejection.create(
+        {
+          entityType: 'show',
+          entityId: showId,
+          details: showJson,
+          reason: finalReason || 'Rejected by admin',
+          rejectedBy: req.user?.id ?? null,
+        },
+        { transaction: t }
+      );
+    } catch (ignore) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to record show rejection', ignore);
+    }
     await t.commit();
     res.json({ ok: true, entity: 'show', id: showId, reason: finalReason || body.reasonType || body.reason });
   } catch (e) {

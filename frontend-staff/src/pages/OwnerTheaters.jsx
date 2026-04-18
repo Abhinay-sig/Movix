@@ -623,15 +623,21 @@ export default function OwnerTheaters() {
                         </div>
                       </div>
 
-                      <span
-                        className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ${
-                          theater.isBlocked
-                            ? 'bg-amber-50 text-amber-700 ring-amber-200'
-                            : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                        }`}
-                      >
-                        {theater.isBlocked ? 'Pending admin approval' : 'Approved'}
-                      </span>
+                      {(() => {
+                        const isRejected = theater.rejected || theater.status === 'rejected' || Boolean(theater.rejectionReason)
+                        const isPending = !isRejected && theater.isBlocked
+                        const badgeClass = isRejected
+                          ? 'bg-rose-50 text-rose-700 ring-rose-200'
+                          : isPending
+                          ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                        const badgeText = isRejected ? 'Rejected' : isPending ? 'Pending admin approval' : 'Approved'
+                        return (
+                          <span title={theater.rejectionReason || ''} className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ${badgeClass}`}>
+                            {badgeText}
+                          </span>
+                        )
+                      })()}
                     </div>
 
                     <div className="flex flex-col gap-3 sm:flex-row">
