@@ -83,8 +83,7 @@ export default function Signup() {
     <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center px-4 py-8">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <div className="space-y-2">
-          <div className="hero-chip">Join Now</div>
-          <h2 className="text-3xl font-semibold tracking-tight text-slate-900">Create account</h2>
+          <h2 className="text-3xl w-fit text-center font-semibold tracking-tight text-slate-900 border-b-2 border-r-2 border-blue-500 rounded-full py-1 px-3">Create Account</h2>
           <p className="section-copy">Get started with a smoother movie booking experience.</p>
         </div>
 

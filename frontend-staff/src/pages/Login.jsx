@@ -110,14 +110,10 @@ export default function Login() {
     }`
 
   return (
-    <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center px-4 py-8 text-slate-900">
+    <div className="flex max-h-[calc(100vh-9rem)] items-center justify-center px-4 py-8 text-slate-900">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <div className="mb-6 space-y-2">
-          <div className="staff-chip">Multiplex Login</div>
-          <h2 className="text-3xl font-semibold tracking-tight text-slate-900">Multiplex login</h2>
-          <p className="text-sm text-slate-500">
-            Sign in to manage your cinema business or the Movix platform experience.
-          </p>
+          <h2 className="text-3xl w-fit text-center font-semibold tracking-tight text-slate-900 border-b-2 border-r-2 border-blue-500 rounded-full py-1 px-3">{mode === 'owner' ? 'Multiplex' : 'Admin'} login</h2>
         </div>
         <div className="mb-6 flex rounded-xl border border-slate-200 bg-slate-100 p-1">
           <button
@@ -248,10 +244,6 @@ export default function Login() {
           >
             Create your account
           </Link>
-        </div>
-
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
-          Platform access for the Movix team is managed separately.
         </div>
       </div>
     </div>
