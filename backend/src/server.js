@@ -13,13 +13,16 @@ const { proRoutes } = require('./routes/proRoutes');
 const { errorHandler } = require('./middleware/errorHandler');
 const { requireAuth, requireRole } = require('./middleware/auth');
 const { db } = require('./models');
+const { initSeatAvailabilityRealtime, emitSeatAvailabilityChanged } = require('./realtime/seatAvailability');
 const {
   cleanupExpiredHolds,
   createRazorpayOrder,
   verifyRazorpayPayment,
 } = require('./controllers/holdController');
+const http = require('http');
 
 const app = express();
+const server = http.createServer(app);
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -55,16 +58,24 @@ app.use('/api', proRoutes);
 
 app.use(errorHandler);
 
+initSeatAvailabilityRealtime(server);
+
 async function start() {
   await sequelize.authenticate();
   await syncDb();
   // await seedDatabase();
 
   setInterval(() => {
-    cleanupExpiredHolds().catch(() => {});
+    cleanupExpiredHolds()
+      .then((releasedShowIds) => {
+        releasedShowIds.forEach((showId) => {
+          emitSeatAvailabilityChanged(showId, { reason: 'hold_expired' });
+        });
+      })
+      .catch(() => {});
   }, 60_000);
 
-  app.listen(env.port, () => {
+  server.listen(env.port, () => {
     // eslint-disable-next-line no-console
     console.log(`Backend listening on :${env.port}`);
   });

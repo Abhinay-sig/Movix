@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="1500" viewBox="0 0 3000 1500">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="100%" stop-color="#eef7f6"/>
+    </linearGradient>
+    <filter id="shadow2" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6b86"/>
+    </marker>
+    <style>
+      .title { font: 700 34px Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 500 16px Arial, sans-serif; fill: #475569; }
+      .lane-title { font: 700 18px Arial, sans-serif; fill: #0f766e; }
+      .box-title { font: 700 16px Arial, sans-serif; fill: #0f172a; }
+      .box-text { font: 500 13px Arial, sans-serif; fill: #334155; }
+      .decision-text { font: 700 16px Arial, sans-serif; fill: #7c2d12; }
+      .link { stroke: #5b6b86; stroke-width: 3; fill: none; marker-end: url(#arrow2); }
+      .label { font: 600 13px Arial, sans-serif; fill: #475569; }
+    </style>
+  </defs>
+
+  <rect width="3000" height="1500" fill="url(#bg2)"/>
+  <text x="90" y="80" class="title">Staff Frontend Flow</text>
+  <text x="90" y="112" class="subtitle">frontend-staff • presentation-ready left-to-right project flow</text>
+
+  <rect x="70" y="145" width="2860" height="250" rx="28" fill="#ffffff" stroke="#d7efe9"/>
+  <rect x="70" y="435" width="2860" height="430" rx="28" fill="#ffffff" stroke="#d7efe9"/>
+  <rect x="70" y="905" width="2860" height="500" rx="28" fill="#ffffff" stroke="#d7efe9"/>
+
+  <text x="100" y="180" class="lane-title">Authentication and Role Routing</text>
+  <text x="100" y="470" class="lane-title">Admin Flow</text>
+  <text x="100" y="940" class="lane-title">Owner Flow and Approval Loop</text>
+
+  <rect x="110" y="215" width="170" height="80" rx="20" fill="#0f172a" filter="url(#shadow2)"/>
+  <text x="195" y="263" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#ffffff">Open Staff</text>
+  <text x="195" y="285" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#ffffff">App</text>
+
+  <polygon points="380,255 495,195 610,255 495,315" fill="#fef3c7" stroke="#d97706" filter="url(#shadow2)"/>
+  <text x="495" y="260" text-anchor="middle" class="decision-text">User role</text>
+
+  <rect x="700" y="205" width="350" height="100" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="875" y="237" text-anchor="middle" class="box-title">Login / Owner Signup / Verify Email</text>
+  <text x="875" y="261" text-anchor="middle" class="box-text">OAuth / Reset Password</text>
+
+  <rect x="1140" y="215" width="210" height="80" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="1245" y="263" text-anchor="middle" class="box-title">Admin Dashboard</text>
+
+  <rect x="1140" y="315" width="240" height="80" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="1260" y="363" text-anchor="middle" class="box-title">Owner Dashboard Redirect</text>
+
+  <rect x="110" y="560" width="190" height="85" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="205" y="608" text-anchor="middle" class="box-title">Manage Movies</text>
+
+  <rect x="360" y="560" width="190" height="85" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="455" y="598" text-anchor="middle" class="box-title">Movie Add / Edit</text>
+
+  <rect x="610" y="560" width="230" height="85" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="725" y="598" text-anchor="middle" class="box-title">Owner / Multiplex</text>
+  <text x="725" y="622" text-anchor="middle" class="box-text">Management</text>
+
+  <rect x="900" y="560" width="190" height="85" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="995" y="608" text-anchor="middle" class="box-title">Approvals Queue</text>
+
+  <rect x="1150" y="500" width="210" height="85" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="1255" y="538" text-anchor="middle" class="box-title">Hall Details Review</text>
+
+  <rect x="1150" y="620" width="210" height="85" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="1255" y="658" text-anchor="middle" class="box-title">Show Details Review</text>
+
+  <rect x="1420" y="500" width="170" height="85" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="1505" y="548" text-anchor="middle" class="box-title">Seat Caps</text>
+
+  <rect x="1420" y="620" width="170" height="85" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="1505" y="658" text-anchor="middle" class="box-title">Blocking Controls</text>
+
+  <rect x="1650" y="560" width="170" height="85" rx="20" fill="#fee2e2" stroke="#dc2626" filter="url(#shadow2)"/>
+  <text x="1735" y="608" text-anchor="middle" class="box-title">Reports</text>
+
+  <rect x="110" y="1050" width="190" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="205" y="1098" text-anchor="middle" class="box-title">Owner Theaters</text>
+
+  <rect x="360" y="1050" width="210" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="465" y="1088" text-anchor="middle" class="box-title">View Theater Halls</text>
+
+  <rect x="630" y="1050" width="210" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="735" y="1088" text-anchor="middle" class="box-title">Hall Details /</text>
+  <text x="735" y="1112" text-anchor="middle" class="box-text">Capacity</text>
+
+  <rect x="900" y="980" width="220" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="1010" y="1018" text-anchor="middle" class="box-title">Create New Hall Layout</text>
+
+  <rect x="900" y="1090" width="220" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="1010" y="1138" text-anchor="middle" class="box-title">Manage Owner Movies</text>
+
+  <rect x="1180" y="980" width="180" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="1270" y="1028" text-anchor="middle" class="box-title">Create New Show</text>
+
+  <rect x="1180" y="1090" width="180" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="1270" y="1138" text-anchor="middle" class="box-title">Revenue Dashboard</text>
+
+  <rect x="1420" y="980" width="220" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="1530" y="1018" text-anchor="middle" class="box-title">Submit Hall For</text>
+  <text x="1530" y="1042" text-anchor="middle" class="box-text">Approval</text>
+
+  <rect x="1420" y="1090" width="260" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="1550" y="1128" text-anchor="middle" class="box-title">Submit Show / Use Approved</text>
+  <text x="1550" y="1152" text-anchor="middle" class="box-text">Assets</text>
+
+  <polygon points="1800,1092 1915,1032 2030,1092 1915,1152" fill="#fef3c7" stroke="#d97706" filter="url(#shadow2)"/>
+  <text x="1915" y="1087" text-anchor="middle" class="decision-text">Admin decision</text>
+
+  <rect x="2140" y="980" width="250" height="85" rx="20" fill="#dcfce7" stroke="#16a34a" filter="url(#shadow2)"/>
+  <text x="2265" y="1018" text-anchor="middle" class="box-title">Available for Public</text>
+  <text x="2265" y="1042" text-anchor="middle" class="box-text">Booking Flow</text>
+
+  <rect x="2140" y="1120" width="250" height="85" rx="20" fill="#dbeafe" stroke="#2563eb" filter="url(#shadow2)"/>
+  <text x="2265" y="1158" text-anchor="middle" class="box-title">Owner Revises and</text>
+  <text x="2265" y="1182" text-anchor="middle" class="box-text">Resubmits</text>
+
+  <path class="link" d="M280 255 H380"/>
+  <path class="link" d="M610 230 H700"/>
+  <text x="637" y="220" class="label">Not logged in</text>
+  <path class="link" d="M1050 255 H1140"/>
+  <text x="1078" y="245" class="label">Admin</text>
+  <path class="link" d="M495 315 V355 H1140"/>
+  <text x="880" y="347" class="label">Theater Owner</text>
+  <path class="link" d="M875 305 V345 H495 V315"/>
+
+  <path class="link" d="M1245 295 V420 H205 V560"/>
+  <path class="link" d="M1245 295 V470 H455 V560"/>
+  <path class="link" d="M1245 295 V520 H725 V560"/>
+  <path class="link" d="M1245 295 V540 H995 V560"/>
+  <path class="link" d="M1245 295 V470 H1505 V500"/>
+  <path class="link" d="M1245 295 V560 H1505 V620"/>
+  <path class="link" d="M1245 295 V520 H1735 V560"/>
+  <path class="link" d="M1090 602 H1150"/>
+  <path class="link" d="M1090 602 C1120 602, 1120 662, 1150 662"/>
+
+  <path class="link" d="M1260 395 V950 H205 V1050"/>
+  <path class="link" d="M300 1092 H360"/>
+  <path class="link" d="M570 1092 H630"/>
+  <path class="link" d="M205 1050 V1022 H900"/>
+  <path class="link" d="M205 1050 V1132 H900"/>
+  <path class="link" d="M1120 1022 H1180"/>
+  <path class="link" d="M1120 1022 H1420"/>
+  <path class="link" d="M1360 1022 H1420 V1090"/>
+
+  <path class="link" d="M1640 1022 H1760 V1050 H1800"/>
+  <path class="link" d="M1680 1132 H1760 V1135 H1800"/>
+  <path class="link" d="M1360 1022 V540 H900"/>
+  <path class="link" d="M1640 1022 V700 H995 V645"/>
+  <path class="link" d="M1680 1132 H1760 V662 H1360"/>
+
+  <path class="link" d="M2030 1065 H2140"/>
+  <text x="2062" y="1054" class="label">Approve</text>
+  <path class="link" d="M1915 1152 V1162 H2140"/>
+  <text x="1944" y="1188" class="label">Reject</text>
+  <path class="link" d="M2390 1162 H2480 V1022 H900"/>
+</svg>

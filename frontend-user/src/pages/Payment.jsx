@@ -514,7 +514,7 @@ export default function Payment() {
                 type="button"
                 onClick={() => downloadTicketPdf(booking.ticket)}
                 disabled={!canDownloadTicket}
-                className={`secondary-button w-full border-white/20 bg-white/10 text-white hover:bg-white/15 ${
+                className={`inline-flex w-full items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition-all duration-300 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 ${
                   !canDownloadTicket ? 'cursor-not-allowed opacity-60' : ''
                 }`}
               >
@@ -525,7 +525,7 @@ export default function Payment() {
                 type="button"
                 onClick={() => openCalendarAdd(booking.ticket)}
                 disabled={!canDownloadTicket}
-                className={`secondary-button w-full border-white/20 bg-white/10 text-white hover:bg-white/15 ${
+                className={`inline-flex w-full items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition-all duration-300 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 ${
                   !canDownloadTicket ? 'cursor-not-allowed opacity-60' : ''
                 }`}
               >
@@ -536,14 +536,14 @@ export default function Payment() {
                 type="button"
                 onClick={() => downloadCalendarInvite(booking.ticket)}
                 disabled={!canDownloadTicket}
-                className={`secondary-button w-full border-white/20 bg-white/10 text-white hover:bg-white/15 ${
+                className={`inline-flex w-full items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition-all duration-300 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 ${
                   !canDownloadTicket ? 'cursor-not-allowed opacity-60' : ''
                 }`}
               >
                 Download .ics
               </button>
 
-              <Link to="/my-tickets" className="secondary-button block w-full border-white/20 bg-transparent text-center text-white hover:bg-white/10">
+              <Link to="/my-tickets" className="inline-flex w-full items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition-all duration-300 hover:bg-blue-700">
                 View all tickets
               </Link>
             </div>
@@ -701,7 +701,7 @@ export default function Payment() {
               type="button"
               onClick={goBackToSeatSelection}
               disabled={loading}
-              className="secondary-button w-full border-white/20 bg-transparent text-white hover:bg-white/10"
+              className="inline-flex w-full items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition-all duration-300 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Change seats
             </button>

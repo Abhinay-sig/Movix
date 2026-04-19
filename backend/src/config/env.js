@@ -1,6 +1,7 @@
+const path = require('path');
 const dotenv = require('dotenv');
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 function must(name, fallback) {
   const v = process.env[name] ?? fallback;
@@ -41,6 +42,7 @@ const env = {
     verificationExpiresMs: Number(process.env.EMAIL_VERIFICATION_EXPIRES_MS ?? 120000),
     passwordResetExpiresMs: Number(process.env.PASSWORD_RESET_EXPIRES_MS ?? 300000),
     paymentOtpExpiresMs: Number(process.env.PAYMENT_OTP_EXPIRES_MS ?? 300000),
+    paymentAbandonLockoutMs: Number(process.env.PAYMENT_ABANDON_LOCKOUT_MS ?? 300000),
   },
 
   smtp: {
