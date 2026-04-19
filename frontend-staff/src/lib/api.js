@@ -44,7 +44,7 @@ export async function api(path, { method = 'GET', body, token } = {}) {
   if (!res.ok) {
     if (res.status === 401) {
       // Session is invalid/expired on backend. Reset local auth and force fresh login.
-      localStorage.removeItem('mvp_staff_auth')
+      localStorage.removeItem('staff_auth')
       localStorage.removeItem('token')
       if (window.location.pathname !== '/login') {
         window.location.replace('/login')

@@ -1,6 +1,6 @@
 function resolveStoredToken() {
   try {
-    const userRaw = localStorage.getItem('mvp_user_auth')
+    const userRaw = localStorage.getItem('user_auth')
     if (userRaw) {
       const userAuth = JSON.parse(userRaw)
       if (userAuth?.token) return userAuth.token
@@ -10,7 +10,7 @@ function resolveStoredToken() {
   }
 
   try {
-    const staffRaw = localStorage.getItem('mvp_staff_auth')
+    const staffRaw = localStorage.getItem('staff_auth')
     if (staffRaw) {
       const staffAuth = JSON.parse(staffRaw)
       if (staffAuth?.token) return staffAuth.token

@@ -1,4 +1,4 @@
-const KEY = 'mvp_user_auth'
+const KEY = 'user_auth'
 
 export function loadAuth() {
   try {
