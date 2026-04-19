@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { z } from 'zod'
 
 function formatCountdown(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60)
@@ -15,6 +16,7 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false)
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [verification, setVerification] = useState(null)
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
@@ -64,6 +66,32 @@ export default function Signup() {
     e.preventDefault()
     setErr('')
     setNotice('')
+    setFieldErrors({})
+    // frontend validation
+    const schema = z.object({
+      name: z.string().min(1, 'Please enter your name'),
+      email: z.string().email('Please enter a valid email'),
+      password: z
+        .string()
+        .min(8, 'Password must be at least 8 characters')
+        .regex(/\d/, 'Password must include at least one number')
+        .regex(/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/, 'Password must include at least one special character'),
+    })
+
+    const parsed = schema.safeParse({ name, email, password })
+    if (!parsed.success) {
+      const errs = {}
+      parsed.error.issues.forEach((e) => {
+        const key = e.path && e.path.length ? e.path[0] : '_form'
+        errs[key] = e.message
+      })
+      console.log('Signup validation failed', parsed, errs)
+      setFieldErrors(errs)
+      // also set generic form error
+      setErr(Object.values(errs).join(' '))
+      return
+    }
+
     setLoading(true)
     try {
       const data = await api('/auth/signup', {
@@ -154,6 +182,9 @@ export default function Signup() {
               onChange={(e) => setName(e.target.value)}
               className="field-input"
             />
+            {fieldErrors.name ? (
+              <div className="text-sm mt-1 text-rose-700">{fieldErrors.name}</div>
+            ) : null}
 
             <input
               placeholder="Email"
@@ -161,6 +192,9 @@ export default function Signup() {
               onChange={(e) => setEmail(e.target.value)}
               className="field-input"
             />
+            {fieldErrors.email ? (
+              <div className="text-sm mt-1 text-rose-700">{fieldErrors.email}</div>
+            ) : null}
 
             <div className="relative">
               <input
@@ -182,8 +216,11 @@ export default function Signup() {
                 )}
               </button>
             </div>
+            {fieldErrors.password ? (
+              <div className="text-sm mt-1 text-rose-700">{fieldErrors.password}</div>
+            ) : null}
 
-            <button disabled={loading} className="primary-button w-full">
+            <button type="submit" disabled={loading} className="primary-button w-full">
               {loading ? 'Creating…' : 'Create account'}
             </button>
           </form>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../useAuth'
+import { z } from 'zod'
 
 function formatCountdown(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60)
@@ -20,6 +21,7 @@ export default function Login() {
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
   const [verification, setVerification] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
   const [now, setNow] = useState(Date.now())
@@ -76,8 +78,30 @@ export default function Login() {
     setErr('')
     setNotice('')
     setVerification(null)
+    setFieldErrors({})
     setLoading(true)
+    // frontend validation
+    const schema = z.object({
+      email: z.string().email('Please enter a valid email'),
+      password: z
+        .string()
+        .min(8, 'Password must be at least 8 characters')
+        .regex(/\d/, 'Password must include at least one number')
+        .regex(/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/, 'Password must include at least one special character'),
+    })
 
+    const parsed = schema.safeParse({ email, password })
+    if (!parsed.success) {
+      const errs = {}
+      parsed.error.issues.forEach((e) => {
+        const key = e.path && e.path.length ? e.path[0] : '_form'
+        errs[key] = e.message
+      })
+      setFieldErrors(errs)
+      setErr(Object.values(errs).join(' '))
+      setLoading(false)
+      return
+    }
     try {
       const path = mode === 'admin' ? '/auth/admin/login' : '/auth/login'
       const data = await api(path, { method: 'POST', body: { email, password } })
@@ -161,6 +185,9 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               className="staff-input"
             />
+            {fieldErrors.email ? (
+              <div className="text-sm mt-1 text-rose-700">{fieldErrors.email}</div>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -185,6 +212,9 @@ export default function Login() {
                 )}
               </button>
             </div>
+            {fieldErrors.password ? (
+              <div className="text-sm mt-1 text-rose-700">{fieldErrors.password}</div>
+            ) : null}
           </div>
           {mode === 'owner' ? (
             <div className="flex justify-end">
@@ -197,7 +227,7 @@ export default function Login() {
             </div>
           ) : null}
 
-          <button disabled={loading} className="staff-primary w-full">
+          <button type="submit" disabled={loading} className="staff-primary w-full">
             {loading ? 'Logging in…' : 'Login'}
           </button>
 

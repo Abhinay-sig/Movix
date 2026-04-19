@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { z } from 'zod'
 
 function formatCountdown(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60)
@@ -16,6 +17,7 @@ export default function OwnerSignup() {
   const [showPassword, setShowPassword] = useState(false)
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [verification, setVerification] = useState(null)
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
@@ -65,6 +67,30 @@ export default function OwnerSignup() {
     e.preventDefault()
     setErr('')
     setNotice('')
+    setFieldErrors({})
+    // frontend validation
+    const schema = z.object({
+      name: z.string().min(1, 'Please enter a name'),
+      email: z.string().email('Please enter a valid email'),
+      password: z
+        .string()
+        .min(8, 'Password must be at least 8 characters')
+        .regex(/\d/, 'Password must include at least one number')
+        .regex(/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/, 'Password must include at least one special character'),
+    })
+
+    const parsed = schema.safeParse({ name, email, password })
+    if (!parsed.success) {
+      const errs = {}
+      parsed.error.issues.forEach((e) => {
+        const key = e.path && e.path.length ? e.path[0] : '_form'
+        errs[key] = e.message
+      })
+      setFieldErrors(errs)
+      setErr(Object.values(errs).join(' '))
+      return
+    }
+
     setLoading(true)
     try {
       const data = await api('/auth/signup', {
@@ -162,6 +188,9 @@ export default function OwnerSignup() {
                 onChange={(e) => setName(e.target.value)}
                 className={fieldClass}
               />
+              {fieldErrors.name ? (
+                <div className="text-sm mt-1 text-rose-700">{fieldErrors.name}</div>
+              ) : null}
 
               <input
                 placeholder="Email address"
@@ -169,6 +198,9 @@ export default function OwnerSignup() {
                 onChange={(e) => setEmail(e.target.value)}
                 className={fieldClass}
               />
+              {fieldErrors.email ? (
+                <div className="text-sm mt-1 text-rose-700">{fieldErrors.email}</div>
+              ) : null}
 
               <div className="relative">
                 <input
@@ -186,8 +218,12 @@ export default function OwnerSignup() {
                   {showPassword ? <img src="../../public/close_eye.svg" alt="" srcset="" className='w-6 opacity-25' /> : <img src="../../public/open_eye.svg" alt="" srcset="" className='w-6 opacity-25' />}
                 </button>
               </div>
+              {fieldErrors.password ? (
+                <div className="text-sm mt-1 text-rose-700">{fieldErrors.password}</div>
+              ) : null}
 
               <button
+                type="submit"
                 disabled={loading}
                 className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
