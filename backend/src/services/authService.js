@@ -409,11 +409,11 @@ async function requestPasswordReset({ email, role }) {
   const message = 'A password reset link has been sent to this email.';
 
   if (!user) {
-    return { message };
+    throw new HttpError(404, 'No account found for this email');
   }
 
   if (role && user.role !== role) {
-    return { message };
+    throw new HttpError(404, 'No account found for this email');
   }
 
   if (user.role === db.USER_ROLES.ADMIN || user.isBlocked || !user.emailVerifiedAt) {
