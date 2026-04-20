@@ -22,7 +22,7 @@ const SEAT_COLORS = {
 }
 
 const SCREEN_TYPES = ['2D', '3D', 'IMAX']
-const FACILITY_OPTIONS = ['AC', 'Dolby Atmos', 'Recliner', 'Food Court', 'Wheelchair Access', 'Parking']
+const FACILITY_OPTIONS = ['AC', 'Dolby Atmos', 'Recliner', 'Wheelchair Access']
 
 export default function OwnerNewHall() {
   const { auth } = useAuth()
@@ -234,10 +234,10 @@ export default function OwnerNewHall() {
               </div>
             </div>
 
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700">Image URLs (one per line)</label>
               <textarea rows={3} value={imageUrls} onChange={(e) => setImageUrls(e.target.value)} placeholder="https://example.com/hall1.jpg" className={fieldClass} />
-            </div>
+            </div> */}
 
             <div className="space-y-3">
               <label className="block text-sm font-medium text-slate-700">Seating style</label>

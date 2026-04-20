@@ -437,7 +437,7 @@ export default function OwnerNewShow() {
                 className={withFieldError(fieldClass, Boolean(fieldErrors.theaterId))}
               >
                 <option value="">Choose a theater…</option>
-                {theaters.map((theater) => (
+                {theaters.filter((t) => !t.isBlocked).map((theater) => (
                   <option key={theater.id} value={theater.id}>
                     {theater.name} • {theater.city}
                   </option>
