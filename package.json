@@ -1,5 +1,5 @@
 {
-  "name": "mvp",
+  "name": "movix",
   "version": "1.0.0",
   "description": "",
   "private": true,
@@ -15,13 +15,19 @@
     "dev:staff": "npm -w frontend-staff run dev",
     "dev:backend": "npm -w backend run dev",
     "build": "npm -w frontend-user run build && npm -w frontend-staff run build",
-    "test": "echo \"No tests\" && exit 0"
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
+    "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
+    "test:backend": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --selectProjects backend",
+    "test:user": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --selectProjects frontend-user",
+    "test:staff": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --selectProjects frontend-staff"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0"
   },
   "dependencies": {
     "nodemailer": "^8.0.5"

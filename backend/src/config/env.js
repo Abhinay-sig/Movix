@@ -15,7 +15,7 @@ const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3001),
   app: {
-    backendBaseUrl: process.env.BACKEND_BASE_URL ?? `http://localhost:${Number(process.env.PORT ?? 3001)}`,
+    backendBaseUrl: process.env.BACKEND_BASE_URL ?? `http://localhost:${port}`,
     userAppUrl: process.env.USER_APP_URL ?? 'http://localhost:5173',
     staffAppUrl: process.env.STAFF_APP_URL ?? 'http://localhost:5174',
   },

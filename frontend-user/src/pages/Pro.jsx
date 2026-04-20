@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { api } from '../lib/api'
 import { loadRazorpayCheckout, openRazorpayCheckout } from '../lib/razorpay'
 import { useAuth } from '../useAuth'
+import { Wallet, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 
 function formatDate(value) {
   if (!value) return 'Not active'
@@ -206,23 +207,40 @@ export default function Pro() {
       ) : null}
 
       {subscription.isProActive ? (
-        <section className="grid gap-5 md:grid-cols-3">
-          <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-5">
-            <div className="text-xs uppercase tracking-[0.18em] text-blue-500">Wallet balance</div>
-            <div className="mt-2 text-3xl font-semibold text-blue-950">{wallet.currentBalance}</div>
-            <div className="text-sm text-blue-700">MovixCoins</div>
+      <section className="grid gap-5 md:grid-cols-3">
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-5">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-[0.18em] text-blue-500">
+              Wallet balance
+            </div>
+            <Wallet className="h-5 w-5 text-blue-500" />
           </div>
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-5">
-            <div className="text-xs uppercase tracking-[0.18em] text-emerald-500">Total earned</div>
-            <div className="mt-2 text-3xl font-semibold text-emerald-950">{wallet.totalEarned}</div>
-            <div className="text-sm text-emerald-700">Cashback coins</div>
+          <div className="mt-2 text-3xl font-semibold text-blue-950">{wallet.currentBalance}</div>
+          <div className="text-sm text-blue-700">MovixCoins</div>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-5">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-[0.18em] text-emerald-500">
+              Total earned
+            </div>
+            <ArrowDownLeft className="h-5 w-5 text-emerald-500" />
           </div>
-          <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-5">
-            <div className="text-xs uppercase tracking-[0.18em] text-amber-500">Total redeemed</div>
-            <div className="mt-2 text-3xl font-semibold text-amber-950">{wallet.totalRedeemed}</div>
-            <div className="text-sm text-amber-700">Spent on bookings</div>
+          <div className="mt-2 text-3xl font-semibold text-emerald-950">{wallet.totalEarned}</div>
+          <div className="text-sm text-emerald-700">Cashback coins</div>
+        </div>
+
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-5">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-[0.18em] text-amber-500">
+              Total redeemed
+            </div>
+            <ArrowUpRight className="h-5 w-5 text-amber-500" />
           </div>
-        </section>
+          <div className="mt-2 text-3xl font-semibold text-amber-950">{wallet.totalRedeemed}</div>
+          <div className="text-sm text-amber-700">Spent on bookings</div>
+        </div>
+      </section>
       ) : null}
 
       {subscription.isProActive ? (

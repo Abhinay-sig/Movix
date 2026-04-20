@@ -1156,7 +1156,7 @@ async function createShow(req, res, next) {
           throw new HttpError(400, `Invalid price for ${seatType.code}`);
         }
         if (price > cap) {
-          throw new HttpError(400, 'Price exceeds admin cap for this seat type');
+          throw new HttpError(400, `Price exceeds admin cap for ${seatType.code}. Max allowed: ${cap}`);
         }
 
         await db.ShowSeatPrice.create(

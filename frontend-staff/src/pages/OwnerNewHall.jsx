@@ -51,6 +51,8 @@ export default function OwnerNewHall() {
       .catch((e) => setErr(e.message))
   }, [auth.token])
 
+  const approvedTheaters = theaters.filter((t) => !t.isBlocked)
+
   function cellFromEvent(e) {
     const el = gridRef.current
     if (!el) return null
@@ -192,7 +194,7 @@ export default function OwnerNewHall() {
               <label className="block text-sm font-medium text-slate-700">Theater</label>
               <select value={theaterId} onChange={(e) => setTheaterId(e.target.value)} className={fieldClass}>
                 <option value="">Choose a theater…</option>
-                {theaters.map((theater) => (
+                {approvedTheaters.map((theater) => (
                   <option key={theater.id} value={theater.id}>{theater.name} • {theater.city}</option>
                 ))}
               </select>
@@ -253,7 +255,7 @@ export default function OwnerNewHall() {
           </form>
 
           {err ? <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{err}</div> : null}
-          {theaters.length === 0 ? <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">Add a theater first in the Theaters tab before creating halls.</div> : null}
+          {approvedTheaters.length === 0 ? <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">Add a theater first in the Theaters tab before creating halls.</div> : null}
         </div>
 
         <div className="space-y-5">

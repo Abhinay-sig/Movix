@@ -180,10 +180,9 @@ export default function MovieShows() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
             <div className="hero-chip">Choose Showtime</div>
-            <h2 className="section-title max-w-2xl">Available Shows</h2>
+            <h2 className="section-title max-w-2xl">{movie?.title}</h2>
             <p className="section-copy max-w-xl">
-              Compare theater, timing, and language details before choosing your
-              seats.
+              {movie?.description || 'Compare theater, timing, and language details before choosing your seats.'}
             </p>
             {movie?.languages?.length ? (
               <div className="flex flex-wrap gap-2">
@@ -205,7 +204,7 @@ export default function MovieShows() {
                 Booking
               </div>
               <div className="mt-2 text-sm font-semibold text-slate-900">
-                Check time and theater
+                Choose your preferred theater and language.
               </div>
             </div>
             <div className="rounded-2xl border border-violet-100 bg-violet-50/90 px-4 py-4 shadow-sm">

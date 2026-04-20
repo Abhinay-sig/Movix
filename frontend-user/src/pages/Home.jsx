@@ -47,24 +47,24 @@ export default function Home() {
       <section className="page-panel fade-up overflow-hidden px-6 py-8 md:px-10 md:py-12">
         <div className="grid items-center gap-8 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-5">
-            <div className="hero-chip">Now Showing</div>
+            {/* <div className="hero-chip">Now Showing</div> */}
             <div className="space-y-3">
               <h2 className="section-title max-w-2xl">
-                Find movies and book your seats.
+                Book Your Movie Tickets in Seconds
               </h2>
               <p className="section-copy max-w-xl">
-                Browse current movies, compare showtimes, and reserve your seats in a few steps.
+                Browse movies, compare showtimes, and reserve your seats in simple steps.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-3 text-sm text-slate-500">
-              <div className="rounded-full border border-blue-100 bg-blue-50/90 px-4 py-2 shadow-sm">
+              <div className="rounded-full border border-blue-100 bg-zinc-50/90 px-4 py-2 shadow-sm">
                 Smooth seat selection
               </div>
-              <div className="rounded-full border border-violet-100 bg-violet-50/90 px-4 py-2 shadow-sm">
+              <div className="rounded-full border border-blue-100 bg-zinc-50/90 px-4 py-2 shadow-sm">
                 Quick checkout
               </div>
-              <div className="rounded-full border border-amber-100 bg-amber-50/90 px-4 py-2 shadow-sm">
+              <div className="rounded-full border border-blue-100 bg-zinc-50/90 px-4 py-2 shadow-sm">
                 Live show listings
               </div>
             </div>
@@ -77,14 +77,10 @@ export default function Home() {
               <div className="relative space-y-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                      Featured
-                    </div>
                     <div className="mt-2 text-xl font-semibold text-slate-950">
-                      Book your show
+                      From Screen to Seat, Instantly
                     </div>
                   </div>
-                  <div className="h-12 w-12 rounded-2xl bg-slate-950 shadow-lg shadow-slate-300/70" />
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -101,10 +97,6 @@ export default function Home() {
                       </div>
                     </div>
                   ))}
-                </div>
-
-                <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                  <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-slate-950 via-blue-500 to-sky-300" />
                 </div>
               </div>
             </div>
@@ -237,9 +229,9 @@ export default function Home() {
                   </h3>
                 </div>
 
-                <p className="text-sm leading-6 text-slate-500">
+                {/* <p className="text-sm leading-6 text-slate-500">
                   {movie.description || 'Pick a showtime, choose your seats, and complete your booking.'}
-                </p>
+                </p> */}
 
                 <div className="space-y-2 text-sm text-slate-500">
                   <div>
@@ -250,10 +242,10 @@ export default function Home() {
                     <span className="font-medium text-slate-700">Cities:</span>{' '}
                     {(movie.cities || []).join(', ') || 'TBA'}
                   </div>
-                  <div>
+                  {/* <div>
                     <span className="font-medium text-slate-700">Next show:</span>{' '}
                     {movie.nextShowAt ? formatDateTimeTo12Hour(movie.nextShowAt) : 'Coming soon'}
-                  </div>
+                  </div> */}
                 </div>
 
                 <Link

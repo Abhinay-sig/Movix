@@ -7,7 +7,14 @@ const { authService } = require('../services');
 const signupSchema = z.object({
   email: z.string().email().max(320),
   name: z.string().min(1).max(120),
-  password: z.string().min(8).max(200),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters long')
+    .max(200)
+    .regex(
+      /^(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).+$/,
+      "Password must include at least one number and one special character"
+    ),
   role: z.enum([db.USER_ROLES.USER, db.USER_ROLES.OWNER]).optional(),
 });
 
