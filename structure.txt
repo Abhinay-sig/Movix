@@ -1,0 +1,197 @@
+.
+├── README.md
+├── backend
+│   ├── package.json
+│   └── src
+│       ├── config
+│       │   └── env.js
+│       ├── controllers
+│       │   ├── adminController.js
+│       │   ├── authController.js
+│       │   ├── holdController.js
+│       │   ├── ownerController.js
+│       │   ├── proController.js
+│       │   └── publicController.js
+│       ├── db
+│       │   └── sequelize.js
+│       ├── middleware
+│       │   ├── auth.js
+│       │   └── errorHandler.js
+│       ├── models
+│       │   ├── AdminRejection.js
+│       │   ├── Booking.js
+│       │   ├── BookingSeat.js
+│       │   ├── Hall.js
+│       │   ├── HallLayout.js
+│       │   ├── HallSeatCap.js
+│       │   ├── Movie.js
+│       │   ├── MovieLanguage.js
+│       │   ├── MovixCoinTransaction.js
+│       │   ├── OwnerMovie.js
+│       │   ├── ProMembershipPurchase.js
+│       │   ├── SeatCapHistory.js
+│       │   ├── SeatHold.js
+│       │   ├── SeatType.js
+│       │   ├── Show.js
+│       │   ├── ShowSeatPrice.js
+│       │   ├── Theater.js
+│       │   ├── User.js
+│       │   └── index.js
+│       ├── realtime
+│       │   └── seatAvailability.js
+│       ├── routes
+│       │   ├── adminRoutes.js
+│       │   ├── authRoutes.js
+│       │   ├── holdRoutes.js
+│       │   ├── ownerRoutes.js
+│       │   ├── proRoutes.js
+│       │   └── publicRoutes.js
+│       ├── seeders
+│       │   └── seeder.js
+│       ├── server.js
+│       ├── services
+│       │   ├── authService.js
+│       │   ├── cloudinaryService.js
+│       │   ├── index.js
+│       │   ├── mailService.js
+│       │   └── razorpayService.js
+│       └── utils
+│           ├── appLockout.js
+│           ├── appLockout.test.js
+│           ├── emailService.js
+│           ├── httpError.js
+│           ├── jwt.js
+│           ├── movieLanguages.js
+│           ├── pagination.js
+│           ├── pagination.test.js
+│           ├── seatLayout.js
+│           └── seatLayout.test.js
+├── frontend-staff
+│   ├── README.md
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package.json
+│   ├── public
+│   │   ├── close_eye.svg
+│   │   ├── fallback_poster.jpeg
+│   │   ├── favicon.svg
+│   │   ├── icons.svg
+│   │   ├── movix.svg
+│   │   └── open_eye.svg
+│   ├── src
+│   │   ├── App.css
+│   │   ├── App.jsx
+│   │   ├── AuthContext.jsx
+│   │   ├── NotificationProvider.jsx
+│   │   ├── assets
+│   │   │   ├── hero.png
+│   │   │   ├── react.svg
+│   │   │   └── vite.svg
+│   │   ├── auth-context.js
+│   │   ├── components
+│   │   │   ├── Layout.jsx
+│   │   │   ├── Modal.jsx
+│   │   │   ├── PaginationControls.jsx
+│   │   │   ├── ProtectedRoute.jsx
+│   │   │   ├── RejectModal.jsx
+│   │   │   ├── RequireRole.jsx
+│   │   │   ├── SeatCapHistoryModal.jsx
+│   │   │   ├── SeatCapModal.jsx
+│   │   │   ├── SheduledShows.jsx
+│   │   │   ├── ShowRejectModal.jsx
+│   │   │   ├── Timeline.jsx
+│   │   │   └── Toast.jsx
+│   │   ├── index.css
+│   │   ├── lib
+│   │   │   ├── api.js
+│   │   │   ├── auth.js
+│   │   │   ├── formErrors.js
+│   │   │   ├── layoutEncode.js
+│   │   │   ├── layoutEncode.test.js
+│   │   │   ├── revenue.js
+│   │   │   └── time.js
+│   │   ├── main.jsx
+│   │   ├── pages
+│   │   │   ├── AdminAddMovie.jsx
+│   │   │   ├── AdminApprovals.jsx
+│   │   │   ├── AdminBlocking.jsx
+│   │   │   ├── AdminCaps.jsx
+│   │   │   ├── AdminDashboard.jsx
+│   │   │   ├── AdminMovies.jsx
+│   │   │   ├── AdminOwners.jsx
+│   │   │   ├── HallDetails.jsx
+│   │   │   ├── Login.jsx
+│   │   │   ├── OAuthCallback.jsx
+│   │   │   ├── OwnerMovies.jsx
+│   │   │   ├── OwnerNewHall.jsx
+│   │   │   ├── OwnerNewShow.jsx
+│   │   │   ├── OwnerRevenue.jsx
+│   │   │   ├── OwnerSignup.jsx
+│   │   │   ├── OwnerTheaterHalls.jsx
+│   │   │   ├── OwnerTheaters.jsx
+│   │   │   ├── Reports.jsx
+│   │   │   ├── ResetPassword.jsx
+│   │   │   ├── ShowDetails.jsx
+│   │   │   └── VerifyEmail.jsx
+│   │   └── useAuth.js
+│   └── vite.config.js
+├── frontend-user
+│   ├── README.md
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package.json
+│   ├── public
+│   │   ├── close_eye.svg
+│   │   ├── fallback_poster.jpeg
+│   │   ├── favicon.svg
+│   │   ├── icons.svg
+│   │   ├── movix.svg
+│   │   └── open_eye.svg
+│   ├── src
+│   │   ├── App.css
+│   │   ├── App.jsx
+│   │   ├── AuthContext.jsx
+│   │   ├── NotificationProvider.jsx
+│   │   ├── assets
+│   │   │   ├── hero.png
+│   │   │   ├── react.svg
+│   │   │   └── vite.svg
+│   │   ├── auth-context.js
+│   │   ├── components
+│   │   │   ├── Layout.jsx
+│   │   │   └── RequireAuth.jsx
+│   │   ├── index.css
+│   │   ├── lib
+│   │   │   ├── api.js
+│   │   │   ├── auth.js
+│   │   │   ├── paymentSlipPdf.js
+│   │   │   ├── razorpay.js
+│   │   │   ├── seatLayout.js
+│   │   │   ├── seatLayout.test.js
+│   │   │   ├── seatRealtime.js
+│   │   │   ├── seatSession.js
+│   │   │   ├── seatSession.test.js
+│   │   │   ├── ticketCalendar.js
+│   │   │   ├── ticketPdf.js
+│   │   │   └── time.js
+│   │   ├── main.jsx
+│   │   ├── pages
+│   │   │   ├── Home.jsx
+│   │   │   ├── Login.jsx
+│   │   │   ├── MovieShows.jsx
+│   │   │   ├── MyTickets.jsx
+│   │   │   ├── OAuthCallback.jsx
+│   │   │   ├── Payment.jsx
+│   │   │   ├── Pro.jsx
+│   │   │   ├── ResetPassword.jsx
+│   │   │   ├── SeatSelect.jsx
+│   │   │   ├── Signup.jsx
+│   │   │   └── VerifyEmail.jsx
+│   │   └── useAuth.js
+│   └── vite.config.js
+├── jest.config.cjs
+├── package-lock.json
+├── package.json
+└── structure.txt
+
+27 directories, 168 files
