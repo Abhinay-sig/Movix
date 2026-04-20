@@ -18,6 +18,13 @@ const {
   seatTypeForSeat,
   toPublicSeatCode,
 } = require('../utils/seatLayout');
+const {
+  ensureUserIsNotLocked,
+  registerAbandonedPaymentIfNeeded,
+  markPaymentCheckoutStarted,
+  resetTemporaryLockState,
+} = require('../utils/appLockout');
+const { emitSeatAvailabilityChanged } = require('../realtime/seatAvailability');
 
 const HOLD_STATUS = db.HOLD_STATUS || {
   HELD: 'held',
@@ -162,6 +169,15 @@ function buildBookingTicket({ booking, seatMeta, show }) {
 
 async function cleanupExpiredHolds(transaction = null) {
   const now = new Date();
+  const expiredHolds = await db.SeatHold.findAll({
+    where: {
+      status: HOLD_STATUS.HELD,
+      expiresAt: { [Op.lte]: now },
+    },
+    attributes: ['showId'],
+    ...(transaction ? { transaction } : {}),
+  });
+
   await db.SeatHold.update(
     { status: HOLD_STATUS.RELEASED },
     {
@@ -172,6 +188,8 @@ async function cleanupExpiredHolds(transaction = null) {
       ...(transaction ? { transaction } : {}),
     }
   );
+
+  return Array.from(new Set(expiredHolds.map((hold) => Number(hold.showId)).filter(Number.isInteger)));
 }
 
 async function claimSeatHold({ t, showId, seatCode, userId, sessionToken, expiresAt }) {
@@ -471,6 +489,11 @@ async function createHold(req, res, next) {
 
     await t.commit();
 
+    emitSeatAvailabilityChanged(show.id, {
+      reason: 'hold_created',
+      seatCodes: publicSeatCodes,
+    });
+
     res.status(201).json({
       showId: show.id,
       seatCodes: publicSeatCodes,
@@ -499,6 +522,9 @@ async function confirmBooking(req, res, next) {
 
     const user = await db.User.findByPk(req.user.id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!user) throw new HttpError(404, 'User not found');
+    if (user.role === db.USER_ROLES.USER) {
+      await ensureUserIsNotLocked(user, t);
+    }
 
     const wallet = getWalletPaymentSummary({
       user,
@@ -589,7 +615,16 @@ async function confirmBooking(req, res, next) {
       await user.save({ transaction: t });
     }
 
+    if (user.role === db.USER_ROLES.USER) {
+      await resetTemporaryLockState(user, t);
+    }
+
     await t.commit();
+
+    emitSeatAvailabilityChanged(checkout.show.id, {
+      reason: 'booking_confirmed',
+      seatCodes: checkout.publicSeatCodes,
+    });
 
     res.status(201).json({
       bookingId: booking.id,
@@ -618,13 +653,20 @@ async function confirmBooking(req, res, next) {
 }
 
 async function createRazorpayOrder(req, res, next) {
-  const t = await db.sequelize.transaction();
+  let t;
   try {
     if (!isRazorpayConfigured()) {
       throw new HttpError(503, 'Razorpay is not configured on the server');
     }
 
     const body = createPaymentOrderSchema.parse(req.body);
+    const preflightUser = await db.User.findByPk(req.user.id);
+    if (!preflightUser) throw new HttpError(404, 'User not found');
+    if (preflightUser.role === db.USER_ROLES.USER) {
+      await registerAbandonedPaymentIfNeeded(preflightUser);
+    }
+
+    t = await db.sequelize.transaction();
     const normalizedEmail = assertRegisteredEmail(req, body.email);
     const checkout = await buildCheckoutContext({
       t,
@@ -659,6 +701,10 @@ async function createRazorpayOrder(req, res, next) {
       },
     });
 
+    if (user.role === db.USER_ROLES.USER) {
+      await markPaymentCheckoutStarted(user, t);
+    }
+
     await t.commit();
 
     res.status(201).json({
@@ -682,7 +728,7 @@ async function createRazorpayOrder(req, res, next) {
       },
     });
   } catch (e) {
-    if (!t.finished) await t.rollback();
+    if (t && !t.finished) await t.rollback();
     if (e instanceof z.ZodError) return next(new HttpError(400, 'Invalid input', e.flatten()));
     return next(e);
   }
@@ -771,6 +817,9 @@ async function verifyRazorpayPayment(req, res, next) {
     });
     const user = await db.User.findByPk(req.user.id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!user) throw new HttpError(404, 'User not found');
+    if (user.role === db.USER_ROLES.USER) {
+      await ensureUserIsNotLocked(user, t);
+    }
     const wallet = getWalletPaymentSummary({
       user,
       totalAmount: checkout.totalAmount,
@@ -904,7 +953,16 @@ async function verifyRazorpayPayment(req, res, next) {
       await user.save({ transaction: t });
     }
 
+    if (user.role === db.USER_ROLES.USER) {
+      await resetTemporaryLockState(user, t);
+    }
+
     await t.commit();
+
+    emitSeatAvailabilityChanged(checkout.show.id, {
+      reason: 'booking_confirmed',
+      seatCodes: checkout.publicSeatCodes,
+    });
 
     res.status(201).json({
       bookingId: booking.id,
@@ -999,6 +1057,11 @@ async function releaseHold(req, res, next) {
     });
 
     await t.commit();
+
+    emitSeatAvailabilityChanged(releaseState.showId, {
+      reason: 'hold_released',
+      seatCodes: releaseState.seatCodes,
+    });
 
     res.json({
       ok: true,

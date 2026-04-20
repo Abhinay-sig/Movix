@@ -4,6 +4,7 @@ const { db } = require('../models');
 const { env } = require('../config/env');
 const { signToken } = require('../utils/jwt');
 const { HttpError } = require('../utils/httpError');
+const { ensureUserIsNotLocked } = require('../utils/appLockout');
 const { sendMail } = require('./mailService');
 
 const GOOGLE_AUTH_BASE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -310,6 +311,9 @@ async function login({ email, password }) {
   const user = await db.User.scope('withAuth').findOne({ where: { email: normalizedEmail } });
   if (!user) throw new HttpError(401, 'Invalid credentials');
   if (user.isBlocked) throw new HttpError(403, 'User is blocked');
+  if (user.role === db.USER_ROLES.USER) {
+    await ensureUserIsNotLocked(user);
+  }
 
   if (!user.emailVerifiedAt) {
     throw new HttpError(403, 'Please verify your email before logging in', {

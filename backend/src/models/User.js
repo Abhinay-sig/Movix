@@ -43,6 +43,9 @@ function defineUser(sequelize) {
       movixCoinsBalance: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
       movixCoinsEarnedTotal: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
       movixCoinsRedeemedTotal: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+      paymentAbandonCount: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+      paymentCheckoutStartedAt: { type: DataTypes.DATE, allowNull: true },
+      appLockoutUntil: { type: DataTypes.DATE, allowNull: true },
       isBlocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     },
     {

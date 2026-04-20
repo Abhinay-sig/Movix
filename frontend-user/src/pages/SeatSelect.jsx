@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import {
@@ -10,6 +10,7 @@ import { formatDateTimeTo12Hour } from '../lib/time'
 import { useAuth } from '../useAuth'
 import { buildVisibleSeatRows } from '../lib/seatLayout'
 import { useNotification } from '../NotificationProvider'
+import { createSeatRealtimeClient } from '../lib/seatRealtime'
 
 const MAX_SELECTABLE_SEATS = 10
 
@@ -86,15 +87,35 @@ export default function SeatSelect() {
   const [conflictNote, setConflictNote] = useState('')
   const [loadingHold, setLoadingHold] = useState(false)
   const [useMovixCoins, setUseMovixCoins] = useState(false)
+  const refreshInFlightRef = useRef(null)
+  const refreshQueuedRef = useRef(false)
 
   const refreshSeatMap = useCallback(
     async (keepError = false) => {
-      const response = await api(`/public/shows/${showId}/seatmap`, {
-        headers: { 'x-seat-session': seatSessionToken },
-      })
-      setData(response)
-      if (!keepError) setErr('')
-      return response
+      if (refreshInFlightRef.current) {
+        refreshQueuedRef.current = true
+        return refreshInFlightRef.current
+      }
+
+      const runRefresh = async () => {
+        try {
+          const response = await api(`/public/shows/${showId}/seatmap`, {
+            headers: { 'x-seat-session': seatSessionToken },
+          })
+          setData(response)
+          if (!keepError) setErr('')
+          return response
+        } finally {
+          refreshInFlightRef.current = null
+          if (refreshQueuedRef.current) {
+            refreshQueuedRef.current = false
+            refreshSeatMap(true).catch(() => {})
+          }
+        }
+      }
+
+      refreshInFlightRef.current = runRefresh()
+      return refreshInFlightRef.current
     },
     [seatSessionToken, showId]
   )
@@ -149,12 +170,15 @@ export default function SeatSelect() {
   useEffect(() => {
     let alive = true
 
-    const id = window.setInterval(() => {
-      if (!alive) return
-      refreshSeatMap(true).catch((e) => {
-        if (alive) setErr(e.message)
-      })
-    }, 2000)
+    const realtime = createSeatRealtimeClient({
+      showId,
+      onSeatMapChanged: () => {
+        if (!alive) return
+        refreshSeatMap(true).catch((e) => {
+          if (alive) setErr(e.message)
+        })
+      },
+    })
 
     function syncVisibleSeatMap() {
       if (!alive || document.visibilityState !== 'visible') return
@@ -163,12 +187,13 @@ export default function SeatSelect() {
       })
     }
 
+    realtime.socket.on('connect', syncVisibleSeatMap)
     window.addEventListener('focus', syncVisibleSeatMap)
     document.addEventListener('visibilitychange', syncVisibleSeatMap)
 
     return () => {
       alive = false
-      window.clearInterval(id)
+      realtime.disconnect()
       window.removeEventListener('focus', syncVisibleSeatMap)
       document.removeEventListener('visibilitychange', syncVisibleSeatMap)
     }

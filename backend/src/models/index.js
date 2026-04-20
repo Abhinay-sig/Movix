@@ -320,6 +320,28 @@ async function ensureUserSchema() {
     });
   }
 
+  if (!table.payment_abandon_count) {
+    await queryInterface.addColumn('users', 'payment_abandon_count', {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+
+  if (!table.payment_checkout_started_at) {
+    await queryInterface.addColumn('users', 'payment_checkout_started_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+  }
+
+  if (!table.app_lockout_until) {
+    await queryInterface.addColumn('users', 'app_lockout_until', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+  }
+
   if (!table.is_blocked) {
     await queryInterface.addColumn('users', 'is_blocked', {
       type: DataTypes.BOOLEAN,

@@ -1,6 +1,7 @@
+const path = require('path');
 const dotenv = require('dotenv');
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 function must(name, fallback) {
   const v = process.env[name] ?? fallback;
@@ -14,7 +15,7 @@ const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3001),
   app: {
-    backendBaseUrl: process.env.BACKEND_BASE_URL ?? `http://localhost:${Number(process.env.PORT ?? 3001)}`,
+    backendBaseUrl: process.env.BACKEND_BASE_URL ?? `http://localhost:${port}`,
     userAppUrl: process.env.USER_APP_URL ?? 'http://localhost:5173',
     staffAppUrl: process.env.STAFF_APP_URL ?? 'http://localhost:5174',
   },
@@ -41,6 +42,7 @@ const env = {
     verificationExpiresMs: Number(process.env.EMAIL_VERIFICATION_EXPIRES_MS ?? 120000),
     passwordResetExpiresMs: Number(process.env.PASSWORD_RESET_EXPIRES_MS ?? 300000),
     paymentOtpExpiresMs: Number(process.env.PAYMENT_OTP_EXPIRES_MS ?? 300000),
+    paymentAbandonLockoutMs: Number(process.env.PAYMENT_ABANDON_LOCKOUT_MS ?? 300000),
   },
 
   smtp: {
